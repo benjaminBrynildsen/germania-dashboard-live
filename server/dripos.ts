@@ -432,13 +432,17 @@ export async function loginComplete(args: {
   code: string;
   phone?: string;
 }): Promise<{ token: string }> {
+  // CLIENT.NAME is case-sensitive — Dripos's own bundle sends the
+  // uppercase form, and the resulting token is fully scoped for
+  // /dashboard/sales + /report/*. Lowercase (which we sent before)
+  // returned a token whose calls all came back INSUFFICIENT_PERMISSIONS.
   const body = await callApi<unknown>('/login/complete', {
     method: 'POST',
     body: {
-      TOKEN: args.code,
+      TOKEN: args.code.replaceAll(' ', ''),
       UNIQUE: args.unique,
       CLIENT: {
-        NAME: 'dashboard.dripos.com',
+        NAME: 'DASHBOARD.DRIPOS.COM',
         INFO: 'Website',
         TYPE: 2,
       },

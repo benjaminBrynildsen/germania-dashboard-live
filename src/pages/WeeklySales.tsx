@@ -180,11 +180,6 @@ function LoginModal({ onClose }: { onClose: () => void }) {
             <button type="submit" style={primaryBtn} disabled={loading || !phone.trim()}>
               {loading ? 'Sending…' : 'Send code'}
             </button>
-            <button
-              type="button" style={secondaryBtn}
-              onClick={() => { setStep('paste'); setError(null); }}
-              disabled={loading}
-            >Use a manual token instead →</button>
           </form>
         )}
         {step === 'code' && (
