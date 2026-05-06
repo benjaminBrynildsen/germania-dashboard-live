@@ -79,12 +79,33 @@ function pctColor(p: number | null | undefined) {
 
 // ── Login modal ──────────────────────────────────────────────────────────
 function LoginModal({ onClose }: { onClose: () => void }) {
-  const [step, setStep] = useState<'phone' | 'code'>('phone');
+  const [step, setStep] = useState<'phone' | 'code' | 'paste'>('phone');
   const [phone, setPhone] = useState('');
   const [unique, setUnique] = useState('');
   const [code, setCode] = useState('');
+  const [pasteToken, setPasteToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const submitPaste = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await fetch('/api/dripos/set-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: pasteToken.trim() }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.message || j.error || 'Token rejected');
+      onClose();
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const submitPhone = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,16 +158,18 @@ function LoginModal({ onClose }: { onClose: () => void }) {
         boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
       }}>
         <div style={{ fontSize: 11, color: '#888', letterSpacing: 1, textTransform: 'uppercase' }}>
-          Step {step === 'code' ? '2' : '1'} of 2
+          {step === 'paste' ? 'Manual token' : `Step ${step === 'code' ? '2' : '1'} of 2`}
         </div>
         <h2 style={{ margin: '4px 0 6px', fontSize: 20 }}>Sign in to Dripos</h2>
         <p style={{ margin: '0 0 20px', color: '#666', fontSize: 13, lineHeight: 1.4 }}>
-          {step === 'code'
-            ? 'Enter the 6-digit code we just texted you.'
-            : 'Enter the phone number associated with your Dripos account. We\'ll send a one-time code by SMS.'}
+          {step === 'code' && 'Enter the 6-digit code we just texted you.'}
+          {step === 'phone' && 'Enter the phone number associated with your Dripos account. We\'ll send a one-time code by SMS.'}
+          {step === 'paste' && (
+            <>Paste the <code>authentication</code> header value from a logged-in <code>dashboard.dripos.com</code> tab (DevTools → Network → any <code>api.dripos.com</code> call → Headers).</>
+          )}
         </p>
 
-        {step === 'phone' ? (
+        {step === 'phone' && (
           <form onSubmit={submitPhone}>
             <label style={labelStyle}>Phone number</label>
             <input
@@ -157,8 +180,14 @@ function LoginModal({ onClose }: { onClose: () => void }) {
             <button type="submit" style={primaryBtn} disabled={loading || !phone.trim()}>
               {loading ? 'Sending…' : 'Send code'}
             </button>
+            <button
+              type="button" style={secondaryBtn}
+              onClick={() => { setStep('paste'); setError(null); }}
+              disabled={loading}
+            >Use a manual token instead →</button>
           </form>
-        ) : (
+        )}
+        {step === 'code' && (
           <form onSubmit={submitCode}>
             <label style={labelStyle}>Verification code</label>
             <input
@@ -175,6 +204,25 @@ function LoginModal({ onClose }: { onClose: () => void }) {
               onClick={() => { setStep('phone'); setCode(''); setError(null); }}
               disabled={loading}
             >← Back to phone entry</button>
+          </form>
+        )}
+        {step === 'paste' && (
+          <form onSubmit={submitPaste}>
+            <label style={labelStyle}>Session token</label>
+            <input
+              type="text" autoFocus required style={inputStyle}
+              value={pasteToken} onChange={(e) => setPasteToken(e.target.value)}
+              placeholder="qbR8Y8YaAtmQOEHapaOLSizR1xM4zxdX"
+              disabled={loading}
+            />
+            <button type="submit" style={primaryBtn} disabled={loading || pasteToken.trim().length < 10}>
+              {loading ? 'Saving…' : 'Save token'}
+            </button>
+            <button
+              type="button" style={secondaryBtn}
+              onClick={() => { setStep('phone'); setPasteToken(''); setError(null); }}
+              disabled={loading}
+            >← Back to SMS sign-in</button>
           </form>
         )}
 

@@ -18,7 +18,18 @@ export const STORES: Array<{ label: string; locationId: number }> = [
 export const BAKE_HAUS_CATEGORY = 'BAKE HAUS FOOD';
 
 // Dripos signals auth failures with HTTP 200 + success:false + error:SESSION_INVALID.
-const AUTH_ERRORS = new Set(['SESSION_INVALID', 'AUTH_INVALID', 'TOKEN_EXPIRED', 'FORBIDDEN']);
+// Errors that mean "the stored token is no good for this call" — surfacing
+// these as AuthExpired makes the UI prompt for re-login instead of rendering
+// silent zeros. INSUFFICIENT_PERMISSIONS specifically fires when an SMS-login
+// token tries to read /dashboard/sales: that scope only opens for tokens
+// minted by the dashboard.dripos.com browser session.
+const AUTH_ERRORS = new Set([
+  'SESSION_INVALID',
+  'AUTH_INVALID',
+  'TOKEN_EXPIRED',
+  'FORBIDDEN',
+  'INSUFFICIENT_PERMISSIONS',
+]);
 
 export class AuthExpired extends Error {
   constructor(reason: string) {
@@ -217,18 +228,7 @@ export async function fetchDashboardSales(
     locationId,
     query: { DATE_START: start, DATE_END: end },
   });
-  const data = (body.data ?? {}) as DashboardSalesData;
-  // TEMP: unconditional one-line debug to trace prod-zero issue. Removed
-  // once we identify whether Dripos returns empty STATS or our extraction
-  // misses the values.
-  const stats = data.STATS ?? {};
-  const b = body as { success?: boolean; message?: string; error?: unknown; code?: number };
-  console.log(
-    `[dripos:dashboard/sales] loc=${locationId} ${new Date(start).toISOString().slice(0,10)}..${new Date(end).toISOString().slice(0,10)} ` +
-    `success=${b.success} code=${b.code ?? ''} error=${JSON.stringify(b.error)?.slice(0, 80)} message=${(b.message ?? '').slice(0, 80)} ` +
-    `gross=${stats.GROSS_SALES ?? '∅'}`,
-  );
-  return data;
+  return (body.data ?? {}) as DashboardSalesData;
 }
 
 interface DriposProduct {

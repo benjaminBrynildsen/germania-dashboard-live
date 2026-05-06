@@ -14,6 +14,7 @@ import {
   loginInitiate,
   readToken,
   syncDailySales,
+  writeToken,
 } from './dripos.js';
 
 const router = Router();
@@ -77,6 +78,21 @@ router.post('/dripos/login/complete', requireAuth, async (req: AuthRequest, res:
       message: err instanceof Error ? err.message : String(err),
     });
   }
+});
+
+// Fallback for SMS-login tokens that come back with INSUFFICIENT_PERMISSIONS
+// (Dripos limits phone-login token scope; only dashboard browser tokens can
+// hit /dashboard/sales + /report/*). User pastes the `authentication`
+// header from a logged-in dashboard.dripos.com DevTools call.
+router.post('/dripos/set-token', requireAuth, (req: AuthRequest, res: Response) => {
+  const token = (req.body?.token ?? '').toString().trim();
+  if (!token || token.length < 10) {
+    res.status(400).json({ error: 'token_required' });
+    return;
+  }
+  writeToken(token, null);
+  clearWeeklyCache();
+  res.json({ ok: true });
 });
 
 router.post('/dripos/logout', requireAuth, (_req: AuthRequest, res: Response) => {
