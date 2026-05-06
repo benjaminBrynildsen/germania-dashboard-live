@@ -6,14 +6,22 @@ import db from './db.js';
 
 const BASE_URL = 'https://api.dripos.com';
 
-// G1-G4 → numeric Dripos LOCATION_IDs. (Loc 1082 is a separate site that
-// doesn't appear in the weekly G1-G4 report, so we exclude it here.)
-export const STORES: Array<{ label: string; locationId: number }> = [
-  { label: 'G1', locationId: 131 },
-  { label: 'G2', locationId: 132 },
-  { label: 'G3', locationId: 133 },
-  { label: 'G4', locationId: 134 },
+// G1-G4 → numeric Dripos LOCATION_IDs + the loc_ UNIQUE_IDs. (Loc 1082 is a
+// separate site that doesn't appear in the weekly G1-G4 report, so we
+// exclude it here.) The location HEADER must use the UNIQUE_ID (loc_xxx)
+// form for SMS-login tokens — numeric works for browser-session tokens but
+// returns INSUFFICIENT_PERMISSIONS for SMS-login tokens. The numeric ID
+// still goes in request bodies (LOCATION_ID_ARRAY etc.).
+export const STORES: Array<{ label: string; locationId: number; uniqueId: string }> = [
+  { label: 'G1', locationId: 131, uniqueId: 'loc_b4nrdvOjLT8cfE63X7m6QRsP' },
+  { label: 'G2', locationId: 132, uniqueId: 'loc_2FqRNPdfcLEg521EOOFCgetj' },
+  { label: 'G3', locationId: 133, uniqueId: 'loc_zWkTy2JGaXcBRWc5miKaKUjC' },
+  { label: 'G4', locationId: 134, uniqueId: 'loc_62xj8uJ7xZHQ4yCTQjRU2ZWB' },
 ];
+
+const UNIQUE_BY_LOCATION_ID: Record<number, string> = Object.fromEntries(
+  STORES.map((s) => [s.locationId, s.uniqueId]),
+);
 
 export const BAKE_HAUS_CATEGORY = 'BAKE HAUS FOOD';
 
@@ -98,7 +106,12 @@ async function callApi<T = unknown>(path: string, opts: ApiOptions = {}): Promis
   }
 
   if (opts.locationId !== undefined) {
-    headers.location = String(opts.locationId);
+    // Prefer the UNIQUE_ID (loc_xxx) form for the location header — that's
+    // what dashboard.dripos.com sends, and SMS-login tokens reject the
+    // bare numeric form with INSUFFICIENT_PERMISSIONS.
+    const numeric = typeof opts.locationId === 'number' ? opts.locationId : Number(opts.locationId);
+    const uniq = !Number.isNaN(numeric) ? UNIQUE_BY_LOCATION_ID[numeric] : undefined;
+    headers.location = uniq ?? String(opts.locationId);
   }
 
   if (opts.body !== undefined) {
