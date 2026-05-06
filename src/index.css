@@ -126,11 +126,15 @@ input, select, textarea {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 12px;
   padding: 10px 14px;
-  font-size: 14px;
+  /* 16px on touch screens to suppress iOS focus auto-zoom. */
+  font-size: 16px;
   width: 100%;
   outline: none;
   backdrop-filter: blur(10px);
   transition: border-color 0.2s, box-shadow 0.2s;
+}
+@media (pointer: fine) {
+  input, select, textarea { font-size: 14px; }
 }
 
 input:focus, select:focus, textarea:focus {

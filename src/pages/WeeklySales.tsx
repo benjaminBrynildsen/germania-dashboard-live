@@ -536,7 +536,7 @@ export default function WeeklySales() {
           {/* Per-store + Platform mix side by side on desktop */}
           <div style={{ display: 'grid', gap: 16, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
             <Card title="Per-store week-over-week">
-              <table className="dripos-table">
+              <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
                   <tr><th>Store</th><th>Sales</th><th>vs prev</th><th>vs LY</th></tr>
                 </thead>
@@ -558,11 +558,11 @@ export default function WeeklySales() {
                     <td style={{ color: pctColor(data.totals.yoyPct) }}>{fmtPct(data.totals.yoyPct)}</td>
                   </tr>
                 </tfoot>
-              </table>
+              </table></div>
             </Card>
 
             <Card title="Platform mix · % of tickets" subtitle="Share of each store's tickets that came through each platform. Hover a cell for the raw count.">
-              <table className="dripos-table">
+              <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
                   <tr><th>Store</th><th>Mobile</th><th>Web</th><th>3rd</th><th>POS</th><th>Tickets</th></tr>
                 </thead>
@@ -618,7 +618,7 @@ export default function WeeklySales() {
                     })()}
                   </tr>
                 </tfoot>
-              </table>
+              </table></div>
             </Card>
           </div>
 
@@ -626,7 +626,7 @@ export default function WeeklySales() {
             {data.bakeHausItemSales.length === 0 ? (
               <Stub>No Bake Haus sales recorded this week.</Stub>
             ) : (
-              <table className="dripos-table">
+              <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left' }}>Item</th>
@@ -656,7 +656,7 @@ export default function WeeklySales() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </Card>
 
@@ -664,7 +664,7 @@ export default function WeeklySales() {
             {data.topDrinks.length === 0 ? (
               <Stub>No drink sales recorded this week.</Stub>
             ) : (
-              <table className="dripos-table">
+              <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left' }}>#</th>
@@ -694,7 +694,7 @@ export default function WeeklySales() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </Card>
 
@@ -702,7 +702,7 @@ export default function WeeklySales() {
             {data.laborByStore.length === 0 ? (
               <Stub>Labor data unavailable.</Stub>
             ) : (
-              <table className="dripos-table">
+              <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left' }}>Store</th>
@@ -740,7 +740,7 @@ export default function WeeklySales() {
                     </td>
                   </tr>
                 </tfoot>
-              </table>
+              </table></div>
             )}
           </Card>
         </div>
@@ -749,10 +749,16 @@ export default function WeeklySales() {
       {showLogin && <LoginModal onClose={onLoginClose} />}
 
       <style>{`
+        .dripos-scroll {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          margin: 0 -8px;
+        }
         .dripos-table {
           width: 100%;
           border-collapse: collapse;
           font-variant-numeric: tabular-nums;
+          min-width: 480px;
         }
         .dripos-table th, .dripos-table td {
           padding: 8px 10px;
