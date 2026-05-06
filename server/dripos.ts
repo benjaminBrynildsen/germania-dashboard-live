@@ -388,15 +388,21 @@ export async function fetchInventory(locationId: number): Promise<DriposProduct[
 
 // ── Login flow ────────────────────────────────────────────────────────────
 export async function loginInitiate(phone: string): Promise<{ unique: string }> {
-  const body = await callApi<{ UNIQUE?: string }>('/login/initiate', {
+  const body = await callApi<unknown>('/login/initiate', {
     method: 'POST',
     body: { PHONE: phone },
     noAuth: true,
   });
-  // Some versions wrap UNIQUE in `data`, some return it at the root.
-  type LoginInitiateBody = DriposResponse<{ UNIQUE?: string }> & { UNIQUE?: string };
+  // Dripos has shipped three shapes for this response over time:
+  //   { UNIQUE: "..." }            — flat
+  //   { data: { UNIQUE: "..." } }  — wrapped object
+  //   { data: "..." }              — plain string (current as of 2026-05)
+  type LoginInitiateBody = DriposResponse<string | { UNIQUE?: string }> & { UNIQUE?: string };
   const direct = body as LoginInitiateBody;
-  const unique = direct.UNIQUE ?? direct.data?.UNIQUE ?? null;
+  const unique =
+    typeof direct.data === 'string'
+      ? direct.data
+      : direct.UNIQUE ?? direct.data?.UNIQUE ?? null;
   if (!unique) {
     let err: string | undefined;
     if (typeof body.message === 'string') err = body.message;
@@ -416,7 +422,7 @@ export async function loginComplete(args: {
   code: string;
   phone?: string;
 }): Promise<{ token: string }> {
-  const body = await callApi<{ AUTH?: string; token?: string }>('/login/complete', {
+  const body = await callApi<unknown>('/login/complete', {
     method: 'POST',
     body: {
       TOKEN: args.code,
@@ -429,13 +435,17 @@ export async function loginComplete(args: {
     },
     noAuth: true,
   });
-  // Token may live at root or nested under data.
-  type LoginCompleteBody = DriposResponse<{ AUTH?: string; token?: string }> & {
+  // Token may live at root, nested under data, or be data itself (matches the
+  // /login/initiate string-form response shape Dripos rolled out in 2026-05).
+  type LoginCompleteBody = DriposResponse<string | { AUTH?: string; token?: string }> & {
     AUTH?: string;
     token?: string;
   };
   const direct = body as LoginCompleteBody;
-  const token = direct.AUTH ?? direct.token ?? direct.data?.AUTH ?? direct.data?.token;
+  const token =
+    direct.AUTH ??
+    direct.token ??
+    (typeof direct.data === 'string' ? direct.data : direct.data?.AUTH ?? direct.data?.token);
   if (!token) {
     throw new Error(typeof body.message === 'string' ? body.message : 'No AUTH token returned');
   }
