@@ -140,6 +140,17 @@ function LoginModal({ onClose }: { onClose: () => void }) {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.message || j.error || 'Code rejected');
+      // Sanity-check: confirm the new token actually opens /dripos/report
+      // before closing. If the report still 401s, surface that here instead
+      // of silently popping the modal back to step 1.
+      const probe = await fetch('/api/dripos/report');
+      if (probe.status === 401) {
+        const pj = await probe.json().catch(() => ({}));
+        throw new Error(
+          pj.message ||
+          'Code accepted, but the new token can\'t read sales reports. Try again — if it keeps failing, contact Ben.'
+        );
+      }
       onClose();
     } catch (err: any) {
       setError(err.message || String(err));

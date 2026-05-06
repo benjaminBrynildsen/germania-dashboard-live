@@ -460,6 +460,11 @@ export async function loginComplete(args: {
     direct.AUTH ??
     direct.token ??
     (typeof direct.data === 'string' ? direct.data : direct.data?.AUTH ?? direct.data?.token);
+  console.log(
+    `[dripos:login/complete] success=${(body as { success?: boolean }).success} ` +
+    `data_type=${typeof direct.data} data_keys=${typeof direct.data === 'object' && direct.data ? Object.keys(direct.data).join(',') : '∅'} ` +
+    `token_extracted=${token ? `len=${token.length}` : 'null'}`,
+  );
   if (!token) {
     throw new Error(typeof body.message === 'string' ? body.message : 'No AUTH token returned');
   }
