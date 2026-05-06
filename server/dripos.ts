@@ -211,14 +211,23 @@ export async function fetchDashboardSales(
   sun: Date,
   sat: Date,
 ): Promise<DashboardSalesData> {
+  const start = startOfDayMs(sun);
+  const end = endOfDayMs(sat);
   const body = await callApi<DashboardSalesData>('/dashboard/sales', {
     locationId,
-    query: {
-      DATE_START: startOfDayMs(sun),
-      DATE_END: endOfDayMs(sat),
-    },
+    query: { DATE_START: start, DATE_END: end },
   });
-  return (body.data ?? {}) as DashboardSalesData;
+  const data = (body.data ?? {}) as DashboardSalesData;
+  if (process.env.DRIPOS_DEBUG === '1') {
+    const stats = data.STATS ?? {};
+    console.log(
+      `[dripos:dashboard/sales] loc=${locationId} ${new Date(start).toISOString().slice(0,10)}..${new Date(end).toISOString().slice(0,10)} ` +
+      `success=${(body as { success?: boolean }).success} ` +
+      `gross=${stats.GROSS_SALES ?? '∅'} tickets=${stats.TICKET_COUNT ?? '∅'} ` +
+      `body_keys=${Object.keys((body as object) ?? {}).join(',')}`,
+    );
+  }
+  return data;
 }
 
 interface DriposProduct {

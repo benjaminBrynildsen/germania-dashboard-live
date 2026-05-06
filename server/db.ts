@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import fs from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -184,6 +185,14 @@ db.exec(`
   );
   INSERT OR IGNORE INTO dripos_settings (id) VALUES (1);
 `);
+
+// Apply additional schema (sales_daily, weather_daily, closure_decisions)
+// kept in a separate .sql file. Used by Sales Anomaly + Weather Closure tabs;
+// missing on a fresh prod DB without this exec.
+const extPath = path.join(__dirname, 'db-schema-extension.sql');
+if (fs.existsSync(extPath)) {
+  db.exec(fs.readFileSync(extPath, 'utf8'));
+}
 
 // Seed locations if empty
 const locCount = (db.prepare('SELECT COUNT(*) as c FROM locations').get() as any).c;

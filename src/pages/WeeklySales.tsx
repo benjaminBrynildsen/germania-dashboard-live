@@ -420,35 +420,64 @@ export default function WeeklySales() {
     <div>
       {/* Header strip */}
       <div style={{
-        display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap',
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'stretch' : 'baseline',
+        gap: isMobile ? 6 : 16,
+        flexWrap: 'wrap',
         marginBottom: 20,
       }}>
-        <h1 style={{ margin: 0, fontSize: isMobile ? 22 : 26, fontWeight: 700 }}>Weekly Sales</h1>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+          <h1 style={{ margin: 0, fontSize: isMobile ? 22 : 26, fontWeight: 700 }}>Weekly Sales</h1>
+          {data && (
+            <span style={{ fontSize: 13, color: '#888' }}>
+              Week {data.currentWeek.weekNum} · {data.currentWeek.label}
+            </span>
+          )}
+        </div>
         {data && (
           <>
-            <span style={{ fontSize: 13, color: '#888' }}>
-              Week {data.currentWeek.weekNum}, {data.currentWeek.year} · {data.currentWeek.label}
-            </span>
-            <span style={{ fontSize: 12, color: '#bbb', marginLeft: 'auto' }}>
-              Updated {new Date(data.generatedAt).toLocaleString()}
-            </span>
-            <button
-              className="btn btn-secondary btn-sm no-print"
-              onClick={() => fetchReport(true)}
-              disabled={refreshing}
-            >{refreshing ? 'Refreshing…' : 'Refresh'}</button>
-            <button
-              className="btn btn-secondary btn-sm no-print"
-              onClick={onSync}
-              disabled={syncing}
-              title="Pulls the last 60 days of daily sales into germania.db so the Locations + Sales Anomaly tabs have data."
-            >{syncing ? 'Syncing…' : 'Sync 60d'}</button>
-            <button
-              className="btn btn-secondary btn-sm no-print"
-              onClick={() => window.print()}
-              title="Print or save as PDF (use the browser's print dialog → 'Save as PDF')."
-            >Download PDF</button>
-            <button className="btn btn-secondary btn-sm no-print" onClick={onLogout}>Sign out</button>
+            {!isMobile && (
+              <span style={{ fontSize: 12, color: '#bbb', marginLeft: 'auto' }}>
+                Updated {new Date(data.generatedAt).toLocaleString()}
+              </span>
+            )}
+            <div style={{
+              display: 'flex',
+              gap: 8,
+              flexWrap: 'wrap',
+              marginLeft: isMobile ? 0 : undefined,
+            }}>
+              <button
+                className="btn btn-secondary btn-sm no-print"
+                onClick={() => fetchReport(true)}
+                disabled={refreshing}
+                style={isMobile ? { flex: 1 } : undefined}
+              >{refreshing ? 'Refreshing…' : 'Refresh'}</button>
+              <button
+                className="btn btn-secondary btn-sm no-print"
+                onClick={onSync}
+                disabled={syncing}
+                title="Pulls the last 60 days of daily sales into germania.db so the Locations + Sales Anomaly tabs have data."
+                style={isMobile ? { flex: 1 } : undefined}
+              >{syncing ? 'Syncing…' : 'Sync 60d'}</button>
+              <button
+                className="btn btn-secondary btn-sm no-print"
+                onClick={() => window.print()}
+                title="Print or save as PDF (use the browser's print dialog → 'Save as PDF')."
+                style={isMobile ? { flex: 1 } : undefined}
+              >PDF</button>
+              <button
+                className="btn btn-secondary btn-sm no-print"
+                onClick={onLogout}
+                style={isMobile ? { flex: 1 } : undefined}
+              >Sign out</button>
+            </div>
+            {isMobile && (
+              <span style={{ fontSize: 11, color: '#bbb' }}>
+                Updated {new Date(data.generatedAt).toLocaleString()}
+              </span>
+            )}
           </>
         )}
       </div>
