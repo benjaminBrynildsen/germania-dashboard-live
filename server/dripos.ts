@@ -218,15 +218,16 @@ export async function fetchDashboardSales(
     query: { DATE_START: start, DATE_END: end },
   });
   const data = (body.data ?? {}) as DashboardSalesData;
-  if (process.env.DRIPOS_DEBUG === '1') {
-    const stats = data.STATS ?? {};
-    console.log(
-      `[dripos:dashboard/sales] loc=${locationId} ${new Date(start).toISOString().slice(0,10)}..${new Date(end).toISOString().slice(0,10)} ` +
-      `success=${(body as { success?: boolean }).success} ` +
-      `gross=${stats.GROSS_SALES ?? '∅'} tickets=${stats.TICKET_COUNT ?? '∅'} ` +
-      `body_keys=${Object.keys((body as object) ?? {}).join(',')}`,
-    );
-  }
+  // TEMP: unconditional one-line debug to trace prod-zero issue. Removed
+  // once we identify whether Dripos returns empty STATS or our extraction
+  // misses the values.
+  const stats = data.STATS ?? {};
+  console.log(
+    `[dripos:dashboard/sales] loc=${locationId} ${new Date(start).toISOString().slice(0,10)}..${new Date(end).toISOString().slice(0,10)} ` +
+    `success=${(body as { success?: boolean }).success} ` +
+    `gross=${stats.GROSS_SALES ?? '∅'} tickets=${stats.TICKET_COUNT ?? '∅'} ` +
+    `body_keys=${Object.keys((body as object) ?? {}).join(',')}`,
+  );
   return data;
 }
 

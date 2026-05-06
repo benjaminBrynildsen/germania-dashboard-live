@@ -31,6 +31,7 @@ if (process.env.NODE_ENV === 'production') {
 
 app.listen(PORT, () => {
   console.log(`Germania Dashboard API running on http://localhost:${PORT}`);
+  console.log(`[boot] DRIPOS_DEBUG=${process.env.DRIPOS_DEBUG ?? '(unset)'} NODE_ENV=${process.env.NODE_ENV ?? '(unset)'}`);
   startReviewSync();
 
   // Daily Dripos sales sync — runs once on boot (after a short delay so the
