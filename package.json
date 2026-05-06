@@ -1,0 +1,42 @@
+{
+  "name": "germania-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"vite --port 1929\" \"node --import tsx server/index.ts\"",
+    "dev:frontend": "vite --port 1929",
+    "dev:server": "node --import tsx server/index.ts",
+    "build": "vite build",
+    "start": "NODE_ENV=production node --import tsx server/index.ts"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@google-cloud/local-auth": "^3.0.1",
+    "better-sqlite3": "^11.7.0",
+    "concurrently": "^9.2.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.4",
+    "express": "^5.2.1",
+    "google-auth-library": "^9.15.1",
+    "googleapis": "^144.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.563.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.6.1",
+    "tsx": "^4.19.4"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/express": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "typescript": "^5.8.3",
+    "vite": "^7.2.4"
+  }
+}

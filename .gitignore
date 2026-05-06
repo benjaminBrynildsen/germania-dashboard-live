@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+
+# SQLite (created at runtime; in prod lives on persistent disk)
+*.db
+*.db-shm
+*.db-wal
+
+# OS / editor
+.DS_Store
+*.log
+
+# Misc
+.cache/
+.tmp/
