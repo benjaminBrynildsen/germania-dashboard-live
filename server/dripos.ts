@@ -222,11 +222,11 @@ export async function fetchDashboardSales(
   // once we identify whether Dripos returns empty STATS or our extraction
   // misses the values.
   const stats = data.STATS ?? {};
+  const b = body as { success?: boolean; message?: string; error?: unknown; code?: number };
   console.log(
     `[dripos:dashboard/sales] loc=${locationId} ${new Date(start).toISOString().slice(0,10)}..${new Date(end).toISOString().slice(0,10)} ` +
-    `success=${(body as { success?: boolean }).success} ` +
-    `gross=${stats.GROSS_SALES ?? '∅'} tickets=${stats.TICKET_COUNT ?? '∅'} ` +
-    `body_keys=${Object.keys((body as object) ?? {}).join(',')}`,
+    `success=${b.success} code=${b.code ?? ''} error=${JSON.stringify(b.error)?.slice(0, 80)} message=${(b.message ?? '').slice(0, 80)} ` +
+    `gross=${stats.GROSS_SALES ?? '∅'}`,
   );
   return data;
 }
