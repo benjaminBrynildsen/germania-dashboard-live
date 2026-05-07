@@ -27,8 +27,14 @@ router.get('/dripos/status', requireAuth, (_req: AuthRequest, res: Response) => 
   });
 });
 
-router.get('/dripos/report', requireAuth, async (_req: AuthRequest, res: Response) => {
+router.get('/dripos/report', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
+    if (req.query.force === '1') {
+      // Clear only entries that could include current-week data; past-week
+      // entries (expires_at NULL) stay so we don't re-pull immutable data.
+      const { default: db } = await import('./db.js');
+      db.prepare('DELETE FROM dripos_cache WHERE expires_at IS NOT NULL').run();
+    }
     const report = await buildReport();
     res.json({ ok: true, report });
   } catch (err) {

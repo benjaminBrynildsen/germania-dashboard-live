@@ -44,3 +44,13 @@ CREATE INDEX IF NOT EXISTS idx_sales_daily_date ON sales_daily(date);
 CREATE INDEX IF NOT EXISTS idx_sales_daily_location ON sales_daily(location_id);
 CREATE INDEX IF NOT EXISTS idx_weather_daily_date ON weather_daily(date);
 CREATE INDEX IF NOT EXISTS idx_closure_decisions_date ON closure_decisions(date);
+
+-- Generic cache for Dripos API responses. Past-week date ranges live forever
+-- (expires_at IS NULL); current-week ranges TTL out after a few minutes.
+CREATE TABLE IF NOT EXISTS dripos_cache (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_dripos_cache_expires ON dripos_cache(expires_at);

@@ -54,13 +54,14 @@ export class NoToken extends Error {
 }
 
 export function readToken(): string | null {
+  // Env-var override beats the DB. DRIPOS_TOKEN holds a dashboard-scoped
+  // token; SMS-login tokens lack /report/* permissions, so the env var
+  // is the source of truth in prod.
   const override = process.env.DRIPOS_TOKEN?.trim();
-  console.log(`[readToken] env_override=${override ? 'len=' + override.length : 'none'}`);
   if (override) return override;
   const row = db.prepare('SELECT session_token FROM dripos_settings WHERE id = 1').get() as
     | { session_token: string | null }
     | undefined;
-  console.log(`[readToken] db_token=${row?.session_token ? 'len=' + row.session_token.length : 'none'}`);
   return row?.session_token ?? null;
 }
 
@@ -147,12 +148,6 @@ async function callApi<T = unknown>(path: string, opts: ApiOptions = {}): Promis
   }
 
   if (body && body.success === false) {
-    console.log(
-      `[callApi] ${path} success=false code=${(body as { code?: number }).code} ` +
-      `error=${JSON.stringify(body.error)?.slice(0, 80)} ` +
-      `message=${(body.message ?? '').slice(0, 80)} ` +
-      `loc_header=${headers.location ?? '∅'} tok_len=${headers.authentication?.length ?? 0}`,
-    );
     if (typeof body.error === 'string' && AUTH_ERRORS.has(body.error)) {
       throw new AuthExpired(body.error);
     }
@@ -226,6 +221,39 @@ function fmtRange(sun: Date, sat: Date): string {
   return `${m(sun)}–${m(sat)}, ${sat.getFullYear()}`;
 }
 
+// ── Cache layer ───────────────────────────────────────────────────────────
+// Past-week date ranges never change → cache forever. Current week (range end
+// is in the future or today) → 5-minute TTL so refreshes feel live without
+// hammering Dripos.
+const CACHE_CURRENT_WEEK_TTL_MS = 5 * 60 * 1000;
+
+async function cached<T>(
+  key: string,
+  rangeEndMs: number,
+  fetcher: () => Promise<T>,
+): Promise<T> {
+  const now = Date.now();
+  const row = db
+    .prepare('SELECT value, expires_at FROM dripos_cache WHERE key = ?')
+    .get(key) as { value: string; expires_at: number | null } | undefined;
+  if (row && (row.expires_at == null || row.expires_at > now)) {
+    try { return JSON.parse(row.value) as T; } catch { /* fallthrough to refetch */ }
+  }
+  const fresh = await fetcher();
+  // Range ends before today's start → past data, cache forever. Else short TTL.
+  const todayStart = startOfDayMs(new Date());
+  const expires = rangeEndMs < todayStart ? null : now + CACHE_CURRENT_WEEK_TTL_MS;
+  db.prepare(
+    'INSERT INTO dripos_cache (key, value, created_at, expires_at) VALUES (?, ?, ?, ?) ' +
+    'ON CONFLICT(key) DO UPDATE SET value = excluded.value, created_at = excluded.created_at, expires_at = excluded.expires_at',
+  ).run(key, JSON.stringify(fresh), now, expires);
+  return fresh;
+}
+
+export function clearDriposCache(): void {
+  db.prepare('DELETE FROM dripos_cache').run();
+}
+
 // ── Endpoint helpers ──────────────────────────────────────────────────────
 interface DashboardSalesData {
   STATS?: {
@@ -247,11 +275,17 @@ export async function fetchDashboardSales(
 ): Promise<DashboardSalesData> {
   const start = startOfDayMs(sun);
   const end = endOfDayMs(sat);
-  const body = await callApi<DashboardSalesData>('/dashboard/sales', {
-    locationId,
-    query: { DATE_START: start, DATE_END: end },
-  });
-  return (body.data ?? {}) as DashboardSalesData;
+  return cached(
+    `dashboard/sales|${locationId}|${start}|${end}`,
+    end,
+    async () => {
+      const body = await callApi<DashboardSalesData>('/dashboard/sales', {
+        locationId,
+        query: { DATE_START: start, DATE_END: end },
+      });
+      return (body.data ?? {}) as DashboardSalesData;
+    },
+  );
 }
 
 interface DriposProduct {
@@ -483,11 +517,6 @@ export async function loginComplete(args: {
     direct.AUTH ??
     direct.token ??
     (typeof direct.data === 'string' ? direct.data : direct.data?.AUTH ?? direct.data?.token);
-  console.log(
-    `[dripos:login/complete] success=${(body as { success?: boolean }).success} ` +
-    `data_type=${typeof direct.data} data_keys=${typeof direct.data === 'object' && direct.data ? Object.keys(direct.data).join(',') : '∅'} ` +
-    `token_extracted=${token ? `len=${token.length}` : 'null'}`,
-  );
   if (!token) {
     throw new Error(typeof body.message === 'string' ? body.message : 'No AUTH token returned');
   }
@@ -529,6 +558,18 @@ export interface LaborRow {
   laborPct: number | null;
 }
 
+export interface PlatformSalesRow {
+  label: string;
+  mobileCents: number;
+  webCents: number;
+  thirdCents: number;
+  posCents: number;
+  otherCents: number; // KIOSK + READER, usually 0
+  totalCents: number;
+  nonPosCents: number; // mobile + web + third
+  nonPosPct: number | null;
+}
+
 interface ProductSalesRow {
   LINE_ITEM_TYPE: string;
   LINE_ITEM_NAME: string;
@@ -538,6 +579,7 @@ interface ProductSalesRow {
   ORDER_COUNT: number;
   GROSS_SALES: number;
   NET_SALES: number;
+  PLATFORM_NAME: string;
 }
 
 const DRINK_EXCLUDE_CATEGORIES = new Set(['BAKE HAUS FOOD', 'PETS']);
@@ -547,32 +589,35 @@ async function fetchProductSales(
   startMs: number,
   endMs: number,
 ): Promise<ProductSalesRow[]> {
-  // The /report/productsales endpoint requires the location header (numeric
-  // string accepted) but accepts a multi-location LOCATION_ID_ARRAY in the
-  // body, so a single call covers all 4 stores.
-  const body = await callApi<{ LINE_ITEM_RECORDS: ProductSalesRow[] }>(
-    '/report/productsales',
-    {
-      method: 'POST',
-      locationId: locationIds[0],
-      body: {
-        START_EPOCH: startMs,
-        END_EPOCH: endMs,
-        EXCLUDE_THIRD_PARTY: false,
-        LOCATION_ID_ARRAY: locationIds,
-        SELECTED_PLATFORMS_ARRAY: [
-          { PLATFORM: 'MOBILE', THIRD: false },
-          { PLATFORM: 'WEB', THIRD: false },
-          { PLATFORM: 'POS', THIRD: false },
-          { PLATFORM: 'KIOSK', THIRD: false },
-          { PLATFORM: 'READER', THIRD: false },
-          { PLATFORM: 'THIRD', THIRD: true },
-        ],
-        SELECTED_TAGS_ARRAY: [],
-      },
+  return cached(
+    `report/productsales|${locationIds.join(',')}|${startMs}|${endMs}`,
+    endMs,
+    async () => {
+      const body = await callApi<{ LINE_ITEM_RECORDS: ProductSalesRow[] }>(
+        '/report/productsales',
+        {
+          method: 'POST',
+          locationId: locationIds[0],
+          body: {
+            START_EPOCH: startMs,
+            END_EPOCH: endMs,
+            EXCLUDE_THIRD_PARTY: false,
+            LOCATION_ID_ARRAY: locationIds,
+            SELECTED_PLATFORMS_ARRAY: [
+              { PLATFORM: 'MOBILE', THIRD: false },
+              { PLATFORM: 'WEB', THIRD: false },
+              { PLATFORM: 'POS', THIRD: false },
+              { PLATFORM: 'KIOSK', THIRD: false },
+              { PLATFORM: 'READER', THIRD: false },
+              { PLATFORM: 'THIRD', THIRD: true },
+            ],
+            SELECTED_TAGS_ARRAY: [],
+          },
+        },
+      );
+      return body.data?.LINE_ITEM_RECORDS ?? [];
     },
   );
-  return body.data?.LINE_ITEM_RECORDS ?? [];
 }
 
 interface LaborVsSalesData {
@@ -589,18 +634,24 @@ async function fetchLaborVsSales(
   startMs: number,
   endMs: number,
 ): Promise<{ laborCents: number; grossSalesCents: number }> {
-  const body = await callApi<LaborVsSalesData>('/report/laborvssales', {
-    method: 'POST',
-    locationId,
-    body: { START_EPOCH: startMs, END_EPOCH: endMs },
-  });
-  let labor = 0;
-  let sales = 0;
-  for (const r of body.data?.breakdown ?? []) {
-    labor += r.laborCost ?? 0;
-    sales += r.grossSales ?? 0;
-  }
-  return { laborCents: labor, grossSalesCents: sales };
+  return cached(
+    `report/laborvssales|${locationId}|${startMs}|${endMs}`,
+    endMs,
+    async () => {
+      const body = await callApi<LaborVsSalesData>('/report/laborvssales', {
+        method: 'POST',
+        locationId,
+        body: { START_EPOCH: startMs, END_EPOCH: endMs },
+      });
+      let labor = 0;
+      let sales = 0;
+      for (const r of body.data?.breakdown ?? []) {
+        labor += r.laborCost ?? 0;
+        sales += r.grossSales ?? 0;
+      }
+      return { laborCents: labor, grossSalesCents: sales };
+    },
+  );
 }
 
 function aggregateItems(
@@ -667,6 +718,8 @@ export interface ReportData {
   topDrinks: ItemSalesRow[];
   laborByStore: LaborRow[];
   laborTotals: { laborCents: number; grossSalesCents: number; laborPct: number | null };
+  platformSalesByStore: PlatformSalesRow[];
+  platformSalesTotals: PlatformSalesRow;
 }
 
 function pctChange(now: number, prior: number): number | null {
@@ -800,6 +853,8 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
 
   let bakeHausItemSales: ItemSalesRow[] = [];
   let topDrinks: ItemSalesRow[] = [];
+  let platformSalesByStore: PlatformSalesRow[] = [];
+  let platformSalesTotals: PlatformSalesRow = emptyPlatformRow('Chain');
   try {
     const productRows = await fetchProductSales(
       STORES.map((s) => s.locationId),
@@ -818,6 +873,7 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
     )
       .sort((a, b) => b.totalRevenueCents - a.totalRevenueCents)
       .slice(0, 10);
+    ({ platformSalesByStore, platformSalesTotals } = aggregatePlatformSales(productRows, storeByLocId));
   } catch (err) {
     console.error('[buildReport] productsales failed:', err);
   }
@@ -889,5 +945,64 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
     topDrinks,
     laborByStore,
     laborTotals,
+    platformSalesByStore,
+    platformSalesTotals,
   };
+}
+
+function emptyPlatformRow(label: string): PlatformSalesRow {
+  return {
+    label,
+    mobileCents: 0,
+    webCents: 0,
+    thirdCents: 0,
+    posCents: 0,
+    otherCents: 0,
+    totalCents: 0,
+    nonPosCents: 0,
+    nonPosPct: null,
+  };
+}
+
+function aggregatePlatformSales(
+  rows: ProductSalesRow[],
+  storeByLocId: Record<number, string>,
+): { platformSalesByStore: PlatformSalesRow[]; platformSalesTotals: PlatformSalesRow } {
+  // GROSS_SALES on each productsales row is in cents. Group by (store, platform).
+  // PLATFORM_NAME values seen: MOBILE, WEB, POS, THIRD (and KIOSK/READER if used).
+  const byStore: Record<string, PlatformSalesRow> = {};
+  for (const label of Object.values(storeByLocId)) byStore[label] = emptyPlatformRow(label);
+
+  for (const r of rows) {
+    if (r.LINE_ITEM_TYPE !== 'PRODUCT') continue;
+    const label = storeByLocId[r.LOCATION_ID];
+    if (!label) continue;
+    const cents = r.GROSS_SALES ?? 0;
+    const row = byStore[label];
+    switch (r.PLATFORM_NAME) {
+      case 'MOBILE': row.mobileCents += cents; break;
+      case 'WEB': row.webCents += cents; break;
+      case 'THIRD': row.thirdCents += cents; break;
+      case 'POS': row.posCents += cents; break;
+      default: row.otherCents += cents; break;
+    }
+  }
+
+  const finalize = (row: PlatformSalesRow): PlatformSalesRow => {
+    row.nonPosCents = row.mobileCents + row.webCents + row.thirdCents;
+    row.totalCents = row.nonPosCents + row.posCents + row.otherCents;
+    row.nonPosPct = row.totalCents > 0 ? (row.nonPosCents / row.totalCents) * 100 : null;
+    return row;
+  };
+
+  const platformSalesByStore = Object.values(byStore).map(finalize);
+  const totals = emptyPlatformRow('Chain');
+  for (const r of platformSalesByStore) {
+    totals.mobileCents += r.mobileCents;
+    totals.webCents += r.webCents;
+    totals.thirdCents += r.thirdCents;
+    totals.posCents += r.posCents;
+    totals.otherCents += r.otherCents;
+  }
+  return { platformSalesByStore, platformSalesTotals: finalize(totals) };
 }

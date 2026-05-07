@@ -52,6 +52,19 @@ interface ReportData {
   topDrinks: ItemSalesRow[];
   laborByStore: LaborRow[];
   laborTotals: { laborCents: number; grossSalesCents: number; laborPct: number | null };
+  platformSalesByStore: PlatformSalesRow[];
+  platformSalesTotals: PlatformSalesRow;
+}
+interface PlatformSalesRow {
+  label: string;
+  mobileCents: number;
+  webCents: number;
+  thirdCents: number;
+  posCents: number;
+  otherCents: number;
+  totalCents: number;
+  nonPosCents: number;
+  nonPosPct: number | null;
 }
 
 const STORE_COLORS: Record<string, string> = {
@@ -407,7 +420,7 @@ export default function WeeklySales() {
     if (refresh) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
-      const r = await fetch('/api/dripos/report');
+      const r = await fetch('/api/dripos/report' + (refresh ? '?force=1' : ''));
       if (r.status === 401) {
         const j = await r.json().catch(() => ({}));
         if (j.error === 'dripos_auth_required') {
@@ -644,61 +657,45 @@ export default function WeeklySales() {
               </table></div>
             </Card>
 
-            <Card title="Platform mix · % of tickets" subtitle="Share of each store's tickets that came through each platform. Hover a cell for the raw count.">
+            <Card title="Platform sales · this week" subtitle="Gross sales by platform per store. 'All' = Mobile + Web + 3rd Party. % is non-POS share of that store's revenue.">
               <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
-                  <tr><th>Store</th><th>Mobile</th><th>Web</th><th>3rd</th><th>POS</th><th>Tickets</th></tr>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Store</th>
+                    <th>Mobile</th>
+                    <th>Web</th>
+                    <th>3rd Party</th>
+                    <th>All</th>
+                    <th>Total</th>
+                    <th>% of Sales</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {data.stores.map((s) => {
-                    const total = Object.values(s.byPlatform).reduce((a, b) => a + b, 0);
-                    const cell = (key: string) => {
-                      const n = s.byPlatform[key] ?? 0;
-                      const pct = total > 0 ? (n / total) * 100 : 0;
-                      return (
-                        <td title={`${n.toLocaleString()} tickets`}>
-                          {pct.toFixed(1)}%
-                        </td>
-                      );
-                    };
-                    return (
-                      <tr key={s.label}>
-                        <td><strong>{s.label}</strong></td>
-                        {cell('MOBILE')}
-                        {cell('WEB')}
-                        {cell('THIRD')}
-                        {cell('POS')}
-                        <td title="Total tickets across all platforms">
-                          <span style={{ color: '#888', fontSize: 12 }}>{total.toLocaleString()}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {data.platformSalesByStore.map((row) => (
+                    <tr key={row.label}>
+                      <td style={{ textAlign: 'left' }}><strong>{row.label}</strong></td>
+                      <td>{fmtMoney(row.mobileCents)}</td>
+                      <td>{fmtMoney(row.webCents)}</td>
+                      <td>{fmtMoney(row.thirdCents)}</td>
+                      <td><strong>{fmtMoney(row.nonPosCents)}</strong></td>
+                      <td>{fmtMoney(row.totalCents)}</td>
+                      <td>{row.nonPosPct == null ? '—' : `${row.nonPosPct.toFixed(1)}%`}</td>
+                    </tr>
+                  ))}
                 </tbody>
                 <tfoot>
                   <tr>
-                    {(() => {
-                      const total = ticketsTotal;
-                      const tcell = (key: string) => {
-                        const n = data.platformTotals[key] ?? 0;
-                        const pct = total > 0 ? (n / total) * 100 : 0;
-                        return (
-                          <td title={`${n.toLocaleString()} tickets`}>
-                            {pct.toFixed(1)}%
-                          </td>
-                        );
-                      };
-                      return (
-                        <>
-                          <td>Chain</td>
-                          {tcell('MOBILE')}
-                          {tcell('WEB')}
-                          {tcell('THIRD')}
-                          {tcell('POS')}
-                          <td>{total.toLocaleString()}</td>
-                        </>
-                      );
-                    })()}
+                    <td>Chain</td>
+                    <td>{fmtMoney(data.platformSalesTotals.mobileCents)}</td>
+                    <td>{fmtMoney(data.platformSalesTotals.webCents)}</td>
+                    <td>{fmtMoney(data.platformSalesTotals.thirdCents)}</td>
+                    <td><strong>{fmtMoney(data.platformSalesTotals.nonPosCents)}</strong></td>
+                    <td>{fmtMoney(data.platformSalesTotals.totalCents)}</td>
+                    <td>
+                      {data.platformSalesTotals.nonPosPct == null
+                        ? '—'
+                        : `${data.platformSalesTotals.nonPosPct.toFixed(1)}%`}
+                    </td>
                   </tr>
                 </tfoot>
               </table></div>
