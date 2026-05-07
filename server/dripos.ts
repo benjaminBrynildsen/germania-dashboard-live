@@ -54,16 +54,13 @@ export class NoToken extends Error {
 }
 
 export function readToken(): string | null {
-  // Env-var override beats the DB. DRIPOS_TOKEN gets set on Render with a
-  // dashboard-scoped token (the SMS-login flow returns a token whose scope
-  // is too narrow for /dashboard/sales + /report/*, so the team would
-  // otherwise hit INSUFFICIENT_PERMISSIONS). When this token expires, drop
-  // a fresh value in the env var and redeploy — no end-user re-login.
   const override = process.env.DRIPOS_TOKEN?.trim();
+  console.log(`[readToken] env_override=${override ? 'len=' + override.length : 'none'}`);
   if (override) return override;
   const row = db.prepare('SELECT session_token FROM dripos_settings WHERE id = 1').get() as
     | { session_token: string | null }
     | undefined;
+  console.log(`[readToken] db_token=${row?.session_token ? 'len=' + row.session_token.length : 'none'}`);
   return row?.session_token ?? null;
 }
 
