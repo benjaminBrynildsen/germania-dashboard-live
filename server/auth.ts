@@ -71,8 +71,10 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     });
     const payload = ticket.getPayload()!;
 
-    if (payload.hd !== process.env.ALLOWED_DOMAIN) {
-      res.status(403).send('Access restricted to @germaniabrewhaus.com accounts');
+    const allowedDomain = process.env.ALLOWED_DOMAIN || 'germaniabrewhaus.com';
+    const emailDomain = (payload.email || '').split('@')[1]?.toLowerCase();
+    if (payload.hd !== allowedDomain && emailDomain !== allowedDomain) {
+      res.redirect(`/login?denied=${encodeURIComponent(payload.email || 'unknown')}`);
       return;
     }
 
@@ -108,8 +110,14 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   }
 });
 
-// Dev login — bypasses Google OAuth
+// Dev login — bypasses Google OAuth. Disabled in production so the
+// dashboard.dripos data + admin role can't be claimed by anyone hitting the
+// public URL.
 router.post('/dev-login', (req: Request, res: Response) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
   const { name, email } = req.body;
   const devEmail = email || 'dev@germaniabrewhaus.com';
   const devName = name || 'Dev User';
