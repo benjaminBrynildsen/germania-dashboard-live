@@ -147,6 +147,12 @@ async function callApi<T = unknown>(path: string, opts: ApiOptions = {}): Promis
   }
 
   if (body && body.success === false) {
+    console.log(
+      `[callApi] ${path} success=false code=${(body as { code?: number }).code} ` +
+      `error=${JSON.stringify(body.error)?.slice(0, 80)} ` +
+      `message=${(body.message ?? '').slice(0, 80)} ` +
+      `loc_header=${headers.location ?? '∅'} tok_len=${headers.authentication?.length ?? 0}`,
+    );
     if (typeof body.error === 'string' && AUTH_ERRORS.has(body.error)) {
       throw new AuthExpired(body.error);
     }
