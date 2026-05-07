@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -13,9 +13,17 @@ import SalesAnomaly from './pages/SalesAnomaly';
 import WeatherClosure from './pages/WeatherClosure';
 import CogManager from './pages/CogManager';
 import WeeklySales from './pages/WeeklySales';
+import Privacy from './pages/Privacy';
 
 export default function App() {
   const { user, loading, logout } = useAuth();
+  const { pathname } = useLocation();
+
+  // Public routes that bypass the auth wall (Google verification needs them
+  // reachable without a session).
+  if (pathname === '/privacy') {
+    return <Privacy />;
+  }
 
   if (loading) {
     return (
@@ -53,6 +61,7 @@ export default function App() {
         <Route path="/weather-closure" element={<WeatherClosure />} />
         <Route path="/cog" element={<CogManager />} />
         <Route path="/weekly-sales" element={<WeeklySales />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Layout>
