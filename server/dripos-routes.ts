@@ -31,11 +31,17 @@ router.get('/dripos/report', requireAuth, async (req: AuthRequest, res: Response
   try {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     if (req.query.force === '1') {
+      // Past weeks (expires_at NULL) cache forever — the week navigator
+      // depends on those staying around. Only nuke entries that could
+      // hold current-week data.
       const { default: db } = await import('./db.js');
-      db.prepare('DELETE FROM dripos_cache').run();
+      db.prepare('DELETE FROM dripos_cache WHERE expires_at IS NOT NULL').run();
     }
-    const report = await buildReport();
-    res.json({ ok: true, report, _build: 'mobile-fix-v2' });
+    const weekOffset = Math.max(0, parseInt(String(req.query.weekOffset ?? '0'), 10) || 0);
+    const referenceDate = new Date();
+    if (weekOffset > 0) referenceDate.setDate(referenceDate.getDate() - 7 * weekOffset);
+    const report = await buildReport(referenceDate);
+    res.json({ ok: true, report, weekOffset });
   } catch (err) {
     if (err instanceof NoToken || err instanceof AuthExpired) {
       res.status(401).json({ error: 'dripos_auth_required', message: err.message });

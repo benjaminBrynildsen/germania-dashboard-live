@@ -415,14 +415,20 @@ export default function WeeklySales() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLogin, setShowLogin] = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0);
 
-  const fetchReport = async (refresh = false) => {
+  const fetchReport = async (refresh = false, offset = weekOffset) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
-      const url = refresh
-        ? `/api/dripos/report?force=1&_=${Date.now()}`
-        : '/api/dripos/report';
+      const params = new URLSearchParams();
+      if (refresh) {
+        params.set('force', '1');
+        params.set('_', String(Date.now()));
+      }
+      if (offset > 0) params.set('weekOffset', String(offset));
+      const qs = params.toString();
+      const url = '/api/dripos/report' + (qs ? `?${qs}` : '');
       const r = await fetch(url, { cache: 'no-store' });
       if (r.status === 401) {
         const j = await r.json().catch(() => ({}));
@@ -444,7 +450,24 @@ export default function WeeklySales() {
   };
 
   useEffect(() => {
-    fetchReport();
+    fetchReport(false, weekOffset);
+  }, [weekOffset]);
+
+  const weekOptions = useMemo(() => {
+    const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
+    const today = new Date();
+    const opts: Array<{ offset: number; label: string }> = [];
+    for (let i = 0; i < 12; i++) {
+      const ref = new Date(today);
+      ref.setDate(ref.getDate() - 7 * i);
+      const sun = new Date(ref);
+      sun.setDate(ref.getDate() - ref.getDay());
+      const sat = new Date(sun);
+      sat.setDate(sun.getDate() + 6);
+      const range = `${fmt(sun)}–${fmt(sat)}`;
+      opts.push({ offset: i, label: i === 0 ? `This week · ${range}` : range });
+    }
+    return opts;
   }, []);
 
   const onLoginClose = () => {
@@ -500,7 +523,52 @@ export default function WeeklySales() {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
           <h1 style={{ margin: 0, fontSize: isMobile ? 22 : 26, fontWeight: 700 }}>Weekly Sales</h1>
           {data && (
-            <span style={{ fontSize: 13, color: '#888' }}>
+            <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setWeekOffset((o) => o + 1)}
+                disabled={loading || refreshing}
+                title="Previous week"
+                style={{ padding: '2px 8px' }}
+              >‹</button>
+              <select
+                value={weekOffset}
+                onChange={(e) => setWeekOffset(parseInt(e.target.value, 10))}
+                disabled={loading || refreshing}
+                style={{
+                  fontSize: 13,
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  border: '1px solid #ccc',
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                {weekOptions.map((o) => (
+                  <option key={o.offset} value={o.offset}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}
+                disabled={weekOffset === 0 || loading || refreshing}
+                title="Next week"
+                style={{ padding: '2px 8px' }}
+              >›</button>
+              {weekOffset > 0 && (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setWeekOffset(0)}
+                  disabled={loading || refreshing}
+                  style={{ marginLeft: 4 }}
+                >Today</button>
+              )}
+            </div>
+          )}
+          {data && (
+            <span className="print-only" style={{ fontSize: 13, color: '#888' }}>
               Week {data.currentWeek.weekNum} · {data.currentWeek.label}
             </span>
           )}
@@ -864,10 +932,12 @@ export default function WeeklySales() {
           padding-top: 10px;
           border-bottom: 0;
         }
+        .print-only { display: none; }
         @media print {
           @page { size: letter; margin: 0.4in; }
           body { background: #fff !important; }
           header, .no-print { display: none !important; }
+          .print-only { display: inline !important; }
           /* Avoid breaking individual cards across pages */
           h1 + span + span { display: none; }
           .dripos-table { font-size: 11px; }
