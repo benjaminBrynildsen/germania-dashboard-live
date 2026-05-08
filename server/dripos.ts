@@ -800,7 +800,7 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
     const entry = byWeek[w];
     const total = Object.values(entry.perStore).reduce((a, b) => a + b, 0);
     const m = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
-    trend.unshift({
+    trend.push({
       label: `${m(entry.sun)}-${m(entry.sat)}`,
       year: entry.sun.getFullYear(),
       weekNum: sundayWeekNumber(entry.sun),
