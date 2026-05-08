@@ -255,17 +255,27 @@ export function clearDriposCache(): void {
 }
 
 // ── Endpoint helpers ──────────────────────────────────────────────────────
+// Sourced from /report/salessummary's TIMESPAN[0] — that's what Dripos's own
+// "Gross Sales" report uses. /dashboard/sales returns a GROSS_SALES that
+// silently includes taxes, so the chain total there reads ~7% high vs
+// dashboard.dripos.com.
 interface DashboardSalesData {
   STATS?: {
     GROSS_SALES?: number;
     TICKET_COUNT?: number;
     AVERAGE_TICKET?: number;
-    AMOUNT_REFUNDED?: number;
-    TICKETS_REFUNDED?: number;
   };
-  SALES_BY_PLATFORM?: Record<string, number>;
-  SALES_BY_ORDER_TYPE?: Record<string, number>;
-  SALES_BY_PAYMENT_TYPE?: Record<string, number>;
+}
+
+interface SalesSummaryRow {
+  TICKET_COUNT?: number;
+  GROSS_SALES?: number;
+  NET_SALES?: number;
+  PRODUCT_SALES?: number;
+  REFUNDS?: number;
+  DISCOUNTS?: number;
+  TAXES?: number;
+  TIPS?: number;
 }
 
 export async function fetchDashboardSales(
@@ -276,14 +286,33 @@ export async function fetchDashboardSales(
   const start = startOfDayMs(sun);
   const end = endOfDayMs(sat);
   return cached(
-    `dashboard/sales|${locationId}|${start}|${end}`,
+    `report/salessummary|${locationId}|${start}|${end}`,
     end,
     async () => {
-      const body = await callApi<DashboardSalesData>('/dashboard/sales', {
-        locationId,
-        query: { DATE_START: start, DATE_END: end },
-      });
-      return (body.data ?? {}) as DashboardSalesData;
+      const body = await callApi<{ TIMESPAN?: SalesSummaryRow[] }>(
+        '/report/salessummary',
+        {
+          method: 'POST',
+          locationId,
+          body: {
+            START_EPOCH: start,
+            END_EPOCH: end,
+            LOCATION_ID_ARRAY: [locationId],
+            EXECUTE_REPORTS: ['HOUR'],
+            POPULATE_MISSING_DATES: false,
+          },
+        },
+      );
+      const row = body.data?.TIMESPAN?.[0];
+      const tickets = row?.TICKET_COUNT ?? 0;
+      const gross = row?.GROSS_SALES ?? 0;
+      return {
+        STATS: {
+          GROSS_SALES: gross,
+          TICKET_COUNT: tickets,
+          AVERAGE_TICKET: tickets > 0 ? Math.round(gross / tickets) : 0,
+        },
+      };
     },
   );
 }
@@ -820,7 +849,7 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
       grossSales: cur.GROSS_SALES ?? 0,
       ticketCount: cur.TICKET_COUNT ?? 0,
       averageTicket: cur.AVERAGE_TICKET ?? 0,
-      byPlatform: sales.current[s.label]?.SALES_BY_PLATFORM ?? {},
+      byPlatform: {},
       wowPct: pctChange(cur.GROSS_SALES ?? 0, prev.GROSS_SALES ?? 0),
       yoyPct: pctChange(cur.GROSS_SALES ?? 0, yoy.GROSS_SALES ?? 0),
     };
