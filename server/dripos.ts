@@ -584,6 +584,15 @@ interface ProductSalesRow {
 
 const DRINK_EXCLUDE_CATEGORIES = new Set(['BAKE HAUS FOOD', 'PETS']);
 
+const PRODUCT_SALES_PLATFORMS: Array<{ name: string; third: boolean }> = [
+  { name: 'MOBILE', third: false },
+  { name: 'WEB', third: false },
+  { name: 'POS', third: false },
+  { name: 'KIOSK', third: false },
+  { name: 'READER', third: false },
+  { name: 'THIRD', third: true },
+];
+
 async function fetchProductSales(
   locationIds: number[],
   startMs: number,
@@ -593,29 +602,31 @@ async function fetchProductSales(
     `report/productsales|${locationIds.join(',')}|${startMs}|${endMs}`,
     endMs,
     async () => {
-      const body = await callApi<{ LINE_ITEM_RECORDS: ProductSalesRow[] }>(
-        '/report/productsales',
-        {
-          method: 'POST',
-          locationId: locationIds[0],
-          body: {
-            START_EPOCH: startMs,
-            END_EPOCH: endMs,
-            EXCLUDE_THIRD_PARTY: false,
-            LOCATION_ID_ARRAY: locationIds,
-            SELECTED_PLATFORMS_ARRAY: [
-              { PLATFORM: 'MOBILE', THIRD: false },
-              { PLATFORM: 'WEB', THIRD: false },
-              { PLATFORM: 'POS', THIRD: false },
-              { PLATFORM: 'KIOSK', THIRD: false },
-              { PLATFORM: 'READER', THIRD: false },
-              { PLATFORM: 'THIRD', THIRD: true },
-            ],
-            SELECTED_TAGS_ARRAY: [],
-          },
-        },
+      // Dripos /report/productsales mis-attributes PLATFORM_NAME when
+      // SELECTED_PLATFORMS_ARRAY has multiple entries — most MOBILE rows
+      // come back tagged WEB. Call once per platform; per-row attribution
+      // is then correct and totals match.
+      const perPlatform = await Promise.all(
+        PRODUCT_SALES_PLATFORMS.map(async (p) => {
+          const body = await callApi<{ LINE_ITEM_RECORDS: ProductSalesRow[] }>(
+            '/report/productsales',
+            {
+              method: 'POST',
+              locationId: locationIds[0],
+              body: {
+                START_EPOCH: startMs,
+                END_EPOCH: endMs,
+                EXCLUDE_THIRD_PARTY: false,
+                LOCATION_ID_ARRAY: locationIds,
+                SELECTED_PLATFORMS_ARRAY: [{ PLATFORM: p.name, THIRD: p.third }],
+                SELECTED_TAGS_ARRAY: [],
+              },
+            },
+          );
+          return body.data?.LINE_ITEM_RECORDS ?? [];
+        }),
       );
-      return body.data?.LINE_ITEM_RECORDS ?? [];
+      return perPlatform.flat();
     },
   );
 }
