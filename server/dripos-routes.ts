@@ -29,6 +29,7 @@ router.get('/dripos/status', requireAuth, (_req: AuthRequest, res: Response) => 
 
 router.get('/dripos/report', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     if (req.query.force === '1') {
       // Clear only entries that could include current-week data; past-week
       // entries (expires_at NULL) stay so we don't re-pull immutable data.
@@ -36,7 +37,7 @@ router.get('/dripos/report', requireAuth, async (req: AuthRequest, res: Response
       db.prepare('DELETE FROM dripos_cache WHERE expires_at IS NOT NULL').run();
     }
     const report = await buildReport();
-    res.json({ ok: true, report });
+    res.json({ ok: true, report, _build: 'mobile-fix-v2' });
   } catch (err) {
     if (err instanceof NoToken || err instanceof AuthExpired) {
       res.status(401).json({ error: 'dripos_auth_required', message: err.message });

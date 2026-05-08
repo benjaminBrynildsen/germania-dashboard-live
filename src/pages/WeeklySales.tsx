@@ -420,7 +420,10 @@ export default function WeeklySales() {
     if (refresh) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
-      const r = await fetch('/api/dripos/report' + (refresh ? '?force=1' : ''));
+      const url = refresh
+        ? `/api/dripos/report?force=1&_=${Date.now()}`
+        : '/api/dripos/report';
+      const r = await fetch(url, { cache: 'no-store' });
       if (r.status === 401) {
         const j = await r.json().catch(() => ({}));
         if (j.error === 'dripos_auth_required') {
