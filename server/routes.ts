@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import db from './db.js';
 import { requireAuth, requireRole, AuthRequest } from './auth.js';
 import { createIdeaForm, createVotingForm, getFormResponses, createDriveFolder } from './google.js';
-import { fetchPlaceReviews, syncAllReviews } from './places.js';
+import { fetchLocationPhoto, fetchPlaceReviews, syncAllReviews } from './places.js';
 import { seedCogData } from './seed-cog.js';
 
 const router = Router();
@@ -291,6 +291,27 @@ router.get('/locations', requireAuth, async (_req: AuthRequest, res: Response) =
     };
   });
   res.json(locations);
+});
+
+router.get('/locations/:id/photo', requireAuth, async (req: AuthRequest, res: Response) => {
+  const loc = db.prepare('SELECT google_place_id FROM locations WHERE id = ?').get(req.params.id) as any;
+  if (!loc?.google_place_id) {
+    res.status(404).json({ error: 'no_place_id' });
+    return;
+  }
+  try {
+    const photo = await fetchLocationPhoto(loc.google_place_id);
+    if (!photo) {
+      res.status(404).json({ error: 'no_photo' });
+      return;
+    }
+    res.set('Content-Type', photo.contentType);
+    res.set('Cache-Control', 'public, max-age=86400, immutable');
+    res.send(photo.bytes);
+  } catch (err) {
+    console.error(`[locations/${req.params.id}/photo] failed:`, err);
+    res.status(502).json({ error: 'photo_fetch_failed' });
+  }
 });
 
 router.get('/locations/:id/reviews', requireAuth, (req: AuthRequest, res: Response) => {

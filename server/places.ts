@@ -164,6 +164,50 @@ export async function fetchPlaceReviews(locationId: string): Promise<{ synced: n
   }
 }
 
+// In-memory cache: place_id → photoName. Photo "name" returned by Google
+// Places (e.g. places/<id>/photos/<id>) is stable for a place, but the
+// /media call is what actually returns image bytes — we cache the name to
+// avoid the place-details lookup on every photo request.
+const photoNameCache = new Map<string, { name: string; fetchedAt: number }>();
+const PHOTO_NAME_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function lookupPlacePhotoName(placeId: string, apiKey: string): Promise<string | null> {
+  const cached = photoNameCache.get(placeId);
+  if (cached && Date.now() - cached.fetchedAt < PHOTO_NAME_TTL_MS) return cached.name;
+
+  const res = await fetch(`${PLACES_API_BASE}/${placeId}`, {
+    headers: { 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': 'photos' },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const name = data?.photos?.[0]?.name;
+  if (!name) return null;
+  photoNameCache.set(placeId, { name, fetchedAt: Date.now() });
+  return name;
+}
+
+/**
+ * Fetch a storefront photo for a location and stream it back. Resolves to
+ * { contentType, bytes } or null if no photo is available. Caller is
+ * responsible for setting response headers and writing the body.
+ */
+export async function fetchLocationPhoto(
+  placeId: string,
+  maxWidthPx = 800,
+): Promise<{ contentType: string; bytes: Buffer } | null> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) return null;
+  const photoName = await lookupPlacePhotoName(placeId, apiKey);
+  if (!photoName) return null;
+
+  const url = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=${maxWidthPx}&key=${apiKey}`;
+  const r = await fetch(url);
+  if (!r.ok) return null;
+  const contentType = r.headers.get('content-type') || 'image/jpeg';
+  const bytes = Buffer.from(await r.arrayBuffer());
+  return { contentType, bytes };
+}
+
 /**
  * Sync reviews for all locations that have a google_place_id.
  */

@@ -124,7 +124,7 @@ function LocationCard({ loc, isMobile, onClick }: { loc: any; isMobile: boolean;
         backdropFilter: 'blur(24px)',
         WebkitBackdropFilter: 'blur(24px)',
         borderRadius: 20,
-        padding: '28px 30px 24px',
+        overflow: 'hidden',
         cursor: 'pointer',
         transition: 'all 0.2s ease',
         boxShadow: hovered
@@ -133,6 +133,10 @@ function LocationCard({ loc, isMobile, onClick }: { loc: any; isMobile: boolean;
         transform: hovered ? 'translateY(-3px)' : 'translateY(0)',
       }}
     >
+      {/* Hero photo from Google Maps (server proxies Places photo bytes). */}
+      <PhotoHero locId={loc.id} />
+
+      <div style={{ padding: '20px 30px 24px' }}>
       {/* Top row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
@@ -205,6 +209,29 @@ function LocationCard({ loc, isMobile, onClick }: { loc: any; isMobile: boolean;
           View Details →
         </span>
       </div>
+      </div>
+    </div>
+  );
+}
+
+function PhotoHero({ locId }: { locId: string }) {
+  const [errored, setErrored] = useState(false);
+  if (errored) return null;
+  return (
+    <div style={{
+      width: '100%',
+      height: 160,
+      background: '#e9e9ec',
+      borderBottom: '1px solid rgba(0,0,0,0.06)',
+      overflow: 'hidden',
+    }}>
+      <img
+        src={`/api/locations/${locId}/photo`}
+        alt=""
+        loading="lazy"
+        onError={() => setErrored(true)}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
     </div>
   );
 }
