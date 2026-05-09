@@ -269,15 +269,35 @@ async function cached<T>(
   if (row && (row.expires_at == null || row.expires_at > now)) {
     try { return JSON.parse(row.value) as T; } catch { /* fallthrough to refetch */ }
   }
-  const fresh = await fetcher();
-  // Range ends before today's start → past data, cache forever. Else short TTL.
-  const todayStart = startOfDayMs(new Date());
-  const expires = rangeEndMs < todayStart ? null : now + CACHE_CURRENT_WEEK_TTL_MS;
-  db.prepare(
-    'INSERT INTO dripos_cache (key, value, created_at, expires_at) VALUES (?, ?, ?, ?) ' +
-    'ON CONFLICT(key) DO UPDATE SET value = excluded.value, created_at = excluded.created_at, expires_at = excluded.expires_at',
-  ).run(key, JSON.stringify(fresh), now, expires);
-  return fresh;
+  try {
+    const fresh = await fetcher();
+    // Range ends before today's start → past data, cache forever. Else short TTL.
+    const todayStart = startOfDayMs(new Date());
+    const expires = rangeEndMs < todayStart ? null : now + CACHE_CURRENT_WEEK_TTL_MS;
+    db.prepare(
+      'INSERT INTO dripos_cache (key, value, created_at, expires_at) VALUES (?, ?, ?, ?) ' +
+      'ON CONFLICT(key) DO UPDATE SET value = excluded.value, created_at = excluded.created_at, expires_at = excluded.expires_at',
+    ).run(key, JSON.stringify(fresh), now, expires);
+    return fresh;
+  } catch (err) {
+    // Auth failures should always surface — the user needs to re-login.
+    if (err instanceof AuthExpired || err instanceof NoToken) throw err;
+    // For everything else (Dripos 5xx, "OK" text response, network timeout),
+    // fall back to the stale cached value if we have one. This keeps the
+    // dashboard usable when Dripos is having a bad day.
+    if (row) {
+      try {
+        const stale = JSON.parse(row.value) as T;
+        console.warn(
+          `[cache] ${key}: Dripos fetch failed (${err instanceof Error ? err.message : err}); serving stale value`,
+        );
+        return stale;
+      } catch {
+        /* malformed cache row → throw original error */
+      }
+    }
+    throw err;
+  }
 }
 
 export function clearDriposCache(): void {
