@@ -660,6 +660,112 @@ async function fetchProductSales(
   );
 }
 
+// ── Ticket completion (drink-time) ───────────────────────────────────────
+// AVG_COMPLETION_TIME from /report/completion is already in MINUTES, rounded.
+// HOUR is the epoch-ms of the bucket start expressed in Eastern; we relabel
+// it in America/Chicago (where the brewery operates) so the grid hours match
+// what baristas actually see on the clock.
+interface CompletionHour {
+  HOUR: number;
+  TICKET_COUNT: number;
+  TICKET_SECONDS: number;
+  AVG_COMPLETION_TIME: number;
+}
+
+async function fetchCompletion(
+  locationId: number,
+  sun: Date,
+  sat: Date,
+): Promise<CompletionHour[]> {
+  const start = startOfDayMs(sun);
+  const end = endOfDayMs(sat);
+  return cached(
+    `report/completion|${locationId}|${start}|${end}`,
+    end,
+    async () => {
+      const body = await callApi<{ HOUR?: CompletionHour[] }>(
+        '/report/completion',
+        {
+          method: 'POST',
+          locationId,
+          body: { START_EPOCH: start, END_EPOCH: end, LOCATION_ID_ARRAY: [locationId] },
+        },
+      );
+      return body.data?.HOUR ?? [];
+    },
+  );
+}
+
+const TICKET_HOUR_LABELS = [
+  '6AM','7AM','8AM','9AM','10AM','11AM',
+  '12PM','1PM','2PM','3PM','4PM','5PM',
+];
+const TICKET_DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function chicagoHourLabel(epochMs: number): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    hour12: true,
+    timeZone: 'America/Chicago',
+  }).formatToParts(new Date(epochMs));
+  const hour = parts.find((p) => p.type === 'hour')?.value ?? '';
+  const period = parts.find((p) => p.type === 'dayPeriod')?.value ?? '';
+  return `${hour}${period}`;
+}
+
+function chicagoDayIndex(epochMs: number): number {
+  const wd = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    timeZone: 'America/Chicago',
+  }).format(new Date(epochMs));
+  return TICKET_DAYS.indexOf(wd);
+}
+
+function bucketCompletions(
+  hours: CompletionHour[],
+): Record<string, (number | null)[]> {
+  const grid: Record<string, (number | null)[]> = {};
+  for (const lbl of TICKET_HOUR_LABELS) {
+    grid[lbl] = [null, null, null, null, null, null, null];
+  }
+  for (const h of hours) {
+    if (!h.TICKET_COUNT) continue;
+    const lbl = chicagoHourLabel(h.HOUR);
+    const di = chicagoDayIndex(h.HOUR);
+    if (!grid[lbl] || di < 0) continue;
+    grid[lbl][di] = h.AVG_COMPLETION_TIME;
+  }
+  return grid;
+}
+
+export interface TicketTimeWeek {
+  weekNum: number;
+  dates: string[];
+  data: Record<string, { hours: Record<string, (number | null)[]> }>;
+}
+
+export async function buildTicketTimeReport(
+  referenceDate: Date = new Date(),
+): Promise<TicketTimeWeek> {
+  const [sun, sat] = weekBounds(referenceDate, 0);
+  const perStore = await Promise.all(
+    STORES.map(async (s) => {
+      const hours = await fetchCompletion(s.locationId, sun, sat);
+      return [s.label, { hours: bucketCompletions(hours) }] as const;
+    }),
+  );
+  const dates: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(sun, i);
+    dates.push(`${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`);
+  }
+  return {
+    weekNum: sundayWeekNumber(sun),
+    dates,
+    data: Object.fromEntries(perStore),
+  };
+}
+
 interface LaborVsSalesData {
   breakdown: Array<{
     label: string;

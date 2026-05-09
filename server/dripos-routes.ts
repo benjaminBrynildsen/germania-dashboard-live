@@ -8,6 +8,7 @@ import {
   AuthExpired,
   NoToken,
   buildReport,
+  buildTicketTimeReport,
   clearToken,
   clearWeeklyCache,
   loginComplete,
@@ -50,6 +51,31 @@ router.get('/dripos/report', requireAuth, async (req: AuthRequest, res: Response
     console.error('[dripos-report] failed:', err);
     res.status(500).json({
       error: 'report_failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+router.get('/dripos/ticket-time', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (req.query.force === '1') {
+      const { default: db } = await import('./db.js');
+      db.prepare('DELETE FROM dripos_cache WHERE expires_at IS NOT NULL').run();
+    }
+    const weekOffset = Math.max(0, parseInt(String(req.query.weekOffset ?? '0'), 10) || 0);
+    const referenceDate = new Date();
+    if (weekOffset > 0) referenceDate.setDate(referenceDate.getDate() - 7 * weekOffset);
+    const week = await buildTicketTimeReport(referenceDate);
+    res.json({ ok: true, week, weekOffset });
+  } catch (err) {
+    if (err instanceof NoToken || err instanceof AuthExpired) {
+      res.status(401).json({ error: 'dripos_auth_required', message: err.message });
+      return;
+    }
+    console.error('[dripos-ticket-time] failed:', err);
+    res.status(500).json({
+      error: 'ticket_time_failed',
       message: err instanceof Error ? err.message : String(err),
     });
   }
