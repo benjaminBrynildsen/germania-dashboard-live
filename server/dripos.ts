@@ -97,6 +97,30 @@ interface ApiOptions {
   noAuth?: boolean;
 }
 
+// Cap concurrent in-flight Dripos requests. buildReport schedules ~36 parallel
+// /report/salessummary calls (3 sales-bucket weeks × 4 stores + 6-week trend ×
+// 4 stores), and Dripos's API returns connection timeouts at that volume.
+// 6 in flight is enough to keep total wall-time low without tripping the rate
+// limit.
+const DRIPOS_MAX_CONCURRENT = 6;
+let driposInFlight = 0;
+const driposWaiters: Array<() => void> = [];
+
+async function acquireDriposSlot(): Promise<void> {
+  if (driposInFlight < DRIPOS_MAX_CONCURRENT) {
+    driposInFlight++;
+    return;
+  }
+  await new Promise<void>((resolve) => driposWaiters.push(resolve));
+  driposInFlight++;
+}
+
+function releaseDriposSlot(): void {
+  driposInFlight--;
+  const next = driposWaiters.shift();
+  if (next) next();
+}
+
 async function callApi<T = unknown>(path: string, opts: ApiOptions = {}): Promise<DriposResponse<T>> {
   const headers: Record<string, string> = {
     accept: 'application/json',
@@ -130,21 +154,27 @@ async function callApi<T = unknown>(path: string, opts: ApiOptions = {}): Promis
     url += (url.includes('?') ? '&' : '?') + params.toString();
   }
 
-  const r = await fetch(url, {
-    method: opts.method ?? 'GET',
-    headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-  });
-
-  if (r.status === 401 || r.status === 403) {
-    throw new AuthExpired(`HTTP ${r.status}`);
-  }
-
+  await acquireDriposSlot();
+  let r: globalThis.Response;
   let body: DriposResponse<T>;
   try {
-    body = (await r.json()) as DriposResponse<T>;
-  } catch {
-    throw new Error(`Non-JSON response from Dripos: HTTP ${r.status}`);
+    r = await fetch(url, {
+      method: opts.method ?? 'GET',
+      headers,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    });
+
+    if (r.status === 401 || r.status === 403) {
+      throw new AuthExpired(`HTTP ${r.status}`);
+    }
+
+    try {
+      body = (await r.json()) as DriposResponse<T>;
+    } catch {
+      throw new Error(`Non-JSON response from Dripos: HTTP ${r.status}`);
+    }
+  } finally {
+    releaseDriposSlot();
   }
 
   if (body && body.success === false) {
