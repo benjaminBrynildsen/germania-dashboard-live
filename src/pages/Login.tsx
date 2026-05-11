@@ -170,6 +170,22 @@ export default function Login() {
           Restricted to @germaniabrewhaus.com accounts
         </p>
 
+        <p
+          style={{
+            marginTop: 18,
+            fontSize: 12,
+            color: 'rgba(0,0,0,0.35)',
+          }}
+        >
+          <a href="/terms" style={{ color: 'inherit', textDecoration: 'underline' }}>
+            Terms of Service
+          </a>
+          {' · '}
+          <a href="/privacy" style={{ color: 'inherit', textDecoration: 'underline' }}>
+            Privacy Policy
+          </a>
+        </p>
+
         {(IS_GH_PAGES || IS_LOCALHOST) && (
           <div
             style={{

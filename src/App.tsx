@@ -14,6 +14,7 @@ import WeatherClosure from './pages/WeatherClosure';
 import CogManager from './pages/CogManager';
 import WeeklySales from './pages/WeeklySales';
 import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 
 export default function App() {
   const { user, loading, logout } = useAuth();
@@ -23,6 +24,9 @@ export default function App() {
   // reachable without a session).
   if (pathname === '/privacy') {
     return <Privacy />;
+  }
+  if (pathname === '/terms') {
+    return <Terms />;
   }
 
   if (loading) {
@@ -62,6 +66,7 @@ export default function App() {
         <Route path="/cog" element={<CogManager />} />
         <Route path="/weekly-sales" element={<WeeklySales />} />
         <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Layout>
