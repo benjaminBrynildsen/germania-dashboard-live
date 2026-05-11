@@ -18,6 +18,9 @@ const SCOPES = [
   'https://www.googleapis.com/auth/forms.body',
   'https://www.googleapis.com/auth/forms.responses.readonly',
   'https://www.googleapis.com/auth/drive.file',
+  // Read the applicants response sheet (and any future sheets). Narrow
+  // alternative to drive.readonly — only Sheets, read-only.
+  'https://www.googleapis.com/auth/spreadsheets.readonly',
 ];
 
 export interface AuthRequest extends Request {

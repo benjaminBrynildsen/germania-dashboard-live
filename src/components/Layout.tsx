@@ -16,6 +16,7 @@ const NAV_ITEMS: Array<{ to: string; label: string; exact?: boolean }> = [
   { to: '/ticket-time', label: 'Ticket Time' },
   { to: '/anomalies', label: 'Anomalies' },
   { to: '/weather-closure', label: 'Weather' },
+  { to: '/applicants', label: 'Applicants' },
 ];
 
 export default function Layout({ user, onLogout, children }: Props) {
