@@ -54,6 +54,12 @@ interface ReportData {
   laborTotals: { laborCents: number; grossSalesCents: number; laborPct: number | null };
   platformSalesByStore: PlatformSalesRow[];
   platformSalesTotals: PlatformSalesRow;
+  pennyRounding?: {
+    diffCents: number;
+    storeSumCents: number;
+    chainGrossCents: number;
+    available: boolean;
+  };
 }
 interface PlatformSalesRow {
   label: string;
@@ -690,6 +696,12 @@ export default function WeeklySales() {
             />
           </div>
 
+          {/* Penny rounding reconciliation — only shows when we got a chain
+              gross from Dripos that's higher than our per-store sum. */}
+          {data.pennyRounding?.available && data.pennyRounding.diffCents > 0 && (
+            <PennyRoundingCard p={data.pennyRounding} />
+          )}
+
           {/* Per-store visual tiles */}
           <div style={{
             display: 'grid', gap: 12,
@@ -1102,6 +1114,46 @@ function DeltaBadge({ value, suffix, subtle }: { value: number | null; suffix: s
     }}>
       {arrow} {fmtPct(value)} {suffix}
       <span style={{ opacity: 0.6, marginLeft: 4, fontWeight: 500 }}>({subtle})</span>
+    </div>
+  );
+}
+
+function PennyRoundingCard({
+  p,
+}: {
+  p: { diffCents: number; storeSumCents: number; chainGrossCents: number };
+}) {
+  // Per-ticket-cents loss is computed by callers if they have ticket counts;
+  // here we just present the absolute gap and its share of gross.
+  const pct = p.chainGrossCents > 0 ? (p.diffCents / p.chainGrossCents) * 100 : 0;
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 10,
+      border: '1px solid rgba(0,0,0,0.07)', padding: '14px 22px',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      gap: 12, flexWrap: 'wrap',
+    }}>
+      <div>
+        <div style={{
+          fontSize: 11, textTransform: 'uppercase', letterSpacing: 1,
+          color: '#888', fontWeight: 600, marginBottom: 4,
+        }}>Penny rounding & chain adjustments</div>
+        <div style={{ fontSize: 13, color: '#555', lineHeight: 1.4 }}>
+          Dripos's chain gross is <strong>{fmtMoney(p.chainGrossCents)}</strong> vs
+          our per-store sum of <strong>{fmtMoney(p.storeSumCents)}</strong>.
+          The gap is cash penny-rounding plus custom fees.
+        </div>
+      </div>
+      <div style={{
+        fontSize: 22, fontWeight: 700, color: '#c0392b',
+        whiteSpace: 'nowrap',
+      }}>
+        −{fmtMoney(p.diffCents)}
+        <span style={{ fontSize: 12, color: '#888', fontWeight: 500, marginLeft: 6 }}>
+          ({pct.toFixed(2)}%)
+        </span>
+      </div>
     </div>
   );
 }

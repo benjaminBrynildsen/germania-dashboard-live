@@ -986,6 +986,17 @@ export interface ReportData {
   laborTotals: { laborCents: number; grossSalesCents: number; laborPct: number | null };
   platformSalesByStore: PlatformSalesRow[];
   platformSalesTotals: PlatformSalesRow;
+  /** chain-level adjustments (custom fees + penny rounding) for current week. */
+  pennyRounding: {
+    /** Dripos UI chain gross - sum of per-store gross. Positive = Dripos shows more. */
+    diffCents: number;
+    /** Per-store-summed gross sales (validated exact vs Dripos Platform Sales). */
+    storeSumCents: number;
+    /** Chain-level gross from /report/salessummary multi-location call. */
+    chainGrossCents: number;
+    /** False if the chain call failed or returned a value we couldn't trust. */
+    available: boolean;
+  };
 }
 
 function pctChange(now: number, prior: number): number | null {
@@ -1027,13 +1038,19 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
   };
   for (const { bucket, label, data } of salesResults) sales[bucket][label] = data;
 
-  // Note: tried a chain-aggregate call to /report/salessummary with all
-  // LOCATION_ID_ARRAY entries to match Dripos UI's headline exactly, but
-  // the multi-location response returned values inconsistent with the
-  // per-store sums (off by $15k on prev wk in one case). Per-store sums
-  // are internally consistent with the trend chart + store rows; ~0.15%
-  // gap vs Dripos UI is acceptable. fetchChainSales is left in place
-  // unused so we can revisit if Dripos clarifies the contract.
+  // Chain-aggregate /report/salessummary call for CURRENT WEEK ONLY. Dripos
+  // UI's "Gross Sales" headline is larger than our sum-of-per-store totals
+  // because cash registers round-down to nickels and a few non-product
+  // line items (custom fees) appear only in the chain-level response.
+  // Previous attempts to use this for prev/yoy returned wildly inconsistent
+  // values (off by $15k on one prev-wk fetch), so we don't trust it there.
+  const locationIds = STORES.map((s) => s.locationId);
+  let chainCurrent: DashboardSalesData = {};
+  try {
+    chainCurrent = await fetchChainSales(locationIds, curSun, curSat);
+  } catch (err) {
+    console.error('[buildReport] chain salessummary failed:', err);
+  }
 
   // 6-week trend (oldest-first)
   const trendJobs: Array<Promise<{ w: number; sun: Date; sat: Date; label: string; data: DashboardSalesData }>> = [];
@@ -1094,13 +1111,37 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
   const sumTickets = (b: Bucket) =>
     Object.values(sales[b]).reduce((acc, s) => acc + (s.STATS?.TICKET_COUNT ?? 0), 0);
 
-  const curTotal = sumGross('current');
-  const prevTotal = sumGross('prev');
-  const yoyTotal = sumGross('yoy');
-  const curTickets = sumTickets('current');
-  const prevTickets = sumTickets('prev');
+  // Per-store sums (validated exactly against Dripos's Platform Sales report).
+  const sumCurTotal = sumGross('current');
+  const sumPrevTotal = sumGross('prev');
+  const sumYoyTotal = sumGross('yoy');
+  const sumCurTickets = sumTickets('current');
+  const sumPrevTickets = sumTickets('prev');
+
+  // Headline uses Dripos's chain-level gross if it came back and looks sane
+  // (>= our sum, within +1% — guard against the multi-location glitch where
+  // the response is wildly wrong). The diff vs the per-store sum is what we
+  // surface as penny-rounding / non-product adjustments.
+  const chainGross = chainCurrent.STATS?.GROSS_SALES ?? 0;
+  const chainTickets = chainCurrent.STATS?.TICKET_COUNT ?? 0;
+  const chainGrossUsable =
+    chainGross >= sumCurTotal && chainGross <= sumCurTotal * 1.01;
+  const chainTicketsUsable =
+    chainTickets >= sumCurTickets && chainTickets <= sumCurTickets * 1.01;
+
+  const curTotal = chainGrossUsable ? chainGross : sumCurTotal;
+  const curTickets = chainTicketsUsable ? chainTickets : sumCurTickets;
+  const prevTotal = sumPrevTotal;
+  const yoyTotal = sumYoyTotal;
+  const prevTickets = sumPrevTickets;
   const curAvg = curTickets > 0 ? Math.round(curTotal / curTickets) : 0;
   const prevAvg = prevTickets > 0 ? Math.round(prevTotal / prevTickets) : 0;
+
+  // The diff that lives between "what registers collected" and "what Dripos
+  // shows on its Sales Summary dashboard". Negative side is the cash rounding
+  // loss (registers round to nickels); positive side is custom fees and other
+  // chain-level adjustments. Only meaningful for current week.
+  const pennyRoundingCents = chainGrossUsable ? chainGross - sumCurTotal : 0;
 
   const platformTotals: Record<string, number> = {
     POS: 0,
@@ -1221,6 +1262,12 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
     laborTotals,
     platformSalesByStore,
     platformSalesTotals,
+    pennyRounding: {
+      diffCents: pennyRoundingCents,
+      storeSumCents: sumCurTotal,
+      chainGrossCents: chainGross,
+      available: chainGrossUsable,
+    },
   };
 }
 
