@@ -397,10 +397,122 @@ function Legend({ label, color, dashed = false }: { label: string; color: string
   );
 }
 
+// ── Platform pie chart ──────────────────────────────────────────────────
+const PLATFORM_COLORS: Record<string, string> = {
+  POS: '#1a1a1a',
+  Mobile: '#2c5f8d',
+  Web: '#c97a3f',
+  '3rd Party': '#5a9a4a',
+  Other: '#a04ea0',
+};
+
+function PlatformPieChart({ totals }: { totals: PlatformSalesRow }) {
+  const segments = [
+    { label: 'POS', value: totals.posCents },
+    { label: 'Mobile', value: totals.mobileCents },
+    { label: 'Web', value: totals.webCents },
+    { label: '3rd Party', value: totals.thirdCents },
+    { label: 'Other', value: totals.otherCents },
+  ].filter((s) => s.value > 0);
+  const total = segments.reduce((a, b) => a + b.value, 0);
+  if (total === 0) return null;
+
+  const cx = 110;
+  const cy = 110;
+  const r = 90;
+  const innerR = 56; // donut hole
+
+  let cursor = -Math.PI / 2; // start at 12 o'clock
+  const slices = segments.map((s) => {
+    const angle = (s.value / total) * Math.PI * 2;
+    const start = cursor;
+    const end = cursor + angle;
+    cursor = end;
+    const large = angle > Math.PI ? 1 : 0;
+    const x1 = cx + r * Math.cos(start);
+    const y1 = cy + r * Math.sin(start);
+    const x2 = cx + r * Math.cos(end);
+    const y2 = cy + r * Math.sin(end);
+    const xi1 = cx + innerR * Math.cos(start);
+    const yi1 = cy + innerR * Math.sin(start);
+    const xi2 = cx + innerR * Math.cos(end);
+    const yi2 = cy + innerR * Math.sin(end);
+    const d =
+      `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} ` +
+      `L ${xi2} ${yi2} A ${innerR} ${innerR} 0 ${large} 0 ${xi1} ${yi1} Z`;
+    const midAngle = (start + end) / 2;
+    const labelR = (r + innerR) / 2;
+    return {
+      ...s,
+      d,
+      pct: (s.value / total) * 100,
+      labelX: cx + labelR * Math.cos(midAngle),
+      labelY: cy + labelR * Math.sin(midAngle),
+      color: PLATFORM_COLORS[s.label] ?? '#999',
+    };
+  });
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 28,
+      flexWrap: 'wrap', justifyContent: 'center',
+      marginBottom: 18, paddingBottom: 14,
+      borderBottom: '1px solid #eee',
+    }}>
+      <svg viewBox="0 0 220 220" style={{ width: 220, height: 220, flexShrink: 0 }}>
+        {slices.map((s) => (
+          <g key={s.label}>
+            <path d={s.d} fill={s.color} stroke="#fff" strokeWidth="2" />
+            {s.pct >= 6 && (
+              <text
+                x={s.labelX} y={s.labelY}
+                fontSize="12" fontWeight="700"
+                fill={s.label === 'POS' ? '#fff' : '#fff'}
+                textAnchor="middle" dominantBaseline="central"
+              >{s.pct.toFixed(0)}%</text>
+            )}
+          </g>
+        ))}
+        <text x={cx} y={cy - 8} fontSize="11" fill="#888" textAnchor="middle" fontWeight="600"
+              letterSpacing="1" style={{ textTransform: 'uppercase' }}>Mix</text>
+        <text x={cx} y={cy + 12} fontSize="16" fontWeight="700" fill="#1a1a1a" textAnchor="middle">
+          {fmtMoney(total)}
+        </text>
+      </svg>
+      <div style={{ minWidth: 180 }}>
+        {slices
+          .sort((a, b) => b.value - a.value)
+          .map((s) => (
+          <div key={s.label} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '6px 0', fontSize: 13,
+            borderBottom: '1px solid #f4f4f4',
+          }}>
+            <div style={{
+              width: 12, height: 12, borderRadius: 3,
+              background: s.color, flexShrink: 0,
+            }} />
+            <div style={{ flex: 1, fontWeight: 500 }}>{s.label}</div>
+            <div style={{ color: '#666', fontVariantNumeric: 'tabular-nums' }}>
+              {fmtMoney(s.value)}
+            </div>
+            <div style={{
+              minWidth: 44, textAlign: 'right',
+              color: '#888', fontSize: 12, fontVariantNumeric: 'tabular-nums',
+            }}>
+              {s.pct.toFixed(1)}%
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Reusable Card ───────────────────────────────────────────────────────
 function Card({ title, subtitle, children }: { title?: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div style={{
+    <div className="dripos-card" style={{
       background: '#fff', borderRadius: 10,
       border: '1px solid rgba(0,0,0,0.07)', padding: '18px 22px',
       boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
@@ -730,7 +842,7 @@ export default function WeeklySales() {
           </Card>
 
           {/* Per-store + Platform mix side by side on desktop */}
-          <div style={{ display: 'grid', gap: 16, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
+          <div className="stack-on-print" style={{ display: 'grid', gap: 16, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
             <Card title="Per-store week-over-week">
               <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
@@ -758,6 +870,7 @@ export default function WeeklySales() {
             </Card>
 
             <Card title="Platform sales · this week" subtitle="Product sales by platform per store (matches Dripos's Platform Sales report exactly for Mobile/Web/3rd Party). 'All' = Mobile + Web + 3rd Party. 'Total' is products only — excludes custom fees / cash rounding, so it reads a few cents under the headline Gross Sales.">
+              <PlatformPieChart totals={data.platformSalesTotals} />
               <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
                   <tr>
@@ -963,14 +1076,44 @@ export default function WeeklySales() {
         }
         .print-only { display: none; }
         @media print {
-          @page { size: letter; margin: 0.4in; }
-          body { background: #fff !important; }
+          @page {
+            size: letter;
+            margin: 0.55in 0.5in 0.7in;
+            @bottom-center {
+              content: "Germania Dashboard · Weekly Sales · Page " counter(page) " of " counter(pages);
+              font-size: 9pt;
+              color: #888;
+            }
+          }
+          html, body { background: #fff !important; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          header, .no-print, .dripos-scroll { overflow: visible !important; }
           header, .no-print { display: none !important; }
           .print-only { display: inline !important; }
-          /* Avoid breaking individual cards across pages */
+
+          /* Keep cards intact across page breaks */
+          .react-card, .dripos-card, [class*="Card"], div[style*="background: #fff"][style*="border-radius"] {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          /* Tighter typography for print */
+          h1 { font-size: 22pt !important; margin: 0 0 4pt !important; }
+          h2 { break-after: avoid; page-break-after: avoid; }
+          .dripos-table { font-size: 9pt; min-width: 0 !important; }
+          .dripos-table th, .dripos-table td { padding: 3pt 5pt; }
+          .dripos-table th { font-size: 7pt; }
+
+          /* Force side-by-side cards to stack vertically on print so
+             nothing gets clipped */
+          .stack-on-print { display: block !important; }
+          .stack-on-print > * { margin-bottom: 12pt; }
+
+          /* Hide the "Updated" timestamp twice — show once via print-only */
           h1 + span + span { display: none; }
-          .dripos-table { font-size: 11px; }
-          .dripos-table th, .dripos-table td { padding: 4px 6px; }
+
+          /* Snug pie chart and trend chart in print */
+          svg { max-width: 100% !important; }
         }
       `}</style>
     </div>
