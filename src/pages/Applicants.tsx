@@ -9,8 +9,17 @@ interface Applicant {
   phone: string | null;
   resumeFileId: string | null;
   resumeUrl: string | null;
+  storeLabel: string | null;
+  storeText: string | null;
   fields: Record<string, string>;
 }
+
+const STORE_COLORS: Record<string, string> = {
+  G1: '#2c5f8d', G2: '#c97a3f', G3: '#5a9a4a', G4: '#a04ea0',
+};
+const STORE_CITIES: Record<string, string> = {
+  G1: 'Alton', G2: 'East Alton', G3: 'Godfrey', G4: 'Jerseyville',
+};
 
 interface ApplicantsResp {
   ok: boolean;
@@ -72,6 +81,7 @@ export default function Applicants() {
   const [ratings, setRatings] = useState<Record<string, number>>(() => loadMap<number>(RATING_KEY));
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<Status | 'all'>('all');
+  const [filterStore, setFilterStore] = useState<string | 'all'>('all');
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<'date-desc' | 'date-asc' | 'name-asc' | 'rating-desc'>(
     'date-desc',
@@ -129,6 +139,13 @@ export default function Applicants() {
           return false;
         }
       }
+      if (filterStore !== 'all') {
+        if (filterStore === 'unknown') {
+          if (a.storeLabel) return false;
+        } else if (a.storeLabel !== filterStore) {
+          return false;
+        }
+      }
       if (!q) return true;
       const hay = [
         a.name,
@@ -165,7 +182,7 @@ export default function Applicants() {
         break;
     }
     return sorted;
-  }, [data, query, filterStatus, statuses, sortKey, ratings]);
+  }, [data, query, filterStatus, filterStore, statuses, sortKey, ratings]);
 
   const counts = useMemo(() => {
     if (!data) return { all: 0, new: 0, shortlist: 0, reject: 0, hired: 0 };
@@ -275,6 +292,43 @@ export default function Applicants() {
             </select>
           </div>
 
+          {/* Per-store filter */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            flexWrap: 'wrap', marginBottom: 16,
+          }}>
+            {(['all', 'G1', 'G2', 'G3', 'G4', 'unknown'] as const).map((store) => {
+              const active = filterStore === store;
+              const color = store !== 'all' && store !== 'unknown' ? STORE_COLORS[store] : '#888';
+              const label =
+                store === 'all' ? 'All stores'
+                : store === 'unknown' ? 'No store'
+                : `${store} · ${STORE_CITIES[store]}`;
+              const count =
+                store === 'all'
+                  ? data.applicants.length
+                  : store === 'unknown'
+                  ? data.applicants.filter((a) => !a.storeLabel).length
+                  : data.applicants.filter((a) => a.storeLabel === store).length;
+              return (
+                <button
+                  key={store}
+                  onClick={() => setFilterStore(store)}
+                  style={{
+                    padding: '5px 12px', borderRadius: 999,
+                    border: active ? `1px solid ${color}` : '1px solid #ddd',
+                    background: active ? color : '#fff',
+                    color: active ? '#fff' : '#444',
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                  <span style={{ marginLeft: 6, opacity: 0.6 }}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Cards */}
           <div style={{
             display: 'grid',
@@ -377,11 +431,27 @@ function ApplicantCard({
         )}
       </div>
 
-      {a.submittedAt && (
-        <div style={{ fontSize: 11, color: '#aaa' }}>
-          Submitted {a.submittedAt}
-        </div>
-      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        {a.storeLabel ? (
+          <span style={{
+            fontSize: 10, fontWeight: 700, padding: '2px 8px',
+            borderRadius: 4, color: '#fff',
+            background: STORE_COLORS[a.storeLabel] ?? '#888',
+            textTransform: 'uppercase', letterSpacing: 0.5,
+          }}>{a.storeLabel} · {STORE_CITIES[a.storeLabel] ?? ''}</span>
+        ) : a.storeText ? (
+          <span style={{
+            fontSize: 10, fontWeight: 600, padding: '2px 8px',
+            borderRadius: 4, color: '#555', background: '#eee',
+            textTransform: 'uppercase', letterSpacing: 0.5,
+          }} title={a.storeText}>{a.storeText.slice(0, 24)}{a.storeText.length > 24 ? '…' : ''}</span>
+        ) : null}
+        {a.submittedAt && (
+          <span style={{ fontSize: 11, color: '#aaa' }}>
+            {a.submittedAt}
+          </span>
+        )}
+      </div>
 
       {/* Star rating */}
       <div style={{ display: 'flex', gap: 2 }} onClick={(e) => e.stopPropagation()}>

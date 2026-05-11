@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import db from './db.js';
+import { matchStoreLabel } from './dripos.js';
 
 const SHEET_ID =
   process.env.APPLICANTS_SHEET_ID ||
@@ -49,6 +50,10 @@ export interface Applicant {
   resumeFileId: string | null;
   /** Original Drive URL (so we can fall back to opening in Drive). */
   resumeUrl: string | null;
+  /** Best-guess store label (G1-G4) from the "which location?" question. */
+  storeLabel: string | null;
+  /** Raw answer to the location question (for display when no label matched). */
+  storeText: string | null;
   /** All columns from the sheet — keys are the header strings as-is. */
   fields: Record<string, string>;
 }
@@ -151,6 +156,18 @@ export async function fetchApplicants(userId: number): Promise<ApplicantsRespons
     resumeIdx = pickByValue(valueRows, (v) => DRIVE_FILE_RE.test(v));
   }
 
+  // Location — match by header first, then by values that look like one of
+  // the known store cities.
+  let locationIdx = pickHeader(headers, [
+    /which (store|location|cafe|shop)/i,
+    /apply.*to/i,
+    /location/i,
+    /store/i,
+  ]);
+  if (locationIdx < 0) {
+    locationIdx = pickByValue(valueRows, (v) => matchStoreLabel(v) !== null);
+  }
+
   const applicants: Applicant[] = [];
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
@@ -182,6 +199,8 @@ export async function fetchApplicants(userId: number): Promise<ApplicantsRespons
 
     const email = emailIdx >= 0 ? String(row[emailIdx] ?? '').trim() || null : null;
     const phone = phoneIdx >= 0 ? String(row[phoneIdx] ?? '').trim() || null : null;
+    const storeText = locationIdx >= 0 ? String(row[locationIdx] ?? '').trim() || null : null;
+    const storeLabel = matchStoreLabel(storeText);
 
     applicants.push({
       id: `${r}-${email ?? 'no-email'}`,
@@ -192,6 +211,8 @@ export async function fetchApplicants(userId: number): Promise<ApplicantsRespons
       phone,
       resumeFileId,
       resumeUrl,
+      storeLabel,
+      storeText,
       fields,
     });
   }

@@ -12,12 +12,49 @@ const BASE_URL = 'https://api.dripos.com';
 // form for SMS-login tokens — numeric works for browser-session tokens but
 // returns INSUFFICIENT_PERMISSIONS for SMS-login tokens. The numeric ID
 // still goes in request bodies (LOCATION_ID_ARRAY etc.).
-export const STORES: Array<{ label: string; locationId: number; uniqueId: string }> = [
-  { label: 'G1', locationId: 131, uniqueId: 'loc_b4nrdvOjLT8cfE63X7m6QRsP' },
-  { label: 'G2', locationId: 132, uniqueId: 'loc_2FqRNPdfcLEg521EOOFCgetj' },
-  { label: 'G3', locationId: 133, uniqueId: 'loc_zWkTy2JGaXcBRWc5miKaKUjC' },
-  { label: 'G4', locationId: 134, uniqueId: 'loc_62xj8uJ7xZHQ4yCTQjRU2ZWB' },
+export interface Store {
+  label: string;
+  locationId: number;
+  uniqueId: string;
+  /** Human-readable city name shown to staff (badges, tooltips). */
+  city: string;
+  /**
+   * Substrings (case-insensitive) that, if found in an application form's
+   * "which store?" answer, route the applicant to this store. Order matters
+   * only inasmuch as longer/more-specific strings should come first to
+   * avoid e.g. "East Alton" matching the G1 "Alton" alias.
+   */
+  applicantAliases: string[];
+}
+
+export const STORES: Store[] = [
+  // NOTE: If the city → store mapping is wrong (e.g. G1 isn't actually
+  // Alton), edit these — applicant routing is the only thing that uses
+  // city/applicantAliases, so it's safe to change without touching reports.
+  { label: 'G1', locationId: 131, uniqueId: 'loc_b4nrdvOjLT8cfE63X7m6QRsP',
+    city: 'Alton',     applicantAliases: ['alton'] },
+  { label: 'G2', locationId: 132, uniqueId: 'loc_2FqRNPdfcLEg521EOOFCgetj',
+    city: 'East Alton', applicantAliases: ['east alton', 'east-alton', 'eastalton'] },
+  { label: 'G3', locationId: 133, uniqueId: 'loc_zWkTy2JGaXcBRWc5miKaKUjC',
+    city: 'Godfrey',   applicantAliases: ['godfrey'] },
+  { label: 'G4', locationId: 134, uniqueId: 'loc_62xj8uJ7xZHQ4yCTQjRU2ZWB',
+    city: 'Jerseyville', applicantAliases: ['jerseyville', 'jersey ville'] },
 ];
+
+/** Best-effort: match a free-text location answer to one of the 4 stores. */
+export function matchStoreLabel(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const haystack = text.toLowerCase();
+  // Check longer aliases first to avoid "East Alton" matching G1's "alton".
+  const ordered = [...STORES].sort((a, b) => {
+    const maxLen = (s: Store) => Math.max(...s.applicantAliases.map((a) => a.length));
+    return maxLen(b) - maxLen(a);
+  });
+  for (const s of ordered) {
+    if (s.applicantAliases.some((al) => haystack.includes(al))) return s.label;
+  }
+  return null;
+}
 
 const UNIQUE_BY_LOCATION_ID: Record<number, string> = Object.fromEntries(
   STORES.map((s) => [s.locationId, s.uniqueId]),

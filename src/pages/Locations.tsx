@@ -66,10 +66,29 @@ export default function Locations() {
   const isMobile = useIsMobile();
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
+  const [newAppsByStore, setNewAppsByStore] = useState<Record<string, number>>({});
   const navigate = useNavigate();
 
   useEffect(() => {
     api.get('/api/locations').then(setLocations).finally(() => setLoading(false));
+
+    // Side-fetch applicant counts. Failures are silent — Locations works
+    // fine without this; the badges just won't render.
+    fetch('/api/applicants', { cache: 'no-store' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((j) => {
+        if (!j?.applicants) return;
+        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const counts: Record<string, number> = {};
+        for (const a of j.applicants as Array<{ storeLabel: string | null; submittedAt: string | null }>) {
+          if (!a.storeLabel) continue;
+          const t = a.submittedAt ? Date.parse(a.submittedAt) : NaN;
+          if (Number.isNaN(t) || t < sevenDaysAgo) continue;
+          counts[a.storeLabel] = (counts[a.storeLabel] ?? 0) + 1;
+        }
+        setNewAppsByStore(counts);
+      })
+      .catch(() => { /* silent */ });
   }, []);
 
   if (loading) {
@@ -100,7 +119,13 @@ export default function Locations() {
         {/* Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(480px, 1fr))', gap: 20 }}>
           {locations.map(loc => (
-            <LocationCard key={loc.id} loc={loc} isMobile={isMobile} onClick={() => navigate(`/locations/${loc.id}`)} />
+            <LocationCard
+              key={loc.id}
+              loc={loc}
+              isMobile={isMobile}
+              newApplicants={newAppsByStore[loc.id.toUpperCase()] ?? 0}
+              onClick={() => navigate(`/locations/${loc.id}`)}
+            />
           ))}
         </div>
       </div>
@@ -108,7 +133,9 @@ export default function Locations() {
   );
 }
 
-function LocationCard({ loc, isMobile, onClick }: { loc: any; isMobile: boolean; onClick: () => void }) {
+function LocationCard({ loc, isMobile, newApplicants, onClick }: {
+  loc: any; isMobile: boolean; newApplicants: number; onClick: () => void;
+}) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -204,7 +231,22 @@ function LocationCard({ loc, isMobile, onClick }: { loc: any; isMobile: boolean;
       </div>
 
       {/* Footer */}
-      <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{
+        marginTop: 20, display: 'flex',
+        justifyContent: 'space-between', alignItems: 'center',
+        gap: 8,
+      }}>
+        {newApplicants > 0 ? (
+          <span style={{
+            fontSize: 11, fontWeight: 700,
+            color: '#1a5db4', background: '#dcefff',
+            padding: '4px 10px', borderRadius: 12,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}>
+            <span>🔥</span>
+            {newApplicants} new applicant{newApplicants === 1 ? '' : 's'} this week
+          </span>
+        ) : <span />}
         <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.3)', letterSpacing: '0.02em' }}>
           View Details →
         </span>
