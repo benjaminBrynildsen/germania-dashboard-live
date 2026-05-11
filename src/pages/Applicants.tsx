@@ -61,6 +61,9 @@ export default function Applicants() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<Status | 'all'>('all');
   const [query, setQuery] = useState('');
+  const [sortKey, setSortKey] = useState<'date-desc' | 'date-asc' | 'name-asc' | 'rating-desc'>(
+    'date-desc',
+  );
 
   const fetchData = async () => {
     setLoading(true);
@@ -103,7 +106,7 @@ export default function Applicants() {
   const filtered = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
-    return data.applicants.filter((a) => {
+    const matched = data.applicants.filter((a) => {
       const s = statuses[a.id] ?? 'new';
       if (filterStatus !== 'all' && s !== filterStatus) return false;
       if (!q) return true;
@@ -118,7 +121,31 @@ export default function Applicants() {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [data, query, filterStatus, statuses]);
+
+    // Date.parse handles the Sheets default "5/11/2026 8:30:15" format and
+    // ISO 8601 alike; rows with no parseable timestamp sort to the bottom.
+    const ts = (a: Applicant) => {
+      const t = a.submittedAt ? Date.parse(a.submittedAt) : NaN;
+      return Number.isNaN(t) ? -Infinity : t;
+    };
+
+    const sorted = [...matched];
+    switch (sortKey) {
+      case 'date-desc':
+        sorted.sort((a, b) => ts(b) - ts(a));
+        break;
+      case 'date-asc':
+        sorted.sort((a, b) => ts(a) - ts(b));
+        break;
+      case 'name-asc':
+        sorted.sort((a, b) => (a.name ?? '￿').localeCompare(b.name ?? '￿'));
+        break;
+      case 'rating-desc':
+        sorted.sort((a, b) => (ratings[b.id] ?? 0) - (ratings[a.id] ?? 0));
+        break;
+    }
+    return sorted;
+  }, [data, query, filterStatus, statuses, sortKey, ratings]);
 
   const counts = useMemo(() => {
     if (!data) return { all: 0, new: 0, shortlist: 0, reject: 0, hired: 0 };
@@ -207,6 +234,21 @@ export default function Applicants() {
                 border: '1px solid #ddd', fontSize: 13,
               }}
             />
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as typeof sortKey)}
+              style={{
+                padding: '8px 10px', borderRadius: 8,
+                border: '1px solid #ddd', fontSize: 13,
+                background: '#fff', cursor: 'pointer',
+              }}
+              aria-label="Sort applicants"
+            >
+              <option value="date-desc">Newest first</option>
+              <option value="date-asc">Oldest first</option>
+              <option value="name-asc">Name A–Z</option>
+              <option value="rating-desc">Highest rated</option>
+            </select>
           </div>
 
           {/* Cards */}
