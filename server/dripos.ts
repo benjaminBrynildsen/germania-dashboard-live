@@ -306,6 +306,26 @@ export function clearDriposCache(): void {
   db.prepare('DELETE FROM dripos_cache').run();
 }
 
+/**
+ * Drop every cached Dripos response for the Sun-Sat week containing
+ * `referenceDate`. Past weeks cache forever for the trend chart, but Dripos
+ * back-fills tips / late batches for a day or two after a week closes — so
+ * the user's "Refresh" needs an escape hatch to re-pull a specific week.
+ *
+ * All four cache key shapes (salessummary, productsales, completion,
+ * laborvssales) end with `|${startMs}|${endMs}`, so a LIKE suffix match hits
+ * every one for that week without touching other weeks.
+ */
+export function clearWeekCache(referenceDate: Date = new Date()): number {
+  const [sun, sat] = weekBounds(referenceDate, 0);
+  const startMs = sun.getTime();
+  const endMs = endOfDayMs(sat);
+  const info = db
+    .prepare('DELETE FROM dripos_cache WHERE key LIKE ?')
+    .run(`%|${startMs}|${endMs}`);
+  return info.changes ?? 0;
+}
+
 // ── Endpoint helpers ──────────────────────────────────────────────────────
 // Sourced from /report/salessummary's TIMESPAN[0] — that's what Dripos's own
 // "Gross Sales" report uses. /dashboard/sales returns a GROSS_SALES that
