@@ -986,13 +986,6 @@ export interface ReportData {
   laborTotals: { laborCents: number; grossSalesCents: number; laborPct: number | null };
   platformSalesByStore: PlatformSalesRow[];
   platformSalesTotals: PlatformSalesRow;
-  debug?: {
-    chainGross: number;
-    chainTickets: number;
-    sumGross: number;
-    sumTickets: number;
-    chainCallOk: boolean;
-  };
 }
 
 function pctChange(now: number, prior: number): number | null {
@@ -1034,21 +1027,13 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
   };
   for (const { bucket, label, data } of salesResults) sales[bucket][label] = data;
 
-  // Chain-aggregate call per bucket — used for the headline KPIs so they
-  // match Dripos exactly. Per-store calls don't sum to the chain total
-  // (cross-location adjustments land on the aggregate response only).
-  const locationIds = STORES.map((s) => s.locationId);
-  const chainEntries = await Promise.all(
-    (['current', 'prev', 'yoy'] as Bucket[]).map(async (bucket) => {
-      const [sun, sat] = buckets[bucket];
-      const data = await fetchChainSales(locationIds, sun, sat);
-      return [bucket, data] as const;
-    }),
-  );
-  const chain: Record<Bucket, DashboardSalesData> = {
-    current: {}, prev: {}, yoy: {},
-  };
-  for (const [bucket, data] of chainEntries) chain[bucket] = data;
+  // Note: tried a chain-aggregate call to /report/salessummary with all
+  // LOCATION_ID_ARRAY entries to match Dripos UI's headline exactly, but
+  // the multi-location response returned values inconsistent with the
+  // per-store sums (off by $15k on prev wk in one case). Per-store sums
+  // are internally consistent with the trend chart + store rows; ~0.15%
+  // gap vs Dripos UI is acceptable. fetchChainSales is left in place
+  // unused so we can revisit if Dripos clarifies the contract.
 
   // 6-week trend (oldest-first)
   const trendJobs: Array<Promise<{ w: number; sun: Date; sat: Date; label: string; data: DashboardSalesData }>> = [];
@@ -1104,35 +1089,18 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
     };
   });
 
-  // Headline totals come from the chain-aggregate call (matches Dripos UI).
-  // Fall back to per-store sums if a chain call failed for any reason.
   const sumGross = (b: Bucket) =>
     Object.values(sales[b]).reduce((acc, s) => acc + (s.STATS?.GROSS_SALES ?? 0), 0);
   const sumTickets = (b: Bucket) =>
     Object.values(sales[b]).reduce((acc, s) => acc + (s.STATS?.TICKET_COUNT ?? 0), 0);
-  const chainOr = (b: Bucket, field: 'GROSS_SALES' | 'TICKET_COUNT'): number => {
-    const v = chain[b]?.STATS?.[field];
-    if (typeof v === 'number' && v > 0) return v;
-    return field === 'GROSS_SALES' ? sumGross(b) : sumTickets(b);
-  };
 
-  const curTotal = chainOr('current', 'GROSS_SALES');
-  const prevTotal = chainOr('prev', 'GROSS_SALES');
-  const yoyTotal = chainOr('yoy', 'GROSS_SALES');
-  const curTickets = chainOr('current', 'TICKET_COUNT');
-  const prevTickets = chainOr('prev', 'TICKET_COUNT');
+  const curTotal = sumGross('current');
+  const prevTotal = sumGross('prev');
+  const yoyTotal = sumGross('yoy');
+  const curTickets = sumTickets('current');
+  const prevTickets = sumTickets('prev');
   const curAvg = curTickets > 0 ? Math.round(curTotal / curTickets) : 0;
   const prevAvg = prevTickets > 0 ? Math.round(prevTotal / prevTickets) : 0;
-
-  // One-shot debug payload so we can see why chain ≠ sum without scraping logs.
-  const debug = {
-    chainGross: chain.current?.STATS?.GROSS_SALES ?? 0,
-    chainTickets: chain.current?.STATS?.TICKET_COUNT ?? 0,
-    sumGross: sumGross('current'),
-    sumTickets: sumTickets('current'),
-    chainCallOk: (chain.current?.STATS?.GROSS_SALES ?? 0) > 0,
-  };
-  console.log('[buildReport] totals debug:', debug);
 
   const platformTotals: Record<string, number> = {
     POS: 0,
@@ -1253,7 +1221,6 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
     laborTotals,
     platformSalesByStore,
     platformSalesTotals,
-    debug,
   };
 }
 
