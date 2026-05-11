@@ -997,6 +997,48 @@ export interface ReportData {
     /** False if the chain call failed or returned a value we couldn't trust. */
     available: boolean;
   };
+  /** Per-week manual override (applied when a week had POS issues etc.). */
+  weekOverride?: {
+    sun: string;
+    reason: string;
+    forcedGrossCents: number;
+    forcedTickets: number;
+  } | null;
+}
+
+/**
+ * Manual weekly overrides. Keyed by the Sunday of the affected Sun-Sat week
+ * (YYYY-MM-DD in local time). When set, headline gross + tickets are replaced
+ * with the override values regardless of which bucket the week falls into
+ * (current / prev / yoy) and the trend chart entry is bumped to match. The
+ * UI surfaces `reason` so it's clear the number isn't computed from store
+ * data normally.
+ */
+const WEEK_OVERRIDES: Record<string, {
+  forcedGrossCents: number;
+  forcedTickets: number;
+  reason: string;
+}> = {
+  '2026-05-03': {
+    forcedGrossCents: 5_261_109, // $52,611.09 from Dripos Sales Summary
+    forcedTickets: 5403,
+    reason:
+      "POS errors on Saturday 5/9 caused per-store sums to read low. " +
+      "Headline overridden to match Dripos's chain Sales Summary report. " +
+      "Per-store breakdown rows below remain from the raw per-store API.",
+  },
+};
+
+function isoLocalDate(d: Date): string {
+  return (
+    `${d.getFullYear()}-` +
+    `${String(d.getMonth() + 1).padStart(2, '0')}-` +
+    `${String(d.getDate()).padStart(2, '0')}`
+  );
+}
+
+function overrideForWeek(sun: Date) {
+  return WEEK_OVERRIDES[isoLocalDate(sun)] ?? null;
 }
 
 function pctChange(now: number, prior: number): number | null {
@@ -1078,7 +1120,10 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
   const trend: TrendPoint[] = [];
   for (let w = TREND_WEEKS - 1; w >= 0; w--) {
     const entry = byWeek[w];
-    const total = Object.values(entry.perStore).reduce((a, b) => a + b, 0);
+    const sumTotal = Object.values(entry.perStore).reduce((a, b) => a + b, 0);
+    // Apply per-week override so the trend chart agrees with the headline.
+    const trendOverride = overrideForWeek(entry.sun);
+    const total = trendOverride ? trendOverride.forcedGrossCents : sumTotal;
     const m = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
     trend.push({
       label: `${m(entry.sun)}-${m(entry.sat)}`,
@@ -1129,19 +1174,37 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
   const chainTicketsUsable =
     chainTickets >= sumCurTickets && chainTickets <= sumCurTickets * 1.01;
 
-  const curTotal = chainGrossUsable ? chainGross : sumCurTotal;
-  const curTickets = chainTicketsUsable ? chainTickets : sumCurTickets;
-  const prevTotal = sumPrevTotal;
-  const yoyTotal = sumYoyTotal;
-  const prevTickets = sumPrevTickets;
+  // Manual per-week overrides — applied to whichever bucket the affected week
+  // falls into, so the same headline number is shown regardless of whether
+  // you're viewing the affected week as "current" or scrolled forward and
+  // it's now "prev".
+  const curOverride = overrideForWeek(curSun);
+  const prevOverride = overrideForWeek(prevSun);
+  const yoyOverride = overrideForWeek(yoySun);
+
+  const curTotal = curOverride
+    ? curOverride.forcedGrossCents
+    : chainGrossUsable
+    ? chainGross
+    : sumCurTotal;
+  const curTickets = curOverride
+    ? curOverride.forcedTickets
+    : chainTicketsUsable
+    ? chainTickets
+    : sumCurTickets;
+  const prevTotal = prevOverride ? prevOverride.forcedGrossCents : sumPrevTotal;
+  const yoyTotal = yoyOverride ? yoyOverride.forcedGrossCents : sumYoyTotal;
+  const prevTickets = prevOverride ? prevOverride.forcedTickets : sumPrevTickets;
   const curAvg = curTickets > 0 ? Math.round(curTotal / curTickets) : 0;
   const prevAvg = prevTickets > 0 ? Math.round(prevTotal / prevTickets) : 0;
 
   // The diff that lives between "what registers collected" and "what Dripos
   // shows on its Sales Summary dashboard". Negative side is the cash rounding
   // loss (registers round to nickels); positive side is custom fees and other
-  // chain-level adjustments. Only meaningful for current week.
-  const pennyRoundingCents = chainGrossUsable ? chainGross - sumCurTotal : 0;
+  // chain-level adjustments. Only meaningful for current week. Suppress when
+  // a manual override is in play — the override card explains the gap instead.
+  const pennyRoundingCents =
+    !curOverride && chainGrossUsable ? chainGross - sumCurTotal : 0;
 
   const platformTotals: Record<string, number> = {
     POS: 0,
@@ -1268,6 +1331,14 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
       chainGrossCents: chainGross,
       available: chainGrossUsable,
     },
+    weekOverride: curOverride
+      ? {
+          sun: isoLocalDate(curSun),
+          reason: curOverride.reason,
+          forcedGrossCents: curOverride.forcedGrossCents,
+          forcedTickets: curOverride.forcedTickets,
+        }
+      : null,
   };
 }
 

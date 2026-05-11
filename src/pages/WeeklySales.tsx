@@ -60,6 +60,12 @@ interface ReportData {
     chainGrossCents: number;
     available: boolean;
   };
+  weekOverride?: {
+    sun: string;
+    reason: string;
+    forcedGrossCents: number;
+    forcedTickets: number;
+  } | null;
 }
 interface PlatformSalesRow {
   label: string;
@@ -696,9 +702,15 @@ export default function WeeklySales() {
             />
           </div>
 
+          {/* Manual override notice — replaces the penny-rounding card when
+              this week's headline was forced to a Dripos-side value. */}
+          {data.weekOverride && (
+            <WeekOverrideCard ov={data.weekOverride} />
+          )}
           {/* Penny rounding reconciliation — only shows when we got a chain
-              gross from Dripos that's higher than our per-store sum. */}
-          {data.pennyRounding?.available && data.pennyRounding.diffCents > 0 && (
+              gross from Dripos that's higher than our per-store sum AND no
+              manual override is masking the diff for this week. */}
+          {!data.weekOverride && data.pennyRounding?.available && data.pennyRounding.diffCents > 0 && (
             <PennyRoundingCard p={data.pennyRounding} />
           )}
 
@@ -1114,6 +1126,39 @@ function DeltaBadge({ value, suffix, subtle }: { value: number | null; suffix: s
     }}>
       {arrow} {fmtPct(value)} {suffix}
       <span style={{ opacity: 0.6, marginLeft: 4, fontWeight: 500 }}>({subtle})</span>
+    </div>
+  );
+}
+
+function WeekOverrideCard({
+  ov,
+}: {
+  ov: { sun: string; reason: string; forcedGrossCents: number; forcedTickets: number };
+}) {
+  return (
+    <div style={{
+      background: '#fff7e6',
+      border: '1px solid #f0c36d',
+      borderLeft: '4px solid #d4a843',
+      borderRadius: 10,
+      padding: '14px 22px',
+      display: 'flex', alignItems: 'flex-start', gap: 14,
+    }}>
+      <div style={{
+        fontSize: 22, lineHeight: 1, color: '#b06d00',
+        flexShrink: 0, marginTop: 2,
+      }}>⚠</div>
+      <div style={{ flex: 1 }}>
+        <div style={{
+          fontSize: 11, textTransform: 'uppercase', letterSpacing: 1,
+          color: '#7a5a00', fontWeight: 700, marginBottom: 4,
+        }}>Manual headline override · week of {ov.sun}</div>
+        <div style={{ fontSize: 13, color: '#5a4500', lineHeight: 1.5 }}>
+          {ov.reason} Headline shows <strong>{fmtMoney(ov.forcedGrossCents)}</strong> /{' '}
+          <strong>{ov.forcedTickets.toLocaleString()} tickets</strong> instead of the per-store
+          sum. Per-store breakdown and platform tables below remain unadjusted.
+        </div>
+      </div>
     </div>
   );
 }
