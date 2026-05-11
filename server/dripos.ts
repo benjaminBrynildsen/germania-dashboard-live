@@ -986,6 +986,13 @@ export interface ReportData {
   laborTotals: { laborCents: number; grossSalesCents: number; laborPct: number | null };
   platformSalesByStore: PlatformSalesRow[];
   platformSalesTotals: PlatformSalesRow;
+  debug?: {
+    chainGross: number;
+    chainTickets: number;
+    sumGross: number;
+    sumTickets: number;
+    chainCallOk: boolean;
+  };
 }
 
 function pctChange(now: number, prior: number): number | null {
@@ -1117,6 +1124,16 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
   const curAvg = curTickets > 0 ? Math.round(curTotal / curTickets) : 0;
   const prevAvg = prevTickets > 0 ? Math.round(prevTotal / prevTickets) : 0;
 
+  // One-shot debug payload so we can see why chain ≠ sum without scraping logs.
+  const debug = {
+    chainGross: chain.current?.STATS?.GROSS_SALES ?? 0,
+    chainTickets: chain.current?.STATS?.TICKET_COUNT ?? 0,
+    sumGross: sumGross('current'),
+    sumTickets: sumTickets('current'),
+    chainCallOk: (chain.current?.STATS?.GROSS_SALES ?? 0) > 0,
+  };
+  console.log('[buildReport] totals debug:', debug);
+
   const platformTotals: Record<string, number> = {
     POS: 0,
     MOBILE: 0,
@@ -1236,6 +1253,7 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
     laborTotals,
     platformSalesByStore,
     platformSalesTotals,
+    debug,
   };
 }
 
