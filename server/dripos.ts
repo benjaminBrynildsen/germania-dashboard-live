@@ -42,6 +42,22 @@ export const STORES: Store[] = [
 ];
 
 /**
+ * Weekly salaried-manager labor overhead per store, in cents. Dripos's
+ * /report/laborvssales only counts clocked-in hourly labor; salaried
+ * managers never punch in so they're invisible there. Add them here so
+ * the dashboard's labor % reflects true total labor cost.
+ *
+ * G4 placeholder until Ben confirms the kitchen manager number.
+ * Update these manually — annual salary ÷ 52 ÷ 100 → cents.
+ */
+export const SALARIED_OVERHEAD_CENTS_PER_WEEK: Record<string, number> = {
+  G1: 245_000, // $2,450/wk
+  G2: 245_000, // $2,450/wk
+  G3: 245_000, // $2,450/wk
+  G4: 0,       // TODO: kitchen manager — Ben to confirm
+};
+
+/**
  * Best-effort: extract every store the applicant ticked. Multi-checkbox form
  * answers come in as "Alton, Godfrey" or similar; we have to find ALL matches,
  * not just the first. Longer-alias stores are matched first AND their matches
@@ -758,7 +774,12 @@ export interface ItemSalesRow {
 export interface LaborRow {
   label: string;
   locationId: number;
+  /** Total labor = hourly + salaried. What the labor % reads against. */
   laborCents: number;
+  /** Just the clocked-in / Dripos number. */
+  hourlyCents: number;
+  /** Salaried-manager overhead added on top (from SALARIED_OVERHEAD_CENTS_PER_WEEK). */
+  salariedCents: number;
   grossSalesCents: number;
   laborPct: number | null;
 }
@@ -1039,7 +1060,13 @@ export interface ReportData {
   bakeHausItemSales: ItemSalesRow[];
   topDrinks: ItemSalesRow[];
   laborByStore: LaborRow[];
-  laborTotals: { laborCents: number; grossSalesCents: number; laborPct: number | null };
+  laborTotals: {
+    laborCents: number;
+    hourlyCents: number;
+    salariedCents: number;
+    grossSalesCents: number;
+    laborPct: number | null;
+  };
   platformSalesByStore: PlatformSalesRow[];
   platformSalesTotals: PlatformSalesRow;
   /** chain-level adjustments (custom fees + penny rounding) for current week. */
@@ -1317,17 +1344,21 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
     const laborResults = await Promise.all(
       STORES.map(async (s) => {
         try {
-          const { laborCents, grossSalesCents } = await fetchLaborVsSales(
+          const { laborCents: hourlyCents, grossSalesCents } = await fetchLaborVsSales(
             s.locationId,
             startMs,
             endMs,
           );
+          const salariedCents = SALARIED_OVERHEAD_CENTS_PER_WEEK[s.label] ?? 0;
+          const totalLabor = hourlyCents + salariedCents;
           return {
             label: s.label,
             locationId: s.locationId,
-            laborCents,
+            laborCents: totalLabor,
+            hourlyCents,
+            salariedCents,
             grossSalesCents,
-            laborPct: grossSalesCents > 0 ? (laborCents / grossSalesCents) * 100 : null,
+            laborPct: grossSalesCents > 0 ? (totalLabor / grossSalesCents) * 100 : null,
           } as LaborRow;
         } catch (err) {
           console.error(`[buildReport] laborvssales ${s.label} failed:`, err);
@@ -1341,9 +1372,13 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
   }
 
   const totalLaborCents = laborByStore.reduce((a, r) => a + r.laborCents, 0);
+  const totalHourlyCents = laborByStore.reduce((a, r) => a + r.hourlyCents, 0);
+  const totalSalariedCents = laborByStore.reduce((a, r) => a + r.salariedCents, 0);
   const totalLaborSalesCents = laborByStore.reduce((a, r) => a + r.grossSalesCents, 0);
   const laborTotals = {
     laborCents: totalLaborCents,
+    hourlyCents: totalHourlyCents,
+    salariedCents: totalSalariedCents,
     grossSalesCents: totalLaborSalesCents,
     laborPct: totalLaborSalesCents > 0 ? (totalLaborCents / totalLaborSalesCents) * 100 : null,
   };

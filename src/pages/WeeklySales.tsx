@@ -24,6 +24,8 @@ interface LaborRow {
   label: string;
   locationId: number;
   laborCents: number;
+  hourlyCents: number;
+  salariedCents: number;
   grossSalesCents: number;
   laborPct: number | null;
 }
@@ -51,7 +53,7 @@ interface ReportData {
   bakeHausItemSales: ItemSalesRow[];
   topDrinks: ItemSalesRow[];
   laborByStore: LaborRow[];
-  laborTotals: { laborCents: number; grossSalesCents: number; laborPct: number | null };
+  laborTotals: { laborCents: number; hourlyCents: number; salariedCents: number; grossSalesCents: number; laborPct: number | null };
   platformSalesByStore: PlatformSalesRow[];
   platformSalesTotals: PlatformSalesRow;
   pennyRounding?: {
@@ -1024,7 +1026,10 @@ export default function WeeklySales() {
             )}
           </Card>
 
-          <Card title="Labor · % of sales (target ≤ 35%)">
+          <Card
+            title="Labor · % of sales (target ≤ 35%)"
+            subtitle="Hourly from Dripos, salaried managers added per store (configured server-side). G4 salaried is $0 pending confirmation."
+          >
             {data.laborByStore.length === 0 ? (
               <Stub>Labor data unavailable.</Stub>
             ) : (
@@ -1032,7 +1037,9 @@ export default function WeeklySales() {
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left' }}>Store</th>
-                    <th>Labor cost</th>
+                    <th>Hourly</th>
+                    <th>Salaried</th>
+                    <th>Total labor</th>
                     <th>Gross sales</th>
                     <th>Labor %</th>
                   </tr>
@@ -1043,7 +1050,11 @@ export default function WeeklySales() {
                     return (
                       <tr key={row.label}>
                         <td style={{ textAlign: 'left', fontWeight: 600 }}>{row.label}</td>
-                        <td>{fmtMoney(row.laborCents)}</td>
+                        <td>{fmtMoney(row.hourlyCents)}</td>
+                        <td style={{ color: row.salariedCents > 0 ? '#1a1a1a' : '#bbb' }}>
+                          {row.salariedCents > 0 ? fmtMoney(row.salariedCents) : '—'}
+                        </td>
+                        <td><strong>{fmtMoney(row.laborCents)}</strong></td>
                         <td>{fmtMoney(row.grossSalesCents)}</td>
                         <td style={{ color: over ? '#c0392b' : '#1f8a3b', fontWeight: 600 }}>
                           {row.laborPct == null ? '—' : `${row.laborPct.toFixed(1)}%`}
@@ -1055,6 +1066,8 @@ export default function WeeklySales() {
                 <tfoot>
                   <tr>
                     <td>Chain</td>
+                    <td>{fmtMoney(data.laborTotals.hourlyCents)}</td>
+                    <td>{fmtMoney(data.laborTotals.salariedCents)}</td>
                     <td>{fmtMoney(data.laborTotals.laborCents)}</td>
                     <td>{fmtMoney(data.laborTotals.grossSalesCents)}</td>
                     <td style={{
