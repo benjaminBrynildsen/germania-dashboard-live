@@ -89,4 +89,39 @@ router.get('/applicants/scopes', requireAuth, async (req: AuthRequest, res: Resp
   }
 });
 
+router.get('/applicants/resume-meta/:fileId', requireAuth, async (req: AuthRequest, res: Response) => {
+  const fileId = String(req.params.fileId);
+  try {
+    const { google } = await import('googleapis');
+    const { default: db } = await import('./db.js');
+    const { OAuth2Client } = await import('google-auth-library');
+    const user = db
+      .prepare('SELECT google_access_token, google_refresh_token FROM users WHERE id = ?')
+      .get(req.user!.id) as { google_access_token?: string; google_refresh_token?: string };
+    const oauth = new OAuth2Client(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI,
+    );
+    oauth.setCredentials({
+      access_token: user.google_access_token,
+      refresh_token: user.google_refresh_token,
+    });
+    const drive = google.drive({ version: 'v3', auth: oauth });
+    const meta = await drive.files.get({
+      fileId,
+      fields: 'id,name,mimeType,owners(emailAddress,displayName),sharedWithMeTime,driveId,trashed,size',
+      supportsAllDrives: true,
+    });
+    res.json({ ok: true, meta: meta.data });
+  } catch (err) {
+    res.status(500).json({
+      error: 'meta_fetch_failed',
+      message: err instanceof Error ? err.message : String(err),
+      // Surface the raw Google response if we have it
+      raw: (err as any)?.response?.data ?? null,
+    });
+  }
+});
+
 export default router;
