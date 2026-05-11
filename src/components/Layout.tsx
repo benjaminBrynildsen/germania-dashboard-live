@@ -106,8 +106,17 @@ export default function Layout({ user, onLogout, children }: Props) {
           </>
         ) : (
           <>
-            {/* Desktop: nav left, hanging logo center, user right */}
-            <nav style={{ display: 'flex', gap: 4, whiteSpace: 'nowrap' }}>
+            {/* Desktop: nav left, hanging logo center, user right.
+                maxWidth keeps the nav clear of the centered logo (logo is
+                absolutely positioned at left: 50%, so without this the
+                rightmost nav links bleed behind it). */}
+            <nav style={{
+              display: 'flex', gap: 2, whiteSpace: 'nowrap',
+              maxWidth: 'calc(50% - 80px)',
+              overflowX: 'auto',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}>
               {NAV_ITEMS.map((it) => (
                 <NavLink key={it.to} to={it.to} current={location.pathname} exact={it.exact !== false}>
                   {it.label}

@@ -62,6 +62,8 @@ interface ApplicantsResponse {
 
 const DRIVE_FILE_RE = /https?:\/\/(?:drive\.google\.com|docs\.google\.com)\/[^\s,]+/i;
 const DRIVE_FILE_ID_RE = /\/d\/([a-zA-Z0-9_-]{20,})|[?&]id=([a-zA-Z0-9_-]{20,})/;
+const TIMESTAMP_VALUE_RE =
+  /^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}/; // Sheets' default Timestamp format
 
 function parseDriveFileId(s: string): string | null {
   const m = s.match(DRIVE_FILE_ID_RE);
@@ -72,6 +74,27 @@ function pickHeader(headers: string[], patterns: RegExp[]): number {
   for (const pat of patterns) {
     const i = headers.findIndex((h) => pat.test(h));
     if (i >= 0) return i;
+  }
+  return -1;
+}
+
+/**
+ * Pick a column whose VALUES look like a given type — used as a fallback when
+ * header regex matching is too narrow / too greedy. Samples up to 5 rows.
+ */
+function pickByValue(
+  rows: string[][],
+  predicate: (v: string) => boolean,
+): number {
+  if (rows.length === 0) return -1;
+  const sample = rows.slice(0, 5);
+  const width = Math.max(...sample.map((r) => r.length));
+  for (let c = 0; c < width; c++) {
+    const hits = sample.filter((r) => {
+      const v = String(r[c] ?? '').trim();
+      return v && predicate(v);
+    }).length;
+    if (hits >= Math.min(2, sample.length)) return c;
   }
   return -1;
 }
@@ -100,11 +123,33 @@ export async function fetchApplicants(userId: number): Promise<ApplicantsRespons
   }
 
   const headers = rows[0].map((h) => String(h ?? '').trim());
-  const tsIdx = pickHeader(headers, [/^timestamp$/i, /submit/i, /date/i]);
-  const nameIdx = pickHeader(headers, [/^name$/i, /full name/i, /first.*last/i, /your name/i]);
-  const emailIdx = pickHeader(headers, [/email/i]);
+  const valueRows = rows.slice(1) as string[][];
+
+  // Timestamp — narrow header match (only the literal Google Forms default)
+  // with a value-based fallback so we don't accidentally grab the resume
+  // column when its header has the word "submit" in it.
+  let tsIdx = pickHeader(headers, [/^timestamp$/i]);
+  if (tsIdx < 0) {
+    tsIdx = pickByValue(valueRows, (v) => TIMESTAMP_VALUE_RE.test(v));
+  }
+
+  // Name — try a single full-name column first, fall back to combining
+  // separate First Name + Last Name columns (Google Forms default).
+  const fullNameIdx = pickHeader(headers, [
+    /^name$/i, /^full name$/i, /^your (full )?name$/i,
+  ]);
+  const firstNameIdx = pickHeader(headers, [/^first[\s_-]?name$/i, /\bfirst name\b/i]);
+  const lastNameIdx = pickHeader(headers, [/^last[\s_-]?name$/i, /\blast name\b/i]);
+
+  const emailIdx = pickHeader(headers, [/e-?mail/i]);
   const phoneIdx = pickHeader(headers, [/phone/i, /mobile/i, /cell/i]);
-  const resumeIdx = pickHeader(headers, [/resume/i, /cv/i, /upload/i]);
+
+  // Resume — header match preferred, otherwise pick the column whose values
+  // are Drive URLs (Google Forms file-upload questions always store them).
+  let resumeIdx = pickHeader(headers, [/resume/i, /\bcv\b/i]);
+  if (resumeIdx < 0) {
+    resumeIdx = pickByValue(valueRows, (v) => DRIVE_FILE_RE.test(v));
+  }
 
   const applicants: Applicant[] = [];
   for (let r = 1; r < rows.length; r++) {
@@ -122,8 +167,19 @@ export async function fetchApplicants(userId: number): Promise<ApplicantsRespons
     const resumeFileId = resumeUrl ? parseDriveFileId(resumeUrl) : null;
 
     const ts = tsIdx >= 0 ? String(row[tsIdx] ?? '').trim() : '';
-    const submittedAt = ts || null;
-    const name = nameIdx >= 0 ? String(row[nameIdx] ?? '').trim() || null : null;
+    // Guard against a non-timestamp value sneaking through (e.g. a URL).
+    const submittedAt = ts && !/^https?:\/\//i.test(ts) ? ts : null;
+
+    let name: string | null = null;
+    if (fullNameIdx >= 0) {
+      name = String(row[fullNameIdx] ?? '').trim() || null;
+    } else {
+      const first = firstNameIdx >= 0 ? String(row[firstNameIdx] ?? '').trim() : '';
+      const last = lastNameIdx >= 0 ? String(row[lastNameIdx] ?? '').trim() : '';
+      const combined = `${first} ${last}`.trim();
+      name = combined || null;
+    }
+
     const email = emailIdx >= 0 ? String(row[emailIdx] ?? '').trim() || null : null;
     const phone = phoneIdx >= 0 ? String(row[phoneIdx] ?? '').trim() || null : null;
 
