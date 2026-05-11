@@ -213,19 +213,20 @@ export async function streamResume(
   const auth = getAuthClient(userId);
   const drive = google.drive({ version: 'v3', auth });
 
+  // supportsAllDrives covers Workspace shared drives — Google Forms attached
+  // to a Workspace form sometimes land in a team drive rather than the
+  // personal "My Drive", and the bare drive.files.get returns 404 on those.
   const meta = await drive.files.get({
     fileId,
     fields: 'name,mimeType',
+    supportsAllDrives: true,
   });
   const mimeType = meta.data.mimeType ?? 'application/octet-stream';
   const name = meta.data.name ?? 'resume';
 
   // Google Docs need to be exported; raw files can be downloaded directly.
   if (mimeType.startsWith('application/vnd.google-apps.')) {
-    const exportMime =
-      mimeType === 'application/vnd.google-apps.document'
-        ? 'application/pdf'
-        : 'application/pdf';
+    const exportMime = 'application/pdf';
     const res = await drive.files.export(
       { fileId, mimeType: exportMime },
       { responseType: 'stream' },
@@ -234,8 +235,28 @@ export async function streamResume(
   }
 
   const res = await drive.files.get(
-    { fileId, alt: 'media' },
+    { fileId, alt: 'media', supportsAllDrives: true },
     { responseType: 'stream' },
   );
   return { stream: res.data as NodeJS.ReadableStream, mimeType, name };
+}
+
+/**
+ * Returns the live scopes on the user's stored OAuth token. Used by the
+ * dashboard UI to tell whether the user needs to sign out + back in to
+ * grant a newly-added scope.
+ */
+export async function fetchTokenScopes(userId: number): Promise<string[]> {
+  const user = db
+    .prepare('SELECT google_access_token FROM users WHERE id = ?')
+    .get(userId) as { google_access_token?: string };
+  if (!user?.google_access_token) return [];
+  const r = await fetch(
+    `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(
+      user.google_access_token,
+    )}`,
+  );
+  if (!r.ok) return [];
+  const j = (await r.json()) as { scope?: string };
+  return (j.scope ?? '').split(' ').filter(Boolean);
 }
