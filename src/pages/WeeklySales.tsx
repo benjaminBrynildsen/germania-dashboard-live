@@ -733,7 +733,7 @@ export default function WeeklySales() {
               </table></div>
             </Card>
 
-            <Card title="Platform sales · this week" subtitle="Gross sales by platform per store. 'All' = Mobile + Web + 3rd Party. % is non-POS share of that store's revenue.">
+            <Card title="Platform sales · this week" subtitle="Product sales by platform per store (matches Dripos's Platform Sales report exactly for Mobile/Web/3rd Party). 'All' = Mobile + Web + 3rd Party. 'Total' is products only — excludes custom fees / cash rounding, so it reads a few cents under the headline Gross Sales.">
               <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
                   <tr>
