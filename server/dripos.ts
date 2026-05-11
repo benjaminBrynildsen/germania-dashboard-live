@@ -214,8 +214,10 @@ function dateOnly(d: Date): Date {
 /** Sunday of the most-recently-completed Sun-Sat week relative to `today`. */
 export function latestCompleteSun(today: Date = new Date()): Date {
   const t = dateOnly(today);
-  // JS: Sunday=0, Mon=1, ..., Sat=6. Days since most recent Saturday:
-  const daysSinceSat = (t.getDay() + 1) % 7;
+  // JS: Sunday=0, Mon=1, ..., Sat=6. Days since most recent COMPLETED Saturday.
+  // `|| 7` is the Saturday case: today itself is a Saturday whose week isn't
+  // done yet, so step back a full week instead of anchoring on today.
+  const daysSinceSat = ((t.getDay() + 1) % 7) || 7;
   const lastSat = addDays(t, -daysSinceSat);
   return addDays(lastSat, -6);
 }
