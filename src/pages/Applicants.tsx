@@ -9,7 +9,7 @@ interface Applicant {
   phone: string | null;
   resumeFileId: string | null;
   resumeUrl: string | null;
-  storeLabel: string | null;
+  storeLabels: string[];
   storeText: string | null;
   fields: Record<string, string>;
 }
@@ -18,7 +18,7 @@ const STORE_COLORS: Record<string, string> = {
   G1: '#2c5f8d', G2: '#c97a3f', G3: '#5a9a4a', G4: '#a04ea0',
 };
 const STORE_CITIES: Record<string, string> = {
-  G1: 'Alton', G2: 'East Alton', G3: 'Godfrey', G4: 'Jerseyville',
+  G1: 'Alton', G2: 'Godfrey', G3: 'East Alton', G4: 'Jerseyville',
 };
 
 interface ApplicantsResp {
@@ -141,8 +141,8 @@ export default function Applicants() {
       }
       if (filterStore !== 'all') {
         if (filterStore === 'unknown') {
-          if (a.storeLabel) return false;
-        } else if (a.storeLabel !== filterStore) {
+          if (a.storeLabels.length > 0) return false;
+        } else if (!a.storeLabels.includes(filterStore)) {
           return false;
         }
       }
@@ -308,8 +308,8 @@ export default function Applicants() {
                 store === 'all'
                   ? data.applicants.length
                   : store === 'unknown'
-                  ? data.applicants.filter((a) => !a.storeLabel).length
-                  : data.applicants.filter((a) => a.storeLabel === store).length;
+                  ? data.applicants.filter((a) => a.storeLabels.length === 0).length
+                  : data.applicants.filter((a) => a.storeLabels.includes(store)).length;
               return (
                 <button
                   key={store}
@@ -431,23 +431,31 @@ function ApplicantCard({
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        {a.storeLabel ? (
-          <span style={{
-            fontSize: 10, fontWeight: 700, padding: '2px 8px',
-            borderRadius: 4, color: '#fff',
-            background: STORE_COLORS[a.storeLabel] ?? '#888',
-            textTransform: 'uppercase', letterSpacing: 0.5,
-          }}>{a.storeLabel} · {STORE_CITIES[a.storeLabel] ?? ''}</span>
-        ) : a.storeText ? (
-          <span style={{
-            fontSize: 10, fontWeight: 600, padding: '2px 8px',
-            borderRadius: 4, color: '#555', background: '#eee',
-            textTransform: 'uppercase', letterSpacing: 0.5,
-          }} title={a.storeText}>{a.storeText.slice(0, 24)}{a.storeText.length > 24 ? '…' : ''}</span>
-        ) : null}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+        {a.storeLabels.length > 0
+          ? a.storeLabels.map((label) => (
+              <span
+                key={label}
+                title={STORE_CITIES[label] ?? label}
+                style={{
+                  fontSize: 10, fontWeight: 700, padding: '2px 6px',
+                  borderRadius: 4, color: '#fff',
+                  background: STORE_COLORS[label] ?? '#888',
+                  letterSpacing: 0.5,
+                }}
+              >{label}</span>
+            ))
+          : a.storeText
+          ? (
+              <span style={{
+                fontSize: 10, fontWeight: 600, padding: '2px 8px',
+                borderRadius: 4, color: '#555', background: '#eee',
+                letterSpacing: 0.3,
+              }} title={a.storeText}>{a.storeText.slice(0, 24)}{a.storeText.length > 24 ? '…' : ''}</span>
+          )
+          : null}
         {a.submittedAt && (
-          <span style={{ fontSize: 11, color: '#aaa' }}>
+          <span style={{ fontSize: 11, color: '#aaa', marginLeft: 2 }}>
             {a.submittedAt}
           </span>
         )}

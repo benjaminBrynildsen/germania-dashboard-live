@@ -32,28 +32,47 @@ export const STORES: Store[] = [
   // Alton), edit these — applicant routing is the only thing that uses
   // city/applicantAliases, so it's safe to change without touching reports.
   { label: 'G1', locationId: 131, uniqueId: 'loc_b4nrdvOjLT8cfE63X7m6QRsP',
-    city: 'Alton',     applicantAliases: ['alton'] },
+    city: 'Alton',      applicantAliases: ['alton'] },
   { label: 'G2', locationId: 132, uniqueId: 'loc_2FqRNPdfcLEg521EOOFCgetj',
-    city: 'East Alton', applicantAliases: ['east alton', 'east-alton', 'eastalton'] },
+    city: 'Godfrey',    applicantAliases: ['godfrey'] },
   { label: 'G3', locationId: 133, uniqueId: 'loc_zWkTy2JGaXcBRWc5miKaKUjC',
-    city: 'Godfrey',   applicantAliases: ['godfrey'] },
+    city: 'East Alton', applicantAliases: ['east alton', 'east-alton', 'eastalton'] },
   { label: 'G4', locationId: 134, uniqueId: 'loc_62xj8uJ7xZHQ4yCTQjRU2ZWB',
     city: 'Jerseyville', applicantAliases: ['jerseyville', 'jersey ville'] },
 ];
 
-/** Best-effort: match a free-text location answer to one of the 4 stores. */
-export function matchStoreLabel(text: string | null | undefined): string | null {
-  if (!text) return null;
-  const haystack = text.toLowerCase();
-  // Check longer aliases first to avoid "East Alton" matching G1's "alton".
+/**
+ * Best-effort: extract every store the applicant ticked. Multi-checkbox form
+ * answers come in as "Alton, Godfrey" or similar; we have to find ALL matches,
+ * not just the first. Longer-alias stores are matched first AND their matches
+ * are stripped from the haystack so e.g. "East Alton, Godfrey" doesn't double-
+ * count to G2 + G1.
+ */
+export function matchStoreLabels(text: string | null | undefined): string[] {
+  if (!text) return [];
+  let haystack = text.toLowerCase();
   const ordered = [...STORES].sort((a, b) => {
     const maxLen = (s: Store) => Math.max(...s.applicantAliases.map((a) => a.length));
     return maxLen(b) - maxLen(a);
   });
+  const found: string[] = [];
   for (const s of ordered) {
-    if (s.applicantAliases.some((al) => haystack.includes(al))) return s.label;
+    for (const al of s.applicantAliases) {
+      if (haystack.includes(al)) {
+        if (!found.includes(s.label)) found.push(s.label);
+        // Strip every occurrence so a later (shorter) alias can't re-match.
+        haystack = haystack.split(al).join(' '.repeat(al.length));
+        break;
+      }
+    }
   }
-  return null;
+  // Return in canonical G1-G4 order regardless of which one matched first.
+  return STORES.filter((s) => found.includes(s.label)).map((s) => s.label);
+}
+
+/** Deprecated single-match version kept for callers that haven't migrated. */
+export function matchStoreLabel(text: string | null | undefined): string | null {
+  return matchStoreLabels(text)[0] ?? null;
 }
 
 const UNIQUE_BY_LOCATION_ID: Record<number, string> = Object.fromEntries(

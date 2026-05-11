@@ -80,11 +80,14 @@ export default function Locations() {
         if (!j?.applicants) return;
         const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
         const counts: Record<string, number> = {};
-        for (const a of j.applicants as Array<{ storeLabel: string | null; submittedAt: string | null }>) {
-          if (!a.storeLabel) continue;
+        for (const a of j.applicants as Array<{ storeLabels: string[]; submittedAt: string | null }>) {
+          if (!a.storeLabels?.length) continue;
           const t = a.submittedAt ? Date.parse(a.submittedAt) : NaN;
           if (Number.isNaN(t) || t < sevenDaysAgo) continue;
-          counts[a.storeLabel] = (counts[a.storeLabel] ?? 0) + 1;
+          // Multi-store applicants count for each location they selected.
+          for (const label of a.storeLabels) {
+            counts[label] = (counts[label] ?? 0) + 1;
+          }
         }
         setNewAppsByStore(counts);
       })
