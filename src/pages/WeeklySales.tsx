@@ -397,32 +397,52 @@ function Legend({ label, color, dashed = false }: { label: string; color: string
   );
 }
 
-// ── Platform pie chart ──────────────────────────────────────────────────
-const PLATFORM_COLORS: Record<string, string> = {
-  POS: '#1a1a1a',
-  Mobile: '#2c5f8d',
-  Web: '#c97a3f',
-  '3rd Party': '#5a9a4a',
-  Other: '#a04ea0',
-};
+// ── Top items pie chart ─────────────────────────────────────────────────
+// 5 distinct hues for the top 5 items; everything else folds into a grey
+// "Other" slice. Picked to print well and stay distinguishable on small
+// favicon-sized renders.
+const TOP_ITEM_COLORS = ['#1a1a1a', '#2c5f8d', '#c97a3f', '#5a9a4a', '#a04ea0'];
+const OTHER_COLOR = '#bbb';
 
-function PlatformPieChart({ totals }: { totals: PlatformSalesRow }) {
+function TopItemsPieChart({
+  items,
+  topN = 5,
+}: {
+  items: ItemSalesRow[];
+  topN?: number;
+}) {
+  // items are pre-sorted by revenue (descending) by the server.
+  const sorted = [...items].filter((i) => i.totalRevenueCents > 0);
+  if (sorted.length === 0) return null;
+
+  const top = sorted.slice(0, topN);
+  const rest = sorted.slice(topN);
+  const restTotal = rest.reduce((a, b) => a + b.totalRevenueCents, 0);
+
   const segments = [
-    { label: 'POS', value: totals.posCents },
-    { label: 'Mobile', value: totals.mobileCents },
-    { label: 'Web', value: totals.webCents },
-    { label: '3rd Party', value: totals.thirdCents },
-    { label: 'Other', value: totals.otherCents },
-  ].filter((s) => s.value > 0);
-  const total = segments.reduce((a, b) => a + b.value, 0);
-  if (total === 0) return null;
+    ...top.map((it, i) => ({
+      label: it.name,
+      value: it.totalRevenueCents,
+      units: it.totalUnits,
+      color: TOP_ITEM_COLORS[i % TOP_ITEM_COLORS.length],
+    })),
+    ...(restTotal > 0
+      ? [{
+          label: `Other (${rest.length} items)`,
+          value: restTotal,
+          units: rest.reduce((a, b) => a + b.totalUnits, 0),
+          color: OTHER_COLOR,
+        }]
+      : []),
+  ];
 
+  const total = segments.reduce((a, b) => a + b.value, 0);
   const cx = 110;
   const cy = 110;
   const r = 90;
-  const innerR = 56; // donut hole
+  const innerR = 56;
 
-  let cursor = -Math.PI / 2; // start at 12 o'clock
+  let cursor = -Math.PI / 2;
   const slices = segments.map((s) => {
     const angle = (s.value / total) * Math.PI * 2;
     const start = cursor;
@@ -448,7 +468,6 @@ function PlatformPieChart({ totals }: { totals: PlatformSalesRow }) {
       pct: (s.value / total) * 100,
       labelX: cx + labelR * Math.cos(midAngle),
       labelY: cy + labelR * Math.sin(midAngle),
-      color: PLATFORM_COLORS[s.label] ?? '#999',
     };
   });
 
@@ -463,26 +482,23 @@ function PlatformPieChart({ totals }: { totals: PlatformSalesRow }) {
         {slices.map((s) => (
           <g key={s.label}>
             <path d={s.d} fill={s.color} stroke="#fff" strokeWidth="2" />
-            {s.pct >= 6 && (
+            {s.pct >= 8 && (
               <text
                 x={s.labelX} y={s.labelY}
-                fontSize="12" fontWeight="700"
-                fill={s.label === 'POS' ? '#fff' : '#fff'}
+                fontSize="12" fontWeight="700" fill="#fff"
                 textAnchor="middle" dominantBaseline="central"
               >{s.pct.toFixed(0)}%</text>
             )}
           </g>
         ))}
-        <text x={cx} y={cy - 8} fontSize="11" fill="#888" textAnchor="middle" fontWeight="600"
-              letterSpacing="1" style={{ textTransform: 'uppercase' }}>Mix</text>
-        <text x={cx} y={cy + 12} fontSize="16" fontWeight="700" fill="#1a1a1a" textAnchor="middle">
+        <text x={cx} y={cy - 8} fontSize="10" fill="#888" textAnchor="middle" fontWeight="600"
+              letterSpacing="1" style={{ textTransform: 'uppercase' }}>Top {topN}</text>
+        <text x={cx} y={cy + 12} fontSize="15" fontWeight="700" fill="#1a1a1a" textAnchor="middle">
           {fmtMoney(total)}
         </text>
       </svg>
-      <div style={{ minWidth: 180 }}>
-        {slices
-          .sort((a, b) => b.value - a.value)
-          .map((s) => (
+      <div style={{ minWidth: 220, flex: 1, maxWidth: 360 }}>
+        {slices.map((s) => (
           <div key={s.label} style={{
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '6px 0', fontSize: 13,
@@ -492,8 +508,20 @@ function PlatformPieChart({ totals }: { totals: PlatformSalesRow }) {
               width: 12, height: 12, borderRadius: 3,
               background: s.color, flexShrink: 0,
             }} />
-            <div style={{ flex: 1, fontWeight: 500 }}>{s.label}</div>
-            <div style={{ color: '#666', fontVariantNumeric: 'tabular-nums' }}>
+            <div style={{
+              flex: 1, fontWeight: 500,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }} title={s.label}>{s.label}</div>
+            <div style={{
+              color: '#888', fontSize: 11, fontVariantNumeric: 'tabular-nums',
+              whiteSpace: 'nowrap',
+            }}>
+              {s.units} units
+            </div>
+            <div style={{
+              minWidth: 64, textAlign: 'right',
+              color: '#666', fontSize: 12, fontVariantNumeric: 'tabular-nums',
+            }}>
               {fmtMoney(s.value)}
             </div>
             <div style={{
@@ -870,7 +898,6 @@ export default function WeeklySales() {
             </Card>
 
             <Card title="Platform sales · this week" subtitle="Product sales by platform per store (matches Dripos's Platform Sales report exactly for Mobile/Web/3rd Party). 'All' = Mobile + Web + 3rd Party. 'Total' is products only — excludes custom fees / cash rounding, so it reads a few cents under the headline Gross Sales.">
-              <PlatformPieChart totals={data.platformSalesTotals} />
               <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
                   <tr>
@@ -919,6 +946,8 @@ export default function WeeklySales() {
             {data.bakeHausItemSales.length === 0 ? (
               <Stub>No Bake Haus sales recorded this week.</Stub>
             ) : (
+              <>
+              <TopItemsPieChart items={data.bakeHausItemSales} />
               <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
                   <tr>
@@ -950,6 +979,7 @@ export default function WeeklySales() {
                   ))}
                 </tbody>
               </table></div>
+              </>
             )}
           </Card>
 
@@ -957,6 +987,8 @@ export default function WeeklySales() {
             {data.topDrinks.length === 0 ? (
               <Stub>No drink sales recorded this week.</Stub>
             ) : (
+              <>
+              <TopItemsPieChart items={data.topDrinks} />
               <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
                   <tr>
@@ -988,6 +1020,7 @@ export default function WeeklySales() {
                   ))}
                 </tbody>
               </table></div>
+              </>
             )}
           </Card>
 
