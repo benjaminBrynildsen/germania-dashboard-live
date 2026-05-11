@@ -21,6 +21,11 @@ const SCOPES = [
   // Read the applicants response sheet (and any future sheets). Narrow
   // alternative to drive.readonly — only Sheets, read-only.
   'https://www.googleapis.com/auth/spreadsheets.readonly',
+  // Read the resume uploads attached to Google Form responses. drive.file
+  // (above) only grants access to files THIS APP created; form uploads
+  // live in the form owner's Drive, so we need a broader read scope to
+  // stream them back through /api/applicants/resume/:fileId.
+  'https://www.googleapis.com/auth/drive.readonly',
 ];
 
 export interface AuthRequest extends Request {

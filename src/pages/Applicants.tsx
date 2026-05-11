@@ -445,30 +445,103 @@ function ApplicantDrawer({
   onRating: (n: number) => void;
   onNote: (t: string) => void;
 }) {
+  // Esc closes the full-screen view
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // HEAD-probe the resume so we can render an inline error if Drive returns
+  // 4xx/5xx instead of letting the iframe show raw JSON.
+  const [resumeStatus, setResumeStatus] = useState<'loading' | 'ok' | 'fail'>('loading');
+  const [resumeErr, setResumeErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!a.resumeFileId) return;
+    let cancelled = false;
+    setResumeStatus('loading');
+    setResumeErr(null);
+    // GET with Range: bytes=0-0 — tiny probe that won't actually download
+    // the file, but Drive returns the real status code.
+    fetch(`/api/applicants/resume/${a.resumeFileId}`, {
+      headers: { Range: 'bytes=0-0' },
+      cache: 'no-store',
+    })
+      .then(async (r) => {
+        if (cancelled) return;
+        if (r.ok || r.status === 206) {
+          setResumeStatus('ok');
+          return;
+        }
+        let msg = `HTTP ${r.status}`;
+        try {
+          const j = await r.json();
+          msg = j.message || j.error || msg;
+        } catch { /* leave default */ }
+        setResumeErr(msg);
+        setResumeStatus('fail');
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setResumeErr(String(e));
+        setResumeStatus('fail');
+      });
+    return () => { cancelled = true; };
+  }, [a.resumeFileId]);
+
   return (
     <div
-      onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-        backdropFilter: 'blur(3px)', display: 'flex', justifyContent: 'flex-end',
-        zIndex: 50,
+        position: 'fixed', inset: 0, background: '#fff',
+        zIndex: 50, display: 'flex', flexDirection: 'column',
       }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: '#fff', width: 'min(960px, 100%)', height: '100%',
-          overflowY: 'auto', padding: '24px 28px',
-          boxShadow: '-8px 0 32px rgba(0,0,0,0.18)',
-        }}
-      >
+      {/* Sticky top bar with Back */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 1,
+        background: 'rgba(255,255,255,0.92)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(0,0,0,0.08)',
+        padding: '10px 20px',
+        display: 'flex', alignItems: 'center', gap: 14,
+      }}>
+        <button
+          onClick={onClose}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '7px 12px', borderRadius: 8,
+            border: '1px solid #ddd', background: '#fff',
+            cursor: 'pointer', fontSize: 13, fontWeight: 600,
+            color: '#1a1a1a',
+          }}
+        >
+          <span style={{ fontSize: 16, lineHeight: 1 }}>‹</span>
+          Back to applicants
+        </button>
+        <div style={{
+          flex: 1, fontSize: 13, color: '#888',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {a.name ?? '(no name)'}
+          {a.email ? ` · ${a.email}` : ''}
+        </div>
+        <span style={{ fontSize: 11, color: '#bbb' }}>Esc</span>
+      </div>
+
+      <div style={{
+        flex: 1, overflowY: 'auto',
+        padding: '24px max(20px, calc((100vw - 1100px) / 2))',
+      }}>
         <div style={{
           display: 'flex', alignItems: 'flex-start', gap: 12,
           marginBottom: 20, paddingBottom: 16,
           borderBottom: '1px solid #eee',
         }}>
           <div style={{ flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
+            <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>
               {a.name ?? '(no name)'}
             </h2>
             <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
@@ -476,14 +549,6 @@ function ApplicantDrawer({
               {a.submittedAt && ` · submitted ${a.submittedAt}`}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              border: 0, background: 'transparent', fontSize: 22,
-              cursor: 'pointer', color: '#999', padding: 4,
-            }}
-            aria-label="Close"
-          >×</button>
         </div>
 
         {/* Status pills */}
@@ -558,20 +623,61 @@ function ApplicantDrawer({
                 fontSize: 11, textTransform: 'uppercase', letterSpacing: 1,
                 color: '#888', fontWeight: 600,
               }}>Resume</div>
-              <a
-                href={`/api/applicants/resume/${a.resumeFileId}`}
-                target="_blank" rel="noreferrer"
-                style={{ fontSize: 12, color: '#2563eb' }}
-              >Open in new tab ↗</a>
+              <div style={{ display: 'flex', gap: 12 }}>
+                {a.resumeUrl && (
+                  <a
+                    href={a.resumeUrl}
+                    target="_blank" rel="noreferrer"
+                    style={{ fontSize: 12, color: '#2563eb' }}
+                  >Open in Drive ↗</a>
+                )}
+                {resumeStatus === 'ok' && (
+                  <a
+                    href={`/api/applicants/resume/${a.resumeFileId}`}
+                    target="_blank" rel="noreferrer"
+                    style={{ fontSize: 12, color: '#2563eb' }}
+                  >Open in new tab ↗</a>
+                )}
+              </div>
             </div>
-            <iframe
-              src={`/api/applicants/resume/${a.resumeFileId}`}
-              style={{
-                width: '100%', height: 600,
-                border: '1px solid #eee', borderRadius: 8,
-              }}
-              title="Resume"
-            />
+            {resumeStatus === 'loading' && (
+              <div style={{
+                padding: '24px', textAlign: 'center',
+                background: '#fafafa', borderRadius: 8,
+                border: '1px solid #eee', color: '#888', fontSize: 13,
+              }}>Loading resume…</div>
+            )}
+            {resumeStatus === 'fail' && (
+              <div style={{
+                padding: '16px 20px', background: '#fffbe6',
+                border: '1px solid #f0d97b', borderRadius: 8,
+                color: '#6b5500', fontSize: 13, lineHeight: 1.5,
+              }}>
+                <strong>Couldn't load this resume.</strong>{' '}
+                {/^File not found|insufficient.*scope/i.test(resumeErr ?? '')
+                  ? "Sign out and back in — Google needs to grant the dashboard a broader Drive read permission so it can fetch applicant uploads."
+                  : (resumeErr ?? 'Unknown error.')}
+                {' '}
+                {a.resumeUrl && (
+                  <a
+                    href={a.resumeUrl}
+                    target="_blank" rel="noreferrer"
+                    style={{ color: '#2563eb', marginLeft: 4 }}
+                  >Open in Drive instead ↗</a>
+                )}
+              </div>
+            )}
+            {resumeStatus === 'ok' && (
+              <iframe
+                src={`/api/applicants/resume/${a.resumeFileId}`}
+                style={{
+                  width: '100%', height: 'calc(100vh - 320px)',
+                  minHeight: 600,
+                  border: '1px solid #eee', borderRadius: 8,
+                }}
+                title="Resume"
+              />
+            )}
           </div>
         )}
 
