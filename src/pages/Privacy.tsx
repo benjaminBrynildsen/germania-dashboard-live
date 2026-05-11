@@ -31,7 +31,7 @@ export default function Privacy() {
         </h2>
         <p>
           The Germania Dashboard is an internal staff tool for Germania Brew Haus
-          (Sioux Falls, SD). Access is restricted to verified
+          (Alton, IL). Access is restricted to verified
           <code> @germaniabrewhaus.com </code> Google Workspace accounts. We do
           not collect data from the general public.
         </p>

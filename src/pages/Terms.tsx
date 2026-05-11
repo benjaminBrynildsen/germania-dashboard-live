@@ -31,7 +31,7 @@ export default function Terms() {
         </h2>
         <p>
           The Germania Dashboard is an internal staff tool for Germania Brew Haus
-          (Sioux Falls, SD). By signing in with your{' '}
+          (Alton, IL). By signing in with your{' '}
           <code>@germaniabrewhaus.com</code> account you agree to these terms.
           The dashboard is not offered to the general public.
         </p>
