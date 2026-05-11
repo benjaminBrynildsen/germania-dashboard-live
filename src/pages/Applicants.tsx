@@ -38,6 +38,18 @@ const STATUS_COLORS: Record<Status, { bg: string; fg: string }> = {
   hired: { bg: '#fff4d6', fg: '#8a6a00' },
 };
 
+// A "New" pill is shown only when the submission is recent AND the user
+// hasn't moved it out of the default status yet. Tighter than 7 days could
+// be a per-store toggle later if hiring volume warrants it.
+const NEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isRecentSubmission(submittedAt: string | null): boolean {
+  if (!submittedAt) return false;
+  const t = Date.parse(submittedAt);
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t < NEW_WINDOW_MS;
+}
+
 function loadMap<T>(key: string): Record<string, T> {
   try {
     const raw = localStorage.getItem(key);
@@ -108,7 +120,15 @@ export default function Applicants() {
     const q = query.trim().toLowerCase();
     const matched = data.applicants.filter((a) => {
       const s = statuses[a.id] ?? 'new';
-      if (filterStatus !== 'all' && s !== filterStatus) return false;
+      if (filterStatus !== 'all') {
+        // "New" filter = unprocessed AND submitted within last week, matching
+        // the pill visibility rule on cards. Other filters are strict status.
+        if (filterStatus === 'new') {
+          if (!(s === 'new' && isRecentSubmission(a.submittedAt))) return false;
+        } else if (s !== filterStatus) {
+          return false;
+        }
+      }
       if (!q) return true;
       const hay = [
         a.name,
@@ -152,7 +172,11 @@ export default function Applicants() {
     const c = { all: data.applicants.length, new: 0, shortlist: 0, reject: 0, hired: 0 };
     for (const a of data.applicants) {
       const s = statuses[a.id] ?? 'new';
-      c[s]++;
+      if (s === 'new') {
+        if (isRecentSubmission(a.submittedAt)) c.new++;
+      } else {
+        c[s]++;
+      }
     }
     return c;
   }, [data, statuses]);
@@ -307,6 +331,16 @@ function ApplicantCard({
   onOpen: () => void;
 }) {
   const sc = STATUS_COLORS[status];
+  // "New" is the default for unprocessed applicants, but showing it on every
+  // card is noise. Only display the pill when (a) the user has explicitly
+  // moved the card to a non-new status, or (b) the application is fresh
+  // (last week). Truly new + recent gets a brighter accent.
+  const recent = isRecentSubmission(a.submittedAt);
+  const showPill = status !== 'new' || recent;
+  const pillStyle =
+    status === 'new' && recent
+      ? { bg: '#dcefff', fg: '#1a5db4' } // fresh "New"
+      : sc;
   return (
     <div
       onClick={onOpen}
@@ -334,11 +368,13 @@ function ApplicantCard({
             }}>{a.email}{a.email && a.phone ? ' · ' : ''}{a.phone}</div>
           )}
         </div>
-        <span style={{
-          fontSize: 11, fontWeight: 700, padding: '3px 8px',
-          borderRadius: 999, background: sc.bg, color: sc.fg,
-          flexShrink: 0,
-        }}>{STATUS_LABELS[status]}</span>
+        {showPill && (
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: '3px 8px',
+            borderRadius: 999, background: pillStyle.bg, color: pillStyle.fg,
+            flexShrink: 0,
+          }}>{STATUS_LABELS[status]}</span>
+        )}
       </div>
 
       {a.submittedAt && (
