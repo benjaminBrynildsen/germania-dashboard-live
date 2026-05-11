@@ -389,6 +389,54 @@ export async function fetchDashboardSales(
   );
 }
 
+/**
+ * Chain-wide /report/salessummary call (all locations in one POST). Dripos's
+ * own "Sales Summary" report does this — calling per-location and summing
+ * misses cross-location adjustments (refunds processed at a different store,
+ * shared gift-card redemptions) and reads a few tenths of a percent low.
+ * Used for the headline KPI tiles so they exactly match dashboard.dripos.com.
+ * Per-store breakdown rows still use fetchDashboardSales per location.
+ */
+export async function fetchChainSales(
+  locationIds: number[],
+  sun: Date,
+  sat: Date,
+): Promise<DashboardSalesData> {
+  const start = startOfDayMs(sun);
+  const end = endOfDayMs(sat);
+  const ids = [...locationIds].sort((a, b) => a - b).join(',');
+  return cached(
+    `report/salessummary-chain|${ids}|${start}|${end}`,
+    end,
+    async () => {
+      const body = await callApi<{ TIMESPAN?: SalesSummaryRow[] }>(
+        '/report/salessummary',
+        {
+          method: 'POST',
+          locationId: locationIds[0],
+          body: {
+            START_EPOCH: start,
+            END_EPOCH: end,
+            LOCATION_ID_ARRAY: locationIds,
+            EXECUTE_REPORTS: ['HOUR'],
+            POPULATE_MISSING_DATES: false,
+          },
+        },
+      );
+      const row = body.data?.TIMESPAN?.[0];
+      const tickets = row?.TICKET_COUNT ?? 0;
+      const gross = row?.GROSS_SALES ?? 0;
+      return {
+        STATS: {
+          GROSS_SALES: gross,
+          TICKET_COUNT: tickets,
+          AVERAGE_TICKET: tickets > 0 ? Math.round(gross / tickets) : 0,
+        },
+      };
+    },
+  );
+}
+
 interface DriposProduct {
   ID: number;
   NAME: string;
@@ -979,6 +1027,22 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
   };
   for (const { bucket, label, data } of salesResults) sales[bucket][label] = data;
 
+  // Chain-aggregate call per bucket — used for the headline KPIs so they
+  // match Dripos exactly. Per-store calls don't sum to the chain total
+  // (cross-location adjustments land on the aggregate response only).
+  const locationIds = STORES.map((s) => s.locationId);
+  const chainEntries = await Promise.all(
+    (['current', 'prev', 'yoy'] as Bucket[]).map(async (bucket) => {
+      const [sun, sat] = buckets[bucket];
+      const data = await fetchChainSales(locationIds, sun, sat);
+      return [bucket, data] as const;
+    }),
+  );
+  const chain: Record<Bucket, DashboardSalesData> = {
+    current: {}, prev: {}, yoy: {},
+  };
+  for (const [bucket, data] of chainEntries) chain[bucket] = data;
+
   // 6-week trend (oldest-first)
   const trendJobs: Array<Promise<{ w: number; sun: Date; sat: Date; label: string; data: DashboardSalesData }>> = [];
   for (let w = TREND_WEEKS - 1; w >= 0; w--) {
@@ -1033,16 +1097,23 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
     };
   });
 
+  // Headline totals come from the chain-aggregate call (matches Dripos UI).
+  // Fall back to per-store sums if a chain call failed for any reason.
   const sumGross = (b: Bucket) =>
     Object.values(sales[b]).reduce((acc, s) => acc + (s.STATS?.GROSS_SALES ?? 0), 0);
   const sumTickets = (b: Bucket) =>
     Object.values(sales[b]).reduce((acc, s) => acc + (s.STATS?.TICKET_COUNT ?? 0), 0);
+  const chainOr = (b: Bucket, field: 'GROSS_SALES' | 'TICKET_COUNT'): number => {
+    const v = chain[b]?.STATS?.[field];
+    if (typeof v === 'number' && v > 0) return v;
+    return field === 'GROSS_SALES' ? sumGross(b) : sumTickets(b);
+  };
 
-  const curTotal = sumGross('current');
-  const prevTotal = sumGross('prev');
-  const yoyTotal = sumGross('yoy');
-  const curTickets = sumTickets('current');
-  const prevTickets = sumTickets('prev');
+  const curTotal = chainOr('current', 'GROSS_SALES');
+  const prevTotal = chainOr('prev', 'GROSS_SALES');
+  const yoyTotal = chainOr('yoy', 'GROSS_SALES');
+  const curTickets = chainOr('current', 'TICKET_COUNT');
+  const prevTickets = chainOr('prev', 'TICKET_COUNT');
   const curAvg = curTickets > 0 ? Math.round(curTotal / curTickets) : 0;
   const prevAvg = prevTickets > 0 ? Math.round(prevTotal / prevTickets) : 0;
 
