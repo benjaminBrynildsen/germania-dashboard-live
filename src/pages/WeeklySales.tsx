@@ -904,21 +904,21 @@ export default function WeeklySales() {
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left' }}>Store</th>
-                    <th>Mobile</th>
-                    <th>Web</th>
-                    <th>3rd Party</th>
-                    <th>All</th>
+                    {!isMobile && <th>Mobile</th>}
+                    {!isMobile && <th>Web</th>}
+                    {!isMobile && <th>3rd Party</th>}
+                    <th>All non-POS</th>
                     <th>Total</th>
-                    <th>% of Sales</th>
+                    <th>%</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.platformSalesByStore.map((row) => (
                     <tr key={row.label}>
                       <td style={{ textAlign: 'left' }}><strong>{row.label}</strong></td>
-                      <td>{fmtMoney(row.mobileCents)}</td>
-                      <td>{fmtMoney(row.webCents)}</td>
-                      <td>{fmtMoney(row.thirdCents)}</td>
+                      {!isMobile && <td>{fmtMoney(row.mobileCents)}</td>}
+                      {!isMobile && <td>{fmtMoney(row.webCents)}</td>}
+                      {!isMobile && <td>{fmtMoney(row.thirdCents)}</td>}
                       <td><strong>{fmtMoney(row.nonPosCents)}</strong></td>
                       <td>{fmtMoney(row.totalCents)}</td>
                       <td>{row.nonPosPct == null ? '—' : `${row.nonPosPct.toFixed(1)}%`}</td>
@@ -928,9 +928,9 @@ export default function WeeklySales() {
                 <tfoot>
                   <tr>
                     <td>Chain</td>
-                    <td>{fmtMoney(data.platformSalesTotals.mobileCents)}</td>
-                    <td>{fmtMoney(data.platformSalesTotals.webCents)}</td>
-                    <td>{fmtMoney(data.platformSalesTotals.thirdCents)}</td>
+                    {!isMobile && <td>{fmtMoney(data.platformSalesTotals.mobileCents)}</td>}
+                    {!isMobile && <td>{fmtMoney(data.platformSalesTotals.webCents)}</td>}
+                    {!isMobile && <td>{fmtMoney(data.platformSalesTotals.thirdCents)}</td>}
                     <td><strong>{fmtMoney(data.platformSalesTotals.nonPosCents)}</strong></td>
                     <td>{fmtMoney(data.platformSalesTotals.totalCents)}</td>
                     <td>
@@ -954,9 +954,9 @@ export default function WeeklySales() {
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left' }}>Item</th>
-                    {data.stores.map((s) => <th key={s.label}>{s.label}</th>)}
+                    {!isMobile && data.stores.map((s) => <th key={s.label}>{s.label}</th>)}
                     <th>Total units</th>
-                    <th>Avg/store</th>
+                    {!isMobile && <th>Avg/store</th>}
                     <th>Revenue</th>
                   </tr>
                 </thead>
@@ -969,13 +969,13 @@ export default function WeeklySales() {
                           <span>{row.name}</span>
                         </div>
                       </td>
-                      {data.stores.map((s) => (
+                      {!isMobile && data.stores.map((s) => (
                         <td key={s.label} style={{ textAlign: 'center' }}>
                           {row.unitsByStore[s.label] ?? '–'}
                         </td>
                       ))}
                       <td><strong>{row.totalUnits}</strong></td>
-                      <td>{row.avgPerStore.toFixed(1)}</td>
+                      {!isMobile && <td>{row.avgPerStore.toFixed(1)}</td>}
                       <td>{fmtMoney(row.totalRevenueCents)}</td>
                     </tr>
                   ))}
@@ -996,7 +996,7 @@ export default function WeeklySales() {
                   <tr>
                     <th style={{ textAlign: 'left' }}>#</th>
                     <th style={{ textAlign: 'left' }}>Drink</th>
-                    {data.stores.map((s) => <th key={s.label}>{s.label}</th>)}
+                    {!isMobile && data.stores.map((s) => <th key={s.label}>{s.label}</th>)}
                     <th>Total units</th>
                     <th>Revenue</th>
                   </tr>
@@ -1011,7 +1011,7 @@ export default function WeeklySales() {
                           <span>{row.name}</span>
                         </div>
                       </td>
-                      {data.stores.map((s) => (
+                      {!isMobile && data.stores.map((s) => (
                         <td key={s.label} style={{ textAlign: 'center' }}>
                           {row.unitsByStore[s.label] ?? '–'}
                         </td>
@@ -1028,7 +1028,11 @@ export default function WeeklySales() {
 
           <Card
             title="Labor · % of sales (target ≤ 35%)"
-            subtitle="Hourly from Dripos minus G4's kitchen labor (≈$1,750/wk, the kitchen feeds every store), pooled with the $6,500/wk salaried-manager budget, then allocated to each store by sales share — same allocation the accountant runs on the bi-weekly contribution sheets."
+            subtitle={
+              isMobile
+                ? "Total includes hourly + salaried + G4 kitchen offload."
+                : "Hourly from Dripos minus G4's kitchen labor (≈$1,750/wk, the kitchen feeds every store), pooled with the $6,500/wk salaried-manager budget, then allocated to each store by sales share — same allocation the accountant runs on the bi-weekly contribution sheets."
+            }
           >
             {data.laborByStore.length === 0 ? (
               <Stub>Labor data unavailable.</Stub>
@@ -1037,10 +1041,10 @@ export default function WeeklySales() {
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left' }}>Store</th>
-                    <th>Hourly</th>
-                    <th>Salaried</th>
+                    {!isMobile && <th>Hourly</th>}
+                    {!isMobile && <th>Salaried</th>}
                     <th>Total labor</th>
-                    <th>Gross sales</th>
+                    {!isMobile && <th>Gross sales</th>}
                     <th>Labor %</th>
                   </tr>
                 </thead>
@@ -1050,12 +1054,14 @@ export default function WeeklySales() {
                     return (
                       <tr key={row.label}>
                         <td style={{ textAlign: 'left', fontWeight: 600 }}>{row.label}</td>
-                        <td>{fmtMoney(row.hourlyCents)}</td>
-                        <td style={{ color: row.salariedCents > 0 ? '#1a1a1a' : '#bbb' }}>
-                          {row.salariedCents > 0 ? fmtMoney(row.salariedCents) : '—'}
-                        </td>
+                        {!isMobile && <td>{fmtMoney(row.hourlyCents)}</td>}
+                        {!isMobile && (
+                          <td style={{ color: row.salariedCents > 0 ? '#1a1a1a' : '#bbb' }}>
+                            {row.salariedCents > 0 ? fmtMoney(row.salariedCents) : '—'}
+                          </td>
+                        )}
                         <td><strong>{fmtMoney(row.laborCents)}</strong></td>
-                        <td>{fmtMoney(row.grossSalesCents)}</td>
+                        {!isMobile && <td>{fmtMoney(row.grossSalesCents)}</td>}
                         <td style={{ color: over ? '#c0392b' : '#1f8a3b', fontWeight: 600 }}>
                           {row.laborPct == null ? '—' : `${row.laborPct.toFixed(1)}%`}
                         </td>
@@ -1066,10 +1072,10 @@ export default function WeeklySales() {
                 <tfoot>
                   <tr>
                     <td>Chain</td>
-                    <td>{fmtMoney(data.laborTotals.hourlyCents)}</td>
-                    <td>{fmtMoney(data.laborTotals.salariedCents)}</td>
+                    {!isMobile && <td>{fmtMoney(data.laborTotals.hourlyCents)}</td>}
+                    {!isMobile && <td>{fmtMoney(data.laborTotals.salariedCents)}</td>}
                     <td>{fmtMoney(data.laborTotals.laborCents)}</td>
-                    <td>{fmtMoney(data.laborTotals.grossSalesCents)}</td>
+                    {!isMobile && <td>{fmtMoney(data.laborTotals.grossSalesCents)}</td>}
                     <td style={{
                       color: data.laborTotals.laborPct != null && data.laborTotals.laborPct > 35
                         ? '#c0392b' : '#1f8a3b',
@@ -1098,6 +1104,15 @@ export default function WeeklySales() {
           border-collapse: collapse;
           font-variant-numeric: tabular-nums;
           min-width: 480px;
+        }
+        @media (max-width: 768px) {
+          .dripos-table {
+            min-width: 0;
+          }
+          .dripos-table th, .dripos-table td {
+            padding: 6px 6px;
+            font-size: 12px;
+          }
         }
         .dripos-table th, .dripos-table td {
           padding: 8px 10px;
