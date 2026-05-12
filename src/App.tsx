@@ -55,7 +55,12 @@ export default function App() {
   return (
     <Layout user={user} onLogout={logout}>
       <Routes>
-        <Route path="/" element={<Dashboard />} />
+        {/* Home = Dashboard (was /weekly-sales). The original Launches
+            list moves to /launches; /weekly-sales kept as an alias so any
+            saved bookmarks still resolve. */}
+        <Route path="/" element={<WeeklySales />} />
+        <Route path="/weekly-sales" element={<WeeklySales />} />
+        <Route path="/launches" element={<Dashboard />} />
         <Route path="/launch/new" element={<NewLaunch />} />
         <Route path="/launch/:id" element={<LaunchDetail />} />
         <Route path="/locations" element={<Locations />} />
@@ -65,7 +70,6 @@ export default function App() {
         <Route path="/anomalies" element={<SalesAnomaly />} />
         <Route path="/weather-closure" element={<WeatherClosure />} />
         <Route path="/cog" element={<CogManager />} />
-        <Route path="/weekly-sales" element={<WeeklySales />} />
         <Route path="/applicants" element={<Applicants />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />

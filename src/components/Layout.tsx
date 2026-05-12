@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -8,15 +8,22 @@ interface Props {
   children: ReactNode;
 }
 
+/** Primary nav items shown in the top bar (desktop) and drawer top
+ *  (mobile). */
 const NAV_ITEMS: Array<{ to: string; label: string; exact?: boolean }> = [
-  { to: '/', label: 'Launches' },
-  { to: '/weekly-sales', label: 'Weekly Sales' },
+  { to: '/', label: 'Dashboard' },
   { to: '/locations', label: 'Locations', exact: false },
-  { to: '/cog', label: 'COG Manager' },
   { to: '/ticket-time', label: 'Ticket Time' },
-  { to: '/anomalies', label: 'Anomalies' },
   { to: '/weather-closure', label: 'Weather' },
   { to: '/applicants', label: 'Applicants' },
+];
+
+/** Less-frequently-used pages tucked into a "More ▾" dropdown on
+ *  desktop. On mobile they render flat at the bottom of the drawer. */
+const MORE_ITEMS: Array<{ to: string; label: string; exact?: boolean }> = [
+  { to: '/launches', label: 'Launches', exact: false },
+  { to: '/cog', label: 'COG Manager' },
+  { to: '/anomalies', label: 'Anomalies' },
 ];
 
 export default function Layout({ user, onLogout, children }: Props) {
@@ -122,6 +129,7 @@ export default function Layout({ user, onLogout, children }: Props) {
                   {it.label}
                 </NavLink>
               ))}
+              <MoreMenu current={location.pathname} />
             </nav>
             <Link
               to="/"
@@ -217,6 +225,21 @@ export default function Layout({ user, onLogout, children }: Props) {
                   {it.label}
                 </DrawerNavLink>
               ))}
+              <div style={{
+                fontSize: 10, textTransform: 'uppercase', letterSpacing: 1,
+                color: 'rgba(0,0,0,0.35)', fontWeight: 700,
+                padding: '14px 16px 4px',
+              }}>More</div>
+              {MORE_ITEMS.map((it) => (
+                <DrawerNavLink
+                  key={it.to}
+                  to={it.to}
+                  current={location.pathname}
+                  exact={it.exact !== false}
+                >
+                  {it.label}
+                </DrawerNavLink>
+              ))}
             </nav>
             <div style={{ padding: 14, borderTop: '1px solid rgba(0,0,0,0.06)' }}>
               <button
@@ -244,10 +267,96 @@ export default function Layout({ user, onLogout, children }: Props) {
 }
 
 function currentPageLabel(pathname: string): string {
-  const item = NAV_ITEMS.find((it) =>
+  const all = [...NAV_ITEMS, ...MORE_ITEMS];
+  const item = all.find((it) =>
     (it.exact !== false ? pathname === it.to : pathname.startsWith(it.to)),
   );
   return item?.label ?? '';
+}
+
+function MoreMenu({ current }: { current: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const activeItem = MORE_ITEMS.find((it) =>
+    (it.exact !== false ? current === it.to : current.startsWith(it.to)),
+  );
+  const active = !!activeItem;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          padding: '8px 16px',
+          borderRadius: 10,
+          fontSize: 14,
+          fontWeight: 500,
+          background: open || active ? 'rgba(0,0,0,0.07)' : 'transparent',
+          color: open || active ? '#1a1a1a' : 'rgba(0,0,0,0.4)',
+          border: 0, cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          fontFamily: 'inherit',
+          transition: 'all 0.2s',
+        }}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        {activeItem ? activeItem.label : 'More'}
+        <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          style={{
+            position: 'absolute', top: '100%', left: 0, marginTop: 4,
+            minWidth: 160, background: 'rgba(255,255,255,0.98)',
+            border: '1px solid rgba(0,0,0,0.08)',
+            borderRadius: 10, padding: 4, zIndex: 50,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.05)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+          }}
+        >
+          {MORE_ITEMS.map((it) => {
+            const isActive = it.exact !== false ? current === it.to : current.startsWith(it.to);
+            return (
+              <Link
+                key={it.to}
+                to={it.to}
+                onClick={() => setOpen(false)}
+                role="menuitem"
+                style={{
+                  display: 'block',
+                  padding: '8px 12px',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: isActive ? 600 : 500,
+                  color: isActive ? '#1a1a1a' : 'rgba(0,0,0,0.7)',
+                  background: isActive ? 'rgba(0,0,0,0.05)' : 'transparent',
+                }}
+              >
+                {it.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function NavLink({ to, current, children, exact = true }: {
