@@ -10,6 +10,14 @@ html, body, #root {
   color: #1a1a1a;
 }
 
+/* Belt-and-suspenders against any one child element (SVG min-width, long
+   string with no wrap, etc.) pushing the page past the viewport on small
+   screens. Individual scrollable regions inside the page still scroll
+   normally because they set overflow themselves. */
+html, body {
+  overflow-x: hidden;
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   line-height: 1.6;

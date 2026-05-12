@@ -451,8 +451,8 @@ function DualSeriesChart({ series, isMobile }: { series: DailyPoint[]; isMobile:
     yLabel: (v: number) => string,
     title: string,
   ) => (
-    <div style={{ overflowX: isMobile ? 'auto' : 'visible' }}>
-      <svg viewBox={`0 0 ${W} ${height}`} style={{ width: '100%', height, minWidth: isMobile ? 600 : 0 }}>
+    <div style={{ overflowX: isMobile ? 'auto' : 'visible', minWidth: 0 }}>
+      <svg viewBox={`0 0 ${W} ${height}`} style={{ width: '100%', height, minWidth: 0 }}>
         <text x={PAD.left} y={10} fontSize="10" fill="#888" fontWeight="700">{title}</text>
         {[0, 0.5, 1].map((f, i) => {
           const v = max * (1 - f);

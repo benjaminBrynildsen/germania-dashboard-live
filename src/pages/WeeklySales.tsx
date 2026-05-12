@@ -295,7 +295,7 @@ const secondaryBtn: React.CSSProperties = {
 };
 
 // ── Inline SVG line chart ────────────────────────────────────────────────
-function TrendChart({ trend }: { trend: TrendPoint[] }) {
+function TrendChart({ trend, isMobile }: { trend: TrendPoint[]; isMobile?: boolean }) {
   const W = 760;
   const H = 260;
   const PAD = { top: 24, right: 16, bottom: 36, left: 60 };
@@ -326,7 +326,7 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
 
   return (
     <div style={{ overflowX: 'auto' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, minWidth: 600 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, minWidth: isMobile ? 0 : 600 }}>
         <defs>
           <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#1a1a1a" stopOpacity="0.18" />
@@ -680,7 +680,7 @@ export default function WeeklySales() {
         marginBottom: 20,
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-          <h1 style={{ margin: 0, fontSize: isMobile ? 22 : 26, fontWeight: 700 }}>Weekly Sales</h1>
+          <h1 style={{ margin: 0, fontSize: isMobile ? 22 : 26, fontWeight: 700 }}>Dashboard</h1>
           {data && (
             <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button
@@ -871,7 +871,7 @@ export default function WeeklySales() {
 
           {/* Trend chart */}
           <Card title={`Last ${data.trend.length} weeks`}>
-            <TrendChart trend={data.trend} />
+            <TrendChart trend={data.trend} isMobile={isMobile} />
           </Card>
 
           {/* Per-store + Platform mix side by side on desktop */}
