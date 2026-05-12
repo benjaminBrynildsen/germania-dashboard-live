@@ -193,7 +193,8 @@ select option {
     font-size: 13px;
   }
 
-  table {
-    min-width: 640px;
-  }
+  /* Don't force every table to 640px wide on mobile — that pushes the
+     whole page past the viewport and breaks grids that calculate
+     widths off the page. Tables that need a minimum should set it
+     themselves (e.g. .dripos-table). */
 }
