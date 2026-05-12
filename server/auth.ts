@@ -25,6 +25,11 @@ function buildOAuthClient(req: Request): OAuth2Client {
   const redirectUri = host
     ? `${proto}://${host}/api/auth/google/callback`
     : process.env.GOOGLE_REDIRECT_URI;
+  console.log('[oauth]', req.path, 'redirect_uri =', redirectUri, {
+    host: req.get('host'),
+    xfHost: req.headers['x-forwarded-host'],
+    xfProto: req.headers['x-forwarded-proto'],
+  });
   return new OAuth2Client(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
