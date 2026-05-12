@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface Applicant {
   id: string;
@@ -89,6 +89,7 @@ export default function Applicants() {
   const [sortKey, setSortKey] = useState<'date-desc' | 'date-asc' | 'name-asc' | 'rating-desc'>(
     'date-desc',
   );
+  const [viewMode, setViewMode] = useState<'grid' | 'swipe'>('grid');
 
   const fetchData = async () => {
     setLoading(true);
@@ -212,12 +213,36 @@ export default function Applicants() {
             {data.applicants.length} total · sheet "{data.sheetTitle ?? 'Unknown'}"
           </span>
         )}
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={fetchData}
-          disabled={loading}
-          style={{ marginLeft: 'auto' }}
-        >{loading ? 'Loading…' : 'Refresh'}</button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <div style={{
+            display: 'inline-flex', borderRadius: 999, padding: 3,
+            background: '#f3f3f3', border: '1px solid rgba(0,0,0,0.06)',
+          }}>
+            <button
+              onClick={() => setViewMode('grid')}
+              style={{
+                padding: '5px 12px', borderRadius: 999, border: 0, cursor: 'pointer',
+                fontSize: 12, fontWeight: 600,
+                background: viewMode === 'grid' ? '#1a1a1a' : 'transparent',
+                color: viewMode === 'grid' ? '#fff' : 'rgba(0,0,0,0.55)',
+              }}
+            >Grid</button>
+            <button
+              onClick={() => setViewMode('swipe')}
+              style={{
+                padding: '5px 12px', borderRadius: 999, border: 0, cursor: 'pointer',
+                fontSize: 12, fontWeight: 600,
+                background: viewMode === 'swipe' ? '#1a1a1a' : 'transparent',
+                color: viewMode === 'swipe' ? '#fff' : 'rgba(0,0,0,0.55)',
+              }}
+            >Swipe</button>
+          </div>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={fetchData}
+            disabled={loading}
+          >{loading ? 'Loading…' : 'Refresh'}</button>
+        </div>
       </div>
 
       {reauth && (
@@ -352,25 +377,36 @@ export default function Applicants() {
             )}
           </div>
 
-          {/* Cards */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-            gap: 14,
-          }}>
-            {filtered.map((a) => (
-              <ApplicantCard
-                key={a.id}
-                applicant={a}
-                status={statuses[a.id] ?? 'new'}
-                rating={ratings[a.id] ?? 0}
-                note={notes[a.id] ?? ''}
-                onStatus={(s) => setStatus(a.id, s)}
-                onRating={(n) => setRating(a.id, n)}
-                onOpen={() => setOpenId(a.id)}
-              />
-            ))}
-          </div>
+          {/* Cards or swipe deck */}
+          {viewMode === 'grid' ? (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+              gap: 14,
+            }}>
+              {filtered.map((a) => (
+                <ApplicantCard
+                  key={a.id}
+                  applicant={a}
+                  status={statuses[a.id] ?? 'new'}
+                  rating={ratings[a.id] ?? 0}
+                  note={notes[a.id] ?? ''}
+                  onStatus={(s) => setStatus(a.id, s)}
+                  onRating={(n) => setRating(a.id, n)}
+                  onOpen={() => setOpenId(a.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <SwipeDeck
+              applicants={filtered}
+              statuses={statuses}
+              ratings={ratings}
+              onStatus={setStatus}
+              onRating={setRating}
+              onOpen={setOpenId}
+            />
+          )}
 
           {filtered.length === 0 && (
             <Card>
@@ -821,5 +857,415 @@ function Card({ children }: { children: React.ReactNode }) {
     }}>
       {children}
     </div>
+  );
+}
+
+// ── Tinder-style swipe deck ─────────────────────────────────────────────
+// Right-swipe → Shortlist · Left-swipe → Reject · Down-swipe → Skip.
+// Buttons under the card mirror the gestures for desktop / accessibility.
+// The deck shows the top 3 cards stacked so you get visual depth while
+// flicking through them.
+function SwipeDeck({
+  applicants, statuses, ratings, onStatus, onRating, onOpen,
+}: {
+  applicants: Applicant[];
+  statuses: Record<string, Status>;
+  ratings: Record<string, number>;
+  onStatus: (id: string, s: Status) => void;
+  onRating: (id: string, n: number) => void;
+  onOpen: (id: string) => void;
+}) {
+  const [index, setIndex] = useState(0);
+  const [drag, setDrag] = useState({ x: 0, y: 0 });
+  const [exiting, setExiting] = useState<null | { dx: number; dy: number; rot: number }>(null);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // Reset index when filtered list changes (e.g., filter pills clicked)
+  useEffect(() => { setIndex(0); }, [applicants.length]);
+
+  // Keyboard shortcuts — arrows for swipe direction
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'ArrowRight') swipe('right');
+      else if (e.key === 'ArrowLeft') swipe('left');
+      else if (e.key === 'ArrowDown') swipe('down');
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
+
+  const current = applicants[index];
+  const next1 = applicants[index + 1];
+  const next2 = applicants[index + 2];
+
+  if (!current) {
+    return (
+      <Card>
+        <div style={{ textAlign: 'center', padding: 24 }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>🎉</div>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>
+            All caught up
+          </div>
+          <div style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
+            You've reviewed every applicant matching the current filter.
+          </div>
+          <button
+            onClick={() => setIndex(0)}
+            className="btn btn-secondary btn-sm"
+          >Start over</button>
+        </div>
+      </Card>
+    );
+  }
+
+  const finishSwipe = (action: 'shortlist' | 'reject' | 'skip') => {
+    if (action === 'shortlist') onStatus(current.id, 'shortlist');
+    else if (action === 'reject') onStatus(current.id, 'reject');
+    // skip: leave status alone
+    setDrag({ x: 0, y: 0 });
+    setExiting(null);
+    setIndex((i) => i + 1);
+  };
+
+  const swipe = (dir: 'right' | 'left' | 'down') => {
+    const off = window.innerWidth + 200;
+    if (dir === 'right') {
+      setExiting({ dx: off, dy: 0, rot: 25 });
+      setTimeout(() => finishSwipe('shortlist'), 220);
+    } else if (dir === 'left') {
+      setExiting({ dx: -off, dy: 0, rot: -25 });
+      setTimeout(() => finishSwipe('reject'), 220);
+    } else {
+      setExiting({ dx: 0, dy: window.innerHeight, rot: 0 });
+      setTimeout(() => finishSwipe('skip'), 220);
+    }
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (exiting) return;
+    startRef.current = { x: e.clientX, y: e.clientY };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!startRef.current || exiting) return;
+    setDrag({ x: e.clientX - startRef.current.x, y: e.clientY - startRef.current.y });
+  };
+  const onPointerUp = () => {
+    if (!startRef.current || exiting) return;
+    startRef.current = null;
+    const { x, y } = drag;
+    const THRESH = 110;
+    if (x > THRESH) swipe('right');
+    else if (x < -THRESH) swipe('left');
+    else if (y > THRESH) swipe('down');
+    else setDrag({ x: 0, y: 0 });
+  };
+
+  const transform = exiting
+    ? `translate(${exiting.dx}px, ${exiting.dy}px) rotate(${exiting.rot}deg)`
+    : `translate(${drag.x}px, ${drag.y}px) rotate(${drag.x * 0.04}deg)`;
+
+  const rightTint = Math.max(0, Math.min(1, drag.x / 150));
+  const leftTint = Math.max(0, Math.min(1, -drag.x / 150));
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      gap: 18, paddingTop: 4,
+    }}>
+      <div style={{ fontSize: 12, color: '#888' }}>
+        Card {index + 1} of {applicants.length}
+      </div>
+
+      <div style={{ position: 'relative', width: '100%', maxWidth: 560, minHeight: 540 }}>
+        {next2 && (
+          <CardShell
+            key={next2.id + '-back'}
+            scale={0.92}
+            offsetY={20}
+            opacity={0.5}
+          >
+            <CardSummary applicant={next2} muted />
+          </CardShell>
+        )}
+        {next1 && (
+          <CardShell
+            key={next1.id + '-mid'}
+            scale={0.96}
+            offsetY={10}
+            opacity={0.8}
+          >
+            <CardSummary applicant={next1} muted />
+          </CardShell>
+        )}
+        <div
+          ref={cardRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          style={{
+            position: 'relative',
+            background: '#fff',
+            borderRadius: 16,
+            border: '1px solid rgba(0,0,0,0.08)',
+            boxShadow: '0 10px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.04)',
+            padding: 24,
+            transform,
+            transition: startRef.current || exiting ? 'none' : 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+            touchAction: 'none',
+            cursor: 'grab',
+            userSelect: 'none',
+            minHeight: 540,
+          }}
+        >
+          {/* Tint overlays for visual swipe affordance */}
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: 16,
+            background: '#1f8a3b', opacity: rightTint * 0.18,
+            pointerEvents: 'none', transition: 'opacity 0.1s',
+          }} />
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: 16,
+            background: '#c0392b', opacity: leftTint * 0.18,
+            pointerEvents: 'none', transition: 'opacity 0.1s',
+          }} />
+          {/* Decision labels */}
+          {drag.x > 40 && (
+            <div style={{
+              position: 'absolute', top: 28, left: 28,
+              padding: '6px 14px', border: '3px solid #1f8a3b',
+              color: '#1f8a3b', fontWeight: 800, fontSize: 18,
+              borderRadius: 8, transform: 'rotate(-12deg)',
+              letterSpacing: 1, pointerEvents: 'none',
+              opacity: rightTint,
+            }}>SHORTLIST</div>
+          )}
+          {drag.x < -40 && (
+            <div style={{
+              position: 'absolute', top: 28, right: 28,
+              padding: '6px 14px', border: '3px solid #c0392b',
+              color: '#c0392b', fontWeight: 800, fontSize: 18,
+              borderRadius: 8, transform: 'rotate(12deg)',
+              letterSpacing: 1, pointerEvents: 'none',
+              opacity: leftTint,
+            }}>REJECT</div>
+          )}
+          <CardFullContent
+            applicant={current}
+            rating={ratings[current.id] ?? 0}
+            onRating={(n) => onRating(current.id, n)}
+            onOpen={() => onOpen(current.id)}
+          />
+        </div>
+      </div>
+
+      {/* Action buttons under the deck */}
+      <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>
+        <SwipeActionBtn label="Reject" sub="←" color="#c0392b" onClick={() => swipe('left')} />
+        <SwipeActionBtn label="Skip" sub="↓" color="#888" onClick={() => swipe('down')} />
+        <SwipeActionBtn label="Shortlist" sub="→" color="#1f8a3b" onClick={() => swipe('right')} />
+      </div>
+      <div style={{ fontSize: 11, color: '#aaa' }}>
+        Drag the card or use ← / ↓ / → arrow keys
+      </div>
+    </div>
+  );
+}
+
+function CardShell({ children, scale, offsetY, opacity }: {
+  children: React.ReactNode; scale: number; offsetY: number; opacity: number;
+}) {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0,
+      transform: `translateY(${offsetY}px) scale(${scale})`,
+      transformOrigin: 'top center',
+      background: '#fff',
+      borderRadius: 16,
+      border: '1px solid rgba(0,0,0,0.06)',
+      boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+      padding: 24,
+      opacity,
+      pointerEvents: 'none',
+    }}>{children}</div>
+  );
+}
+
+function CardSummary({ applicant: a, muted }: { applicant: Applicant; muted?: boolean }) {
+  return (
+    <div style={{ opacity: muted ? 0.7 : 1 }}>
+      <div style={{ fontSize: 22, fontWeight: 700 }}>{a.name ?? '(no name)'}</div>
+      {(a.email || a.phone) && (
+        <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
+          {a.email}{a.email && a.phone ? ' · ' : ''}{a.phone}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 4, marginTop: 10, flexWrap: 'wrap' }}>
+        {a.storeLabels.map((label) => (
+          <span key={label} style={{
+            fontSize: 11, fontWeight: 700, padding: '2px 8px',
+            borderRadius: 4, color: '#fff',
+            background: STORE_COLORS[label] ?? '#888',
+            letterSpacing: 0.5,
+          }}>{label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Pick a small subset of likely-most-relevant fields to highlight in
+ *  the top section, then dump the rest in a scrollable lower area so
+ *  the reviewer can read everything without leaving the card. */
+function CardFullContent({
+  applicant: a, rating, onRating, onOpen,
+}: {
+  applicant: Applicant;
+  rating: number;
+  onRating: (n: number) => void;
+  onOpen: () => void;
+}) {
+  // Heuristic: fields containing keywords like "availability", "experience",
+  // "why", "tell us", "previous" are pulled to a highlight section. Everything
+  // else falls to the full responses block below.
+  const HIGHLIGHT_PATTERNS = [
+    /availability/i, /availab/i, /experience/i, /previous/i,
+    /why/i, /tell us about/i, /interest/i, /strength/i,
+  ];
+  const filledFields = Object.entries(a.fields).filter(([, v]) => v && v.length > 0);
+  const highlights: Array<[string, string]> = [];
+  const rest: Array<[string, string]> = [];
+  for (const entry of filledFields) {
+    const [k] = entry;
+    if (HIGHLIGHT_PATTERNS.some((p) => p.test(k))) highlights.push(entry);
+    else rest.push(entry);
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%' }}>
+      <div>
+        <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.15 }}>
+          {a.name ?? '(no name)'}
+        </div>
+        {(a.email || a.phone) && (
+          <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
+            {a.email}{a.email && a.phone ? ' · ' : ''}{a.phone}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 4, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {a.storeLabels.map((label) => (
+            <span key={label} style={{
+              fontSize: 11, fontWeight: 700, padding: '2px 8px',
+              borderRadius: 4, color: '#fff',
+              background: STORE_COLORS[label] ?? '#888',
+              letterSpacing: 0.5,
+            }}>{label} · {STORE_CITIES[label] ?? ''}</span>
+          ))}
+          {a.submittedAt && (
+            <span style={{ fontSize: 11, color: '#aaa', marginLeft: 4 }}>{a.submittedAt}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Star rating */}
+      <div style={{ display: 'flex', gap: 4 }} onPointerDown={(e) => e.stopPropagation()}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            onClick={() => onRating(n === rating ? 0 : n)}
+            style={{
+              border: 0, background: 'transparent', cursor: 'pointer',
+              padding: 2, color: n <= rating ? '#f5b400' : '#ddd',
+              fontSize: 20, lineHeight: 1,
+            }}
+          >★</button>
+        ))}
+      </div>
+
+      {/* Highlights */}
+      {highlights.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {highlights.map(([k, v]) => (
+            <div key={k} style={{
+              padding: '8px 10px', background: '#fffbe6',
+              borderRadius: 6, border: '1px solid #f0d97b',
+            }}>
+              <div style={{
+                fontSize: 10, fontWeight: 700, color: '#7a5a00',
+                textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 3,
+              }}>{k}</div>
+              <div style={{ fontSize: 13, color: '#1a1a1a', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
+                {v}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* All other fields, scrollable */}
+      {rest.length > 0 && (
+        <div style={{
+          flex: 1, overflowY: 'auto', minHeight: 100,
+          background: '#fafafa', borderRadius: 8,
+          border: '1px solid #f0f0f0', padding: 10,
+        }} onPointerDown={(e) => e.stopPropagation()}>
+          {rest.map(([k, v]) => (
+            <div key={k} style={{ marginBottom: 8 }}>
+              <div style={{
+                fontSize: 10, fontWeight: 600, color: '#888',
+                textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2,
+              }}>{k}</div>
+              <div style={{ fontSize: 12, color: '#333', whiteSpace: 'pre-wrap' }}>{v}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Resume link + open full view */}
+      <div style={{
+        display: 'flex', gap: 10, justifyContent: 'space-between',
+        alignItems: 'center', marginTop: 'auto',
+      }} onPointerDown={(e) => e.stopPropagation()}>
+        {a.resumeFileId ? (
+          <a
+            href={`/api/applicants/resume/${a.resumeFileId}`}
+            target="_blank" rel="noreferrer"
+            style={{ fontSize: 12, color: '#2563eb' }}
+          >📄 Open resume ↗</a>
+        ) : <span style={{ fontSize: 12, color: '#bbb' }}>No resume attached</span>}
+        <button
+          onClick={onOpen}
+          style={{
+            padding: '6px 12px', borderRadius: 8,
+            border: '1px solid rgba(0,0,0,0.12)', background: '#fff',
+            fontSize: 12, fontWeight: 600, cursor: 'pointer',
+          }}
+        >Open full view</button>
+      </div>
+    </div>
+  );
+}
+
+function SwipeActionBtn({ label, sub, color, onClick }: {
+  label: string; sub: string; color: string; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: 92, padding: '10px 0', borderRadius: 12, cursor: 'pointer',
+        border: `1px solid ${color}`, background: '#fff', color,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+        fontFamily: 'inherit',
+      }}
+    >
+      <span style={{ fontSize: 18, fontWeight: 700, lineHeight: 1 }}>{sub}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+        {label}
+      </span>
+    </button>
   );
 }
