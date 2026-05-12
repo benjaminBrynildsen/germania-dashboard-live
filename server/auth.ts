@@ -5,11 +5,32 @@ import db from './db.js';
 
 const router = Router();
 
-const oauth2Client = new OAuth2Client(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI
-);
+/**
+ * Build an OAuth2 client whose redirect_uri matches the host the user is
+ * actually on. Without this, a sign-in started at
+ *   https://dashboard.germaniabrewhaus.com/...
+ * would bounce back to
+ *   https://germania-dashboard.onrender.com/...
+ * (whatever GOOGLE_REDIRECT_URI was hardcoded to) — and the post-callback
+ * res.redirect('/') would land the user on the wrong host.
+ *
+ * The env var GOOGLE_REDIRECT_URI is still honored as a fallback for local
+ * dev where x-forwarded-host isn't set.
+ */
+function buildOAuthClient(req: Request): OAuth2Client {
+  const fwdProto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim();
+  const fwdHost = (req.headers['x-forwarded-host'] as string | undefined)?.split(',')[0]?.trim();
+  const proto = fwdProto || req.protocol || 'https';
+  const host = fwdHost || req.get('host');
+  const redirectUri = host
+    ? `${proto}://${host}/api/auth/google/callback`
+    : process.env.GOOGLE_REDIRECT_URI;
+  return new OAuth2Client(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri,
+  );
+}
 
 const SCOPES = [
   'openid',
@@ -57,8 +78,9 @@ export function requireRole(...roles: string[]) {
   };
 }
 
-router.get('/google', (_req: Request, res: Response) => {
-  const url = oauth2Client.generateAuthUrl({
+router.get('/google', (req: Request, res: Response) => {
+  const client = buildOAuthClient(req);
+  const url = client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
     prompt: 'consent',
@@ -70,8 +92,10 @@ router.get('/google', (_req: Request, res: Response) => {
 router.get('/google/callback', async (req: Request, res: Response) => {
   try {
     const code = req.query.code as string;
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
+    const client = buildOAuthClient(req);
+    const { tokens } = await client.getToken(code);
+    client.setCredentials(tokens);
+    const oauth2Client = client; // keep var name below working
 
     const ticket = await oauth2Client.verifyIdToken({
       idToken: tokens.id_token!,
