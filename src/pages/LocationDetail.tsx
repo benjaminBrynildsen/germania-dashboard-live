@@ -422,9 +422,154 @@ function TicketVsSalesCard({ locId, isMobile }: { locId: string; isMobile: boole
 }
 
 function DualSeriesChart({ series, isMobile }: { series: DailyPoint[]; isMobile: boolean }) {
-  // Two stacked bar charts sharing an x-axis. Top: avg ticket time
-  // (minutes), bottom: daily sales ($). Same date order so visual
-  // correlation is easy to spot.
+  const [smooth, setSmooth] = useState(true);
+  const [view, setView] = useState<'line' | 'bars'>('line');
+
+  // 7-day moving average smooths daily noise so the underlying trend is
+  // visible — restaurant data is too lumpy day-to-day for raw lines to
+  // reveal correlation. Toggleable.
+  const smoothed = useMemo(() => {
+    if (!smooth) return series.map((p) => ({
+      ...p, smoothedTime: p.avgTicketMin, smoothedSales: p.salesCents,
+    }));
+    const W = 7;
+    return series.map((_, i) => {
+      const slice = series.slice(Math.max(0, i - W + 1), i + 1);
+      const tVals = slice.map((s) => s.avgTicketMin).filter((v): v is number => v != null);
+      const sVals = slice.map((s) => s.salesCents).filter((v) => v > 0);
+      return {
+        ...series[i],
+        smoothedTime: tVals.length ? tVals.reduce((a, b) => a + b, 0) / tVals.length : null,
+        smoothedSales: sVals.length ? sVals.reduce((a, b) => a + b, 0) / sVals.length : 0,
+      };
+    });
+  }, [series, smooth]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <ToggleBtn active={view === 'line'} onClick={() => setView('line')}>Line</ToggleBtn>
+        <ToggleBtn active={view === 'bars'} onClick={() => setView('bars')}>Bars</ToggleBtn>
+        <ToggleBtn active={smooth} onClick={() => setSmooth((s) => !s)}>
+          {smooth ? '✓ 7-day smoothing' : '7-day smoothing'}
+        </ToggleBtn>
+      </div>
+      {view === 'line' ? (
+        <DualLineChart series={smoothed} isMobile={isMobile} />
+      ) : (
+        <DualBarChart series={smoothed} isMobile={isMobile} />
+      )}
+    </div>
+  );
+}
+
+function ToggleBtn({ active, onClick, children }: {
+  active: boolean; onClick: () => void; children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+        border: active ? '1px solid #1a1a1a' : '1px solid rgba(0,0,0,0.15)',
+        background: active ? '#1a1a1a' : '#fff',
+        color: active ? '#fff' : 'rgba(0,0,0,0.65)',
+        cursor: 'pointer',
+      }}
+    >{children}</button>
+  );
+}
+
+interface SmoothedPoint extends DailyPoint {
+  smoothedTime: number | null;
+  smoothedSales: number;
+}
+
+function DualLineChart({ series, isMobile }: { series: SmoothedPoint[]; isMobile: boolean }) {
+  // Dual y-axis line chart: left axis for ticket time (orange), right
+  // axis for sales ($, blue). Same x. Visual correlation is immediate
+  // — when one line moves, the other's response is right there.
+  const W = 760;
+  const H = 280;
+  const PAD = { left: 50, right: 56, top: 18, bottom: 28 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+  const n = series.length;
+  if (n < 2) return <div style={{ color: '#888', fontSize: 13 }}>Not enough data yet.</div>;
+
+  const maxTime = Math.max(0.1, ...series.map((p) => p.smoothedTime ?? 0));
+  const maxSales = Math.max(1, ...series.map((p) => p.smoothedSales));
+  const minSales = Math.min(...series.map((p) => p.smoothedSales).filter((v) => v > 0)) * 0.85;
+
+  const x = (i: number) => PAD.left + (i / (n - 1)) * innerW;
+  const yTime = (v: number) => PAD.top + innerH * (1 - v / (maxTime * 1.08));
+  const yS = (v: number) => PAD.top + innerH * (1 - (v - minSales) / (maxSales * 1.05 - minSales));
+
+  const timePath = series
+    .map((p, i) => p.smoothedTime == null ? null : `${i === 0 || series[i - 1]?.smoothedTime == null ? 'M' : 'L'} ${x(i)} ${yTime(p.smoothedTime)}`)
+    .filter(Boolean)
+    .join(' ');
+  const salesPath = series
+    .map((p, i) => p.smoothedSales <= 0 ? null : `${i === 0 || series[i - 1]?.smoothedSales <= 0 ? 'M' : 'L'} ${x(i)} ${yS(p.smoothedSales)}`)
+    .filter(Boolean)
+    .join(' ');
+
+  const tickIdx = Array.from({ length: 6 }, (_, i) => Math.round((i * (n - 1)) / 5));
+
+  return (
+    <div style={{ overflowX: isMobile ? 'auto' : 'visible', minWidth: 0 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, minWidth: 0 }}>
+        {/* Grid */}
+        {[0, 0.25, 0.5, 0.75, 1].map((f, i) => {
+          const y = PAD.top + innerH * f;
+          return <line key={i} x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} stroke="#eee" />;
+        })}
+        {/* Left axis labels (ticket time) */}
+        {[0, 0.5, 1].map((f, i) => {
+          const v = maxTime * 1.08 * (1 - f);
+          const y = PAD.top + innerH * f;
+          return (
+            <text key={i} x={PAD.left - 6} y={y + 3} fontSize="10" fill="#c97a3f" textAnchor="end" fontWeight="600">
+              {v.toFixed(1)}m
+            </text>
+          );
+        })}
+        {/* Right axis labels (sales) */}
+        {[0, 0.5, 1].map((f, i) => {
+          const v = (maxSales * 1.05 - minSales) * (1 - f) + minSales;
+          const y = PAD.top + innerH * f;
+          return (
+            <text key={i} x={W - PAD.right + 6} y={y + 3} fontSize="10" fill="#2c5f8d" textAnchor="start" fontWeight="600">
+              ${(v / 100 / 1000).toFixed(1)}k
+            </text>
+          );
+        })}
+        {/* X labels */}
+        {tickIdx.map((i) => {
+          if (i < 0 || i >= n) return null;
+          return (
+            <text key={i} x={x(i)} y={H - 6} fontSize="9" fill="#888" textAnchor="middle">
+              {series[i].date.slice(5)}
+            </text>
+          );
+        })}
+        {/* Sales line (drawn first so ticket time sits on top) */}
+        <path d={salesPath} fill="none" stroke="#2c5f8d" strokeWidth="2" strokeLinejoin="round" />
+        {/* Ticket time line */}
+        <path d={timePath} fill="none" stroke="#c97a3f" strokeWidth="2" strokeLinejoin="round" />
+        {/* Legend */}
+        <g transform={`translate(${PAD.left}, ${PAD.top - 6})`}>
+          <line x1="0" x2="18" y1="0" y2="0" stroke="#c97a3f" strokeWidth="2" />
+          <text x="22" y="3" fontSize="10" fill="#666" fontWeight="600">Ticket time</text>
+          <line x1="92" x2="110" y1="0" y2="0" stroke="#2c5f8d" strokeWidth="2" />
+          <text x="114" y="3" fontSize="10" fill="#666" fontWeight="600">Sales</text>
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+function DualBarChart({ series, isMobile }: { series: SmoothedPoint[]; isMobile: boolean }) {
   const W = 760;
   const H_TIME = 110;
   const H_SALES = 110;
@@ -433,13 +578,12 @@ function DualSeriesChart({ series, isMobile }: { series: DailyPoint[]; isMobile:
   const n = series.length;
   const bw = n > 0 ? innerW / n : innerW;
 
-  const maxTime = Math.max(0.1, ...series.map((p) => p.avgTicketMin ?? 0));
-  const maxSales = Math.max(1, ...series.map((p) => p.salesCents));
+  const maxTime = Math.max(0.1, ...series.map((p) => p.smoothedTime ?? 0));
+  const maxSales = Math.max(1, ...series.map((p) => p.smoothedSales));
 
   const timeY = (v: number) => PAD.top + (H_TIME - PAD.top - PAD.bottom) * (1 - v / maxTime);
   const salesY = (v: number) => PAD.top + (H_SALES - PAD.top - PAD.bottom) * (1 - v / maxSales);
 
-  // Tick labels — show 6 evenly spaced dates so x-axis doesn't drown.
   const tickIdx = Array.from({ length: 6 }, (_, i) => Math.round((i * (n - 1)) / 5));
 
   const renderChart = (
@@ -447,7 +591,7 @@ function DualSeriesChart({ series, isMobile }: { series: DailyPoint[]; isMobile:
     yFn: (v: number) => number,
     color: string,
     max: number,
-    valueFn: (p: DailyPoint) => number | null,
+    valueFn: (p: SmoothedPoint) => number | null,
     yLabel: (v: number) => string,
     title: string,
   ) => (
@@ -467,15 +611,15 @@ function DualSeriesChart({ series, isMobile }: { series: DailyPoint[]; isMobile:
         {series.map((p, i) => {
           const v = valueFn(p);
           if (v == null) return null;
-          const x = PAD.left + i * bw;
-          const y = yFn(v);
+          const xc = PAD.left + i * bw;
+          const yc = yFn(v);
           return (
             <rect
               key={p.date}
-              x={x + 0.5}
-              y={y}
+              x={xc + 0.5}
+              y={yc}
               width={Math.max(1, bw - 1)}
-              height={Math.max(0, height - PAD.bottom - y)}
+              height={Math.max(0, height - PAD.bottom - yc)}
               fill={color}
               opacity={0.85}
             />
@@ -484,10 +628,9 @@ function DualSeriesChart({ series, isMobile }: { series: DailyPoint[]; isMobile:
         {tickIdx.map((i) => {
           if (i < 0 || i >= n) return null;
           const p = series[i];
-          const x = PAD.left + i * bw + bw / 2;
-          const label = p.date.slice(5); // MM-DD
+          const xc = PAD.left + i * bw + bw / 2;
           return (
-            <text key={i} x={x} y={height - 6} fontSize="9" fill="#888" textAnchor="middle">{label}</text>
+            <text key={i} x={xc} y={height - 6} fontSize="9" fill="#888" textAnchor="middle">{p.date.slice(5)}</text>
           );
         })}
       </svg>
@@ -498,13 +641,13 @@ function DualSeriesChart({ series, isMobile }: { series: DailyPoint[]; isMobile:
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {renderChart(
         H_TIME, timeY, '#c97a3f', maxTime,
-        (p) => p.avgTicketMin,
+        (p) => p.smoothedTime,
         (v) => `${v.toFixed(1)}m`,
         'AVG TICKET TIME (min)',
       )}
       {renderChart(
         H_SALES, salesY, '#2c5f8d', maxSales,
-        (p) => p.salesCents > 0 ? p.salesCents : null,
+        (p) => p.smoothedSales > 0 ? p.smoothedSales : null,
         (v) => `$${(v / 100 / 1000).toFixed(1)}k`,
         'DAILY SALES',
       )}
