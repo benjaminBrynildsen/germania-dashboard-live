@@ -1021,14 +1021,16 @@ export async function fetchDailyTicketAndSales(
   }
   const weeks = await Promise.all(weekJobs);
 
-  // Sum TICKET_SECONDS / TICKET_COUNT per day across all weeks.
-  const byDate: Record<string, { secs: number; count: number }> = {};
+  // AVG_COMPLETION_TIME is in minutes (matches the values shown in the
+  // existing Ticket Time grid). Compute a count-weighted average per day
+  // across all hourly buckets that fall on that day.
+  const byDate: Record<string, { weighted: number; count: number }> = {};
   for (const hours of weeks) {
     for (const h of hours) {
       if (!h.TICKET_COUNT) continue;
       const key = chicagoDateKey(h.HOUR);
-      const row = byDate[key] ?? (byDate[key] = { secs: 0, count: 0 });
-      row.secs += h.TICKET_SECONDS;
+      const row = byDate[key] ?? (byDate[key] = { weighted: 0, count: 0 });
+      row.weighted += h.AVG_COMPLETION_TIME * h.TICKET_COUNT;
       row.count += h.TICKET_COUNT;
     }
   }
@@ -1059,7 +1061,7 @@ export async function fetchDailyTicketAndSales(
     const sales = salesByDate[key];
     out.push({
       date: key,
-      avgTicketMin: tt && tt.count > 0 ? (tt.secs / tt.count) / 60 : null,
+      avgTicketMin: tt && tt.count > 0 ? tt.weighted / tt.count : null,
       ticketCount: tt?.count ?? 0,
       salesCents: sales?.totalSales ?? 0,
     });
