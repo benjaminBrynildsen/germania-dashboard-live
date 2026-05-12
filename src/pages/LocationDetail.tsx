@@ -333,21 +333,31 @@ function TicketVsSalesCard({ locId, isMobile }: { locId: string; isMobile: boole
   }, [locId, days, customMode, customStart, customEnd]);
 
   // Pearson correlation between same-day ticket time and sales — quick
-  // gut check for the hypothesis. Only counted days where both metrics exist.
+  // gut check for the hypothesis. Days that are >2.5σ outliers on either
+  // metric (POS glitches, holiday spikes) are dropped so a single bad
+  // day can't dominate the coefficient.
   const stats = useMemo(() => {
     const paired = series.filter((p) => p.avgTicketMin != null && p.salesCents > 0) as Array<DailyPoint & { avgTicketMin: number }>;
-    if (paired.length < 3) return { r: null as number | null, n: paired.length };
-    const xs = paired.map((p) => p.avgTicketMin);
-    const ys = paired.map((p) => p.salesCents);
+    if (paired.length < 3) return { r: null as number | null, n: paired.length, dropped: 0 };
+    const tFlag = detectAnomalies(paired.map((p) => p.avgTicketMin));
+    const sFlag = detectAnomalies(paired.map((p) => p.salesCents));
+    const clean = paired.filter((_, i) => !tFlag[i] && !sFlag[i]);
+    if (clean.length < 3) return { r: null as number | null, n: clean.length, dropped: paired.length - clean.length };
+    const xs = clean.map((p) => p.avgTicketMin);
+    const ys = clean.map((p) => p.salesCents);
     const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
     const mx = mean(xs), my = mean(ys);
     let num = 0, dx = 0, dy = 0;
-    for (let i = 0; i < paired.length; i++) {
+    for (let i = 0; i < clean.length; i++) {
       const a = xs[i] - mx, b = ys[i] - my;
       num += a * b; dx += a * a; dy += b * b;
     }
     const denom = Math.sqrt(dx * dy);
-    return { r: denom > 0 ? num / denom : null, n: paired.length };
+    return {
+      r: denom > 0 ? num / denom : null,
+      n: clean.length,
+      dropped: paired.length - clean.length,
+    };
   }, [series]);
 
   return (
@@ -369,7 +379,7 @@ function TicketVsSalesCard({ locId, isMobile }: { locId: string; isMobile: boole
           </h3>
           <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>
             Hypothesis check: do slower days hurt same-day or next-week sales?
-            {stats.r != null && ` · Pearson r = ${stats.r.toFixed(2)} (n=${stats.n})`}
+            {stats.r != null && ` · Pearson r = ${stats.r.toFixed(2)} (n=${stats.n}${stats.dropped ? `, ${stats.dropped} anomalies dropped` : ''})`}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -421,9 +431,28 @@ function TicketVsSalesCard({ locId, isMobile }: { locId: string; isMobile: boole
   );
 }
 
+const ANOMALY_SIGMA = 2.5;
+
+function detectAnomalies(values: Array<number | null | undefined>): boolean[] {
+  // True at indices where the value is more than ANOMALY_SIGMA stddevs
+  // from the mean. POS glitches and one-off slow days that drag the
+  // y-axis hostage end up in here. We only flag positive outliers
+  // (way slower / way higher) since those are the ones that distort
+  // the chart most; the rare zero days are already filtered as nulls.
+  const nums = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  if (nums.length < 5) return values.map(() => false);
+  const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
+  const variance =
+    nums.reduce((a, v) => a + (v - mean) ** 2, 0) / nums.length;
+  const sd = Math.sqrt(variance);
+  if (sd === 0) return values.map(() => false);
+  return values.map((v) => typeof v === 'number' && (v - mean) > ANOMALY_SIGMA * sd);
+}
+
 function DualSeriesChart({ series, isMobile }: { series: DailyPoint[]; isMobile: boolean }) {
   const [smooth, setSmooth] = useState(true);
   const [view, setView] = useState<'line' | 'bars'>('line');
+  const [hideAnomalies, setHideAnomalies] = useState(true);
 
   // 7-day moving average smooths daily noise so the underlying trend is
   // visible — restaurant data is too lumpy day-to-day for raw lines to
@@ -445,19 +474,44 @@ function DualSeriesChart({ series, isMobile }: { series: DailyPoint[]; isMobile:
     });
   }, [series, smooth]);
 
+  // Anomaly detection runs on the smoothed series so 7-day spikes also
+  // get caught when smoothing is on.
+  const annotated = useMemo(() => {
+    const timeAnomalies = detectAnomalies(smoothed.map((p) => p.smoothedTime));
+    const salesAnomalies = detectAnomalies(smoothed.map((p) => p.smoothedSales));
+    return smoothed.map((p, i) => ({
+      ...p,
+      timeAnomaly: timeAnomalies[i],
+      salesAnomaly: salesAnomalies[i],
+    }));
+  }, [smoothed]);
+
+  const anomalyCount = useMemo(
+    () => annotated.filter((p) => p.timeAnomaly || p.salesAnomaly).length,
+    [annotated],
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         <ToggleBtn active={view === 'line'} onClick={() => setView('line')}>Line</ToggleBtn>
         <ToggleBtn active={view === 'bars'} onClick={() => setView('bars')}>Bars</ToggleBtn>
         <ToggleBtn active={smooth} onClick={() => setSmooth((s) => !s)}>
           {smooth ? '✓ 7-day smoothing' : '7-day smoothing'}
         </ToggleBtn>
+        <ToggleBtn active={hideAnomalies} onClick={() => setHideAnomalies((a) => !a)}>
+          {hideAnomalies ? '✓ Hide anomalies' : 'Hide anomalies'}
+        </ToggleBtn>
+        {anomalyCount > 0 && (
+          <span style={{ fontSize: 11, color: '#a04ea0', fontWeight: 600 }}>
+            ⚠ {anomalyCount} day{anomalyCount === 1 ? '' : 's'} flagged ({'>'}{ANOMALY_SIGMA}σ from mean)
+          </span>
+        )}
       </div>
       {view === 'line' ? (
-        <DualLineChart series={smoothed} isMobile={isMobile} />
+        <DualLineChart series={annotated} isMobile={isMobile} hideAnomalies={hideAnomalies} />
       ) : (
-        <DualBarChart series={smoothed} isMobile={isMobile} />
+        <DualBarChart series={annotated} isMobile={isMobile} hideAnomalies={hideAnomalies} />
       )}
     </div>
   );
@@ -483,9 +537,13 @@ function ToggleBtn({ active, onClick, children }: {
 interface SmoothedPoint extends DailyPoint {
   smoothedTime: number | null;
   smoothedSales: number;
+  timeAnomaly: boolean;
+  salesAnomaly: boolean;
 }
 
-function DualLineChart({ series, isMobile }: { series: SmoothedPoint[]; isMobile: boolean }) {
+function DualLineChart({ series, isMobile, hideAnomalies }: {
+  series: SmoothedPoint[]; isMobile: boolean; hideAnomalies: boolean;
+}) {
   // Dual y-axis line chart: left axis for ticket time (orange), right
   // axis for sales ($, blue). Same x. Visual correlation is immediate
   // — when one line moves, the other's response is right there.
@@ -497,20 +555,35 @@ function DualLineChart({ series, isMobile }: { series: SmoothedPoint[]; isMobile
   const n = series.length;
   if (n < 2) return <div style={{ color: '#888', fontSize: 13 }}>Not enough data yet.</div>;
 
-  const maxTime = Math.max(0.1, ...series.map((p) => p.smoothedTime ?? 0));
-  const maxSales = Math.max(1, ...series.map((p) => p.smoothedSales));
-  const minSales = Math.min(...series.map((p) => p.smoothedSales).filter((v) => v > 0)) * 0.85;
+  // Y-axis is sized from NON-anomaly values when hideAnomalies is on, so
+  // a single 4x spike doesn't crush the rest of the line into a flatline.
+  const timeForScale = series
+    .filter((p) => p.smoothedTime != null && (!hideAnomalies || !p.timeAnomaly))
+    .map((p) => p.smoothedTime as number);
+  const salesForScale = series
+    .filter((p) => p.smoothedSales > 0 && (!hideAnomalies || !p.salesAnomaly))
+    .map((p) => p.smoothedSales);
+  const maxTime = Math.max(0.1, ...timeForScale);
+  const maxSales = Math.max(1, ...salesForScale);
+  const minSales = (salesForScale.length ? Math.min(...salesForScale) : 0) * 0.85;
 
   const x = (i: number) => PAD.left + (i / (n - 1)) * innerW;
   const yTime = (v: number) => PAD.top + innerH * (1 - v / (maxTime * 1.08));
   const yS = (v: number) => PAD.top + innerH * (1 - (v - minSales) / (maxSales * 1.05 - minSales));
 
+  // Treat anomalies as nulls when hiding so the path breaks (or
+  // interpolates over) them rather than stretching.
+  const isTimeOk = (p: SmoothedPoint) =>
+    p.smoothedTime != null && (!hideAnomalies || !p.timeAnomaly);
+  const isSalesOk = (p: SmoothedPoint) =>
+    p.smoothedSales > 0 && (!hideAnomalies || !p.salesAnomaly);
+
   const timePath = series
-    .map((p, i) => p.smoothedTime == null ? null : `${i === 0 || series[i - 1]?.smoothedTime == null ? 'M' : 'L'} ${x(i)} ${yTime(p.smoothedTime)}`)
+    .map((p, i) => !isTimeOk(p) ? null : `${i === 0 || !isTimeOk(series[i - 1]) ? 'M' : 'L'} ${x(i)} ${yTime(p.smoothedTime as number)}`)
     .filter(Boolean)
     .join(' ');
   const salesPath = series
-    .map((p, i) => p.smoothedSales <= 0 ? null : `${i === 0 || series[i - 1]?.smoothedSales <= 0 ? 'M' : 'L'} ${x(i)} ${yS(p.smoothedSales)}`)
+    .map((p, i) => !isSalesOk(p) ? null : `${i === 0 || !isSalesOk(series[i - 1]) ? 'M' : 'L'} ${x(i)} ${yS(p.smoothedSales)}`)
     .filter(Boolean)
     .join(' ');
 
@@ -557,6 +630,19 @@ function DualLineChart({ series, isMobile }: { series: SmoothedPoint[]; isMobile
         <path d={salesPath} fill="none" stroke="#2c5f8d" strokeWidth="2" strokeLinejoin="round" />
         {/* Ticket time line */}
         <path d={timePath} fill="none" stroke="#c97a3f" strokeWidth="2" strokeLinejoin="round" />
+        {/* Anomaly markers — tiny dashed verticals at flagged x positions
+            with a ⚠ glyph in the top margin. */}
+        {hideAnomalies && series.map((p, i) => {
+          if (!p.timeAnomaly && !p.salesAnomaly) return null;
+          const xc = x(i);
+          return (
+            <g key={`a-${i}`}>
+              <line x1={xc} x2={xc} y1={PAD.top} y2={PAD.top + innerH}
+                    stroke="#c08a4a" strokeWidth="1" strokeDasharray="2 3" opacity="0.45" />
+              <text x={xc} y={PAD.top - 2} fontSize="9" fill="#a04ea0" textAnchor="middle">⚠</text>
+            </g>
+          );
+        })}
         {/* Legend */}
         <g transform={`translate(${PAD.left}, ${PAD.top - 6})`}>
           <line x1="0" x2="18" y1="0" y2="0" stroke="#c97a3f" strokeWidth="2" />
@@ -569,7 +655,9 @@ function DualLineChart({ series, isMobile }: { series: SmoothedPoint[]; isMobile
   );
 }
 
-function DualBarChart({ series, isMobile }: { series: SmoothedPoint[]; isMobile: boolean }) {
+function DualBarChart({ series, isMobile, hideAnomalies }: {
+  series: SmoothedPoint[]; isMobile: boolean; hideAnomalies: boolean;
+}) {
   const W = 760;
   const H_TIME = 110;
   const H_SALES = 110;
@@ -578,8 +666,13 @@ function DualBarChart({ series, isMobile }: { series: SmoothedPoint[]; isMobile:
   const n = series.length;
   const bw = n > 0 ? innerW / n : innerW;
 
-  const maxTime = Math.max(0.1, ...series.map((p) => p.smoothedTime ?? 0));
-  const maxSales = Math.max(1, ...series.map((p) => p.smoothedSales));
+  // Y-axis sized from non-anomaly values so spikes don't crush the chart.
+  const maxTime = Math.max(0.1, ...series
+    .filter((p) => p.smoothedTime != null && (!hideAnomalies || !p.timeAnomaly))
+    .map((p) => p.smoothedTime as number));
+  const maxSales = Math.max(1, ...series
+    .filter((p) => p.smoothedSales > 0 && (!hideAnomalies || !p.salesAnomaly))
+    .map((p) => p.smoothedSales));
 
   const timeY = (v: number) => PAD.top + (H_TIME - PAD.top - PAD.bottom) * (1 - v / maxTime);
   const salesY = (v: number) => PAD.top + (H_SALES - PAD.top - PAD.bottom) * (1 - v / maxSales);
@@ -592,6 +685,7 @@ function DualBarChart({ series, isMobile }: { series: SmoothedPoint[]; isMobile:
     color: string,
     max: number,
     valueFn: (p: SmoothedPoint) => number | null,
+    isAnomaly: (p: SmoothedPoint) => boolean,
     yLabel: (v: number) => string,
     title: string,
   ) => (
@@ -611,8 +705,21 @@ function DualBarChart({ series, isMobile }: { series: SmoothedPoint[]; isMobile:
         {series.map((p, i) => {
           const v = valueFn(p);
           if (v == null) return null;
+          const anomaly = isAnomaly(p);
+          if (hideAnomalies && anomaly) {
+            // Render a small ⚠ marker at the top of the chart so the day
+            // isn't invisible, just visually demoted.
+            const xc = PAD.left + i * bw + bw / 2;
+            return (
+              <text key={p.date} x={xc} y={PAD.top + 8} fontSize="11"
+                    fill="#a04ea0" textAnchor="middle">⚠</text>
+            );
+          }
+          // If anomaly but not hiding, render it capped at max so it
+          // doesn't blow out the scale even when shown.
+          const drawV = Math.min(v, max);
           const xc = PAD.left + i * bw;
-          const yc = yFn(v);
+          const yc = yFn(drawV);
           return (
             <rect
               key={p.date}
@@ -620,8 +727,8 @@ function DualBarChart({ series, isMobile }: { series: SmoothedPoint[]; isMobile:
               y={yc}
               width={Math.max(1, bw - 1)}
               height={Math.max(0, height - PAD.bottom - yc)}
-              fill={color}
-              opacity={0.85}
+              fill={anomaly ? '#a04ea0' : color}
+              opacity={anomaly ? 0.6 : 0.85}
             />
           );
         })}
@@ -642,12 +749,14 @@ function DualBarChart({ series, isMobile }: { series: SmoothedPoint[]; isMobile:
       {renderChart(
         H_TIME, timeY, '#c97a3f', maxTime,
         (p) => p.smoothedTime,
+        (p) => p.timeAnomaly,
         (v) => `${v.toFixed(1)}m`,
         'AVG TICKET TIME (min)',
       )}
       {renderChart(
         H_SALES, salesY, '#2c5f8d', maxSales,
         (p) => p.smoothedSales > 0 ? p.smoothedSales : null,
+        (p) => p.salesAnomaly,
         (v) => `$${(v / 100 / 1000).toFixed(1)}k`,
         'DAILY SALES',
       )}
