@@ -1128,21 +1128,16 @@ function CardFullContent({
   onRating: (n: number) => void;
   onOpen: () => void;
 }) {
-  // Heuristic: fields containing keywords like "availability", "experience",
-  // "why", "tell us", "previous" are pulled to a highlight section. Everything
-  // else falls to the full responses block below.
+  // Pull just the qualitative answer fields onto the card. Everything else
+  // (name parts, contact info, location checkboxes — all already shown
+  // elsewhere) stays in the full-view drawer.
   const HIGHLIGHT_PATTERNS = [
-    /availability/i, /availab/i, /experience/i, /previous/i,
+    /availability/i, /experience/i, /previous/i,
     /why/i, /tell us about/i, /interest/i, /strength/i,
   ];
-  const filledFields = Object.entries(a.fields).filter(([, v]) => v && v.length > 0);
-  const highlights: Array<[string, string]> = [];
-  const rest: Array<[string, string]> = [];
-  for (const entry of filledFields) {
-    const [k] = entry;
-    if (HIGHLIGHT_PATTERNS.some((p) => p.test(k))) highlights.push(entry);
-    else rest.push(entry);
-  }
+  const highlights = Object.entries(a.fields).filter(
+    ([k, v]) => v && v.length > 0 && HIGHLIGHT_PATTERNS.some((p) => p.test(k)),
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%' }}>
@@ -1185,40 +1180,25 @@ function CardFullContent({
         ))}
       </div>
 
-      {/* Highlights */}
+      {/* Highlights — the only fields shown on the card itself. Rest
+          available via "Open full view". */}
       {highlights.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div
+          style={{
+            display: 'flex', flexDirection: 'column', gap: 12,
+            flex: 1, overflowY: 'auto', minHeight: 0,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           {highlights.map(([k, v]) => (
-            <div key={k} style={{
-              padding: '8px 10px', background: '#fffbe6',
-              borderRadius: 6, border: '1px solid #f0d97b',
-            }}>
+            <div key={k}>
               <div style={{
-                fontSize: 10, fontWeight: 700, color: '#7a5a00',
-                textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 3,
+                fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.55)',
+                textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4,
               }}>{k}</div>
-              <div style={{ fontSize: 13, color: '#1a1a1a', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
+              <div style={{ fontSize: 13, color: '#1a1a1a', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                 {v}
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* All other fields, scrollable */}
-      {rest.length > 0 && (
-        <div style={{
-          flex: 1, overflowY: 'auto', minHeight: 100,
-          background: '#fafafa', borderRadius: 8,
-          border: '1px solid #f0f0f0', padding: 10,
-        }} onPointerDown={(e) => e.stopPropagation()}>
-          {rest.map(([k, v]) => (
-            <div key={k} style={{ marginBottom: 8 }}>
-              <div style={{
-                fontSize: 10, fontWeight: 600, color: '#888',
-                textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2,
-              }}>{k}</div>
-              <div style={{ fontSize: 12, color: '#333', whiteSpace: 'pre-wrap' }}>{v}</div>
             </div>
           ))}
         </div>
@@ -1227,7 +1207,8 @@ function CardFullContent({
       {/* Resume link + open full view */}
       <div style={{
         display: 'flex', gap: 10, justifyContent: 'space-between',
-        alignItems: 'center', marginTop: 'auto',
+        alignItems: 'center', marginTop: 'auto', paddingTop: 8,
+        borderTop: '1px solid rgba(0,0,0,0.06)',
       }} onPointerDown={(e) => e.stopPropagation()}>
         {a.resumeFileId ? (
           <a
