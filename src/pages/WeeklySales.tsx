@@ -810,20 +810,20 @@ export default function WeeklySales() {
       {data && (
         <div style={{ display: 'grid', gap: 16 }}>
           {/* Hero KPIs — 2x2 on mobile (hero spans both cols),
-              4-across on desktop */}
+              4-across on desktop. No wrapper div around the hero so
+              all four tiles share the grid row's stretched height. */}
           <div style={{
             display: 'grid', gap: 12,
             gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
           }}>
-            <div style={isMobile ? { gridColumn: 'span 2' } : undefined}>
             <KpiTile
               label="Gross sales"
               value={fmtMoney(data.totals.current)}
               delta={data.totals.wowPct}
               deltaLabel="vs prev wk"
               hero
+              style={isMobile ? { gridColumn: 'span 2' } : undefined}
             />
-            </div>
             <KpiTile
               label="vs same wk last yr"
               value={fmtPct(data.totals.yoyPct)}
@@ -1185,7 +1185,7 @@ export default function WeeklySales() {
 }
 
 function KpiTile({
-  label, value, sub, delta, deltaLabel, valueColor, subColor, hero,
+  label, value, sub, delta, deltaLabel, valueColor, subColor, hero, style,
 }: {
   label: string;
   value: string;
@@ -1195,6 +1195,10 @@ function KpiTile({
   valueColor?: string;
   subColor?: string;
   hero?: boolean;
+  /** Extra grid/positioning styles merged onto the tile's wrapper.
+   *  Used to make the hero span 2 cols on mobile without an extra
+   *  div that would break grid row-stretching. */
+  style?: React.CSSProperties;
 }) {
   return (
     <div style={{
@@ -1208,6 +1212,7 @@ function KpiTile({
       boxShadow: hero ? '0 4px 12px rgba(0,0,0,0.12)' : '0 1px 2px rgba(0,0,0,0.03)',
       display: 'flex', flexDirection: 'column', gap: 6,
       minHeight: 100,
+      ...style,
     }}>
       <div style={{
         fontSize: 11, textTransform: 'uppercase', letterSpacing: 1,
