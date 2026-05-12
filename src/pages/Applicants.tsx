@@ -81,7 +81,10 @@ export default function Applicants() {
   const [ratings, setRatings] = useState<Record<string, number>>(() => loadMap<number>(RATING_KEY));
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<Status | 'all'>('all');
-  const [filterStore, setFilterStore] = useState<string | 'all'>('all');
+  // Empty set = no filter (show all). Otherwise, applicant passes if ANY
+  // of its store labels is in the set, OR if 'unknown' is selected and
+  // the applicant has no labels.
+  const [filterStores, setFilterStores] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<'date-desc' | 'date-asc' | 'name-asc' | 'rating-desc'>(
     'date-desc',
@@ -139,12 +142,11 @@ export default function Applicants() {
           return false;
         }
       }
-      if (filterStore !== 'all') {
-        if (filterStore === 'unknown') {
-          if (a.storeLabels.length > 0) return false;
-        } else if (!a.storeLabels.includes(filterStore)) {
-          return false;
-        }
+      if (filterStores.size > 0) {
+        const hasUnknown = filterStores.has('unknown');
+        const labelMatch = a.storeLabels.some((l) => filterStores.has(l));
+        const unknownMatch = hasUnknown && a.storeLabels.length === 0;
+        if (!labelMatch && !unknownMatch) return false;
       }
       if (!q) return true;
       const hay = [
@@ -182,7 +184,7 @@ export default function Applicants() {
         break;
     }
     return sorted;
-  }, [data, query, filterStatus, filterStore, statuses, sortKey, ratings]);
+  }, [data, query, filterStatus, filterStores, statuses, sortKey, ratings]);
 
   const counts = useMemo(() => {
     if (!data) return { all: 0, new: 0, shortlist: 0, reject: 0, hired: 0 };
@@ -292,28 +294,44 @@ export default function Applicants() {
             </select>
           </div>
 
-          {/* Per-store filter */}
+          {/* Per-store filter — multi-select. Click multiple to union
+              (an applicant who picked any of the selected stores is
+              included). "All stores" clears the selection. */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
             flexWrap: 'wrap', marginBottom: 16,
           }}>
-            {(['all', 'G1', 'G2', 'G3', 'G4', 'unknown'] as const).map((store) => {
-              const active = filterStore === store;
-              const color = store !== 'all' && store !== 'unknown' ? STORE_COLORS[store] : '#888';
+            <button
+              onClick={() => setFilterStores(new Set())}
+              style={{
+                padding: '5px 12px', borderRadius: 999,
+                border: filterStores.size === 0 ? '1px solid #1a1a1a' : '1px solid #ddd',
+                background: filterStores.size === 0 ? '#1a1a1a' : '#fff',
+                color: filterStores.size === 0 ? '#fff' : '#444',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              All stores
+              <span style={{ marginLeft: 6, opacity: 0.6 }}>{data.applicants.length}</span>
+            </button>
+            {(['G1', 'G2', 'G3', 'G4', 'unknown'] as const).map((store) => {
+              const active = filterStores.has(store);
+              const color = store !== 'unknown' ? STORE_COLORS[store] : '#888';
               const label =
-                store === 'all' ? 'All stores'
-                : store === 'unknown' ? 'No store'
-                : `${store} · ${STORE_CITIES[store]}`;
+                store === 'unknown' ? 'No store' : `${store} · ${STORE_CITIES[store]}`;
               const count =
-                store === 'all'
-                  ? data.applicants.length
-                  : store === 'unknown'
+                store === 'unknown'
                   ? data.applicants.filter((a) => a.storeLabels.length === 0).length
                   : data.applicants.filter((a) => a.storeLabels.includes(store)).length;
               return (
                 <button
                   key={store}
-                  onClick={() => setFilterStore(store)}
+                  onClick={() => setFilterStores((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(store)) next.delete(store);
+                    else next.add(store);
+                    return next;
+                  })}
                   style={{
                     padding: '5px 12px', borderRadius: 999,
                     border: active ? `1px solid ${color}` : '1px solid #ddd',
@@ -327,6 +345,11 @@ export default function Applicants() {
                 </button>
               );
             })}
+            {filterStores.size > 1 && (
+              <span style={{ fontSize: 11, color: '#888' }}>
+                Showing applicants who picked any of {filterStores.size} selected
+              </span>
+            )}
           </div>
 
           {/* Cards */}

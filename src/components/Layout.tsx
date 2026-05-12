@@ -323,15 +323,17 @@ function MoreMenu({ current }: { current: string }) {
         ref={btnRef}
         onClick={() => setOpen((o) => !o)}
         style={{
-          padding: '8px 16px',
+          padding: '8px 14px',
           borderRadius: 10,
-          fontSize: 14,
-          fontWeight: 500,
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          fontFamily: 'var(--font-body)',
           background: open || active ? 'rgba(0,0,0,0.07)' : 'transparent',
-          color: open || active ? '#1a1a1a' : 'rgba(0,0,0,0.4)',
+          color: open || active ? '#1a1a1a' : 'rgba(0,0,0,0.45)',
           border: 0, cursor: 'pointer',
-          display: 'inline-flex', alignItems: 'center', gap: 4,
-          fontFamily: 'inherit',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
           transition: 'all 0.2s',
           whiteSpace: 'nowrap',
         }}
@@ -339,7 +341,7 @@ function MoreMenu({ current }: { current: string }) {
         aria-expanded={open}
       >
         {activeItem ? activeItem.label : 'More'}
-        <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
+        <span style={{ fontSize: 9, opacity: 0.7, letterSpacing: 0 }}>▾</span>
       </button>
       {open && pos && createPortal(
         <div
@@ -365,11 +367,14 @@ function MoreMenu({ current }: { current: string }) {
                 role="menuitem"
                 style={{
                   display: 'block',
-                  padding: '8px 12px',
+                  padding: '10px 14px',
                   borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: isActive ? 600 : 500,
-                  color: isActive ? '#1a1a1a' : 'rgba(0,0,0,0.7)',
+                  fontSize: 11,
+                  fontWeight: isActive ? 700 : 600,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  fontFamily: 'var(--font-body)',
+                  color: isActive ? '#1a1a1a' : 'rgba(0,0,0,0.65)',
                   background: isActive ? 'rgba(0,0,0,0.05)' : 'transparent',
                 }}
               >
@@ -390,12 +395,15 @@ function NavLink({ to, current, children, exact = true }: {
   const active = exact ? current === to : current.startsWith(to);
   return (
     <Link to={to} style={{
-      padding: '8px 18px',
+      padding: '8px 14px',
       borderRadius: 10,
-      fontSize: 14,
-      fontWeight: 500,
+      fontSize: 11,
+      fontWeight: 600,
+      letterSpacing: '0.12em',
+      textTransform: 'uppercase',
+      fontFamily: 'var(--font-body)',
       background: active ? 'rgba(0,0,0,0.07)' : 'transparent',
-      color: active ? '#1a1a1a' : 'rgba(0,0,0,0.4)',
+      color: active ? '#1a1a1a' : 'rgba(0,0,0,0.45)',
       transition: 'all 0.2s',
     }}>
       {children}
@@ -411,8 +419,11 @@ function DrawerNavLink({ to, current, children, exact = true }: {
     <Link to={to} style={{
       padding: '14px 16px',
       borderRadius: 10,
-      fontSize: 16,
-      fontWeight: active ? 600 : 500,
+      fontSize: 12,
+      fontWeight: active ? 700 : 600,
+      letterSpacing: '0.12em',
+      textTransform: 'uppercase',
+      fontFamily: 'var(--font-body)',
       background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
       color: active ? '#1a1a1a' : 'rgba(0,0,0,0.65)',
       transition: 'background 0.15s',
