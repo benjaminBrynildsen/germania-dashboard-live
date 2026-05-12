@@ -12,9 +12,11 @@ import {
   clearToken,
   clearWeekCache,
   clearWeeklyCache,
+  fetchDailyTicketAndSales,
   loginComplete,
   loginInitiate,
   readToken,
+  STORES,
   syncDailySales,
   writeToken,
 } from './dripos.js';
@@ -138,6 +140,33 @@ router.post('/dripos/logout', requireAuth, (_req: AuthRequest, res: Response) =>
   clearToken();
   clearWeeklyCache();
   res.json({ ok: true });
+});
+
+router.get('/dripos/ticket-vs-sales/:locId', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const param = String(req.params.locId).toUpperCase();
+    const store = STORES.find(
+      (s) => s.label === param || String(s.locationId) === req.params.locId,
+    );
+    if (!store) {
+      res.status(404).json({ error: 'unknown_store', message: `No store named "${req.params.locId}"` });
+      return;
+    }
+    const days = Math.min(Math.max(parseInt(String(req.query.days ?? '90'), 10) || 90, 7), 730);
+    const series = await fetchDailyTicketAndSales(store.locationId, days);
+    res.json({ ok: true, store: store.label, days, series });
+  } catch (err) {
+    if (err instanceof NoToken || err instanceof AuthExpired) {
+      res.status(401).json({ error: 'dripos_auth_required', message: err.message });
+      return;
+    }
+    console.error('[ticket-vs-sales] failed:', err);
+    res.status(500).json({
+      error: 'ticket_vs_sales_failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
 });
 
 router.post('/dripos/sync-daily', requireAuth, async (req: AuthRequest, res: Response) => {

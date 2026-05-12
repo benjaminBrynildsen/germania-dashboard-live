@@ -248,6 +248,8 @@ export default function LocationDetail() {
               </div>
             </div>
             </Link>
+
+            <TicketVsSalesCard locId={location.id.toUpperCase()} isMobile={isMobile} />
           </div>
         )}
 
@@ -282,3 +284,230 @@ const pageWrap: React.CSSProperties = {
   marginRight: -32,
   marginTop: -32,
 };
+
+// ── Ticket time vs sales correlation chart ──────────────────────────────
+interface DailyPoint {
+  date: string;
+  avgTicketMin: number | null;
+  ticketCount: number;
+  salesCents: number;
+}
+
+const RANGE_PRESETS: Array<{ label: string; days: number }> = [
+  { label: '1M', days: 30 },
+  { label: '3M', days: 90 },
+  { label: '6M', days: 180 },
+  { label: '1Y', days: 365 },
+];
+
+function TicketVsSalesCard({ locId, isMobile }: { locId: string; isMobile: boolean }) {
+  const [days, setDays] = useState(90);
+  const [customMode, setCustomMode] = useState(false);
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+  const [series, setSeries] = useState<DailyPoint[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(`/api/dripos/ticket-vs-sales/${locId}?days=${days}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        if (!j.ok) {
+          setError(j.message || j.error || 'Failed to load');
+          return;
+        }
+        let s: DailyPoint[] = j.series ?? [];
+        if (customMode && customStart && customEnd) {
+          s = s.filter((p) => p.date >= customStart && p.date <= customEnd);
+        }
+        setSeries(s);
+      })
+      .catch((e) => { if (!cancelled) setError(String(e)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [locId, days, customMode, customStart, customEnd]);
+
+  // Pearson correlation between same-day ticket time and sales — quick
+  // gut check for the hypothesis. Only counted days where both metrics exist.
+  const stats = useMemo(() => {
+    const paired = series.filter((p) => p.avgTicketMin != null && p.salesCents > 0) as Array<DailyPoint & { avgTicketMin: number }>;
+    if (paired.length < 3) return { r: null as number | null, n: paired.length };
+    const xs = paired.map((p) => p.avgTicketMin);
+    const ys = paired.map((p) => p.salesCents);
+    const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+    const mx = mean(xs), my = mean(ys);
+    let num = 0, dx = 0, dy = 0;
+    for (let i = 0; i < paired.length; i++) {
+      const a = xs[i] - mx, b = ys[i] - my;
+      num += a * b; dx += a * a; dy += b * b;
+    }
+    const denom = Math.sqrt(dx * dy);
+    return { r: denom > 0 ? num / denom : null, n: paired.length };
+  }, [series]);
+
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.85)',
+      border: '1px solid rgba(0,0,0,0.07)',
+      borderRadius: 16,
+      padding: isMobile ? 16 : 24,
+      marginTop: 20,
+      boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+    }}>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        flexWrap: 'wrap', gap: 12, marginBottom: 14,
+      }}>
+        <div>
+          <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>
+            Ticket time vs daily sales
+          </h3>
+          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>
+            Hypothesis check: do slower days hurt same-day or next-week sales?
+            {stats.r != null && ` · Pearson r = ${stats.r.toFixed(2)} (n=${stats.n})`}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {RANGE_PRESETS.map((p) => {
+            const active = !customMode && days === p.days;
+            return (
+              <button
+                key={p.label}
+                onClick={() => { setCustomMode(false); setDays(p.days); }}
+                style={{
+                  padding: '5px 12px', borderRadius: 999,
+                  border: active ? '1px solid #1a1a1a' : '1px solid rgba(0,0,0,0.12)',
+                  background: active ? '#1a1a1a' : '#fff',
+                  color: active ? '#fff' : 'rgba(0,0,0,0.65)',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                }}
+              >{p.label}</button>
+            );
+          })}
+          <button
+            onClick={() => { setCustomMode(true); setDays(365); }}
+            style={{
+              padding: '5px 12px', borderRadius: 999,
+              border: customMode ? '1px solid #1a1a1a' : '1px solid rgba(0,0,0,0.12)',
+              background: customMode ? '#1a1a1a' : '#fff',
+              color: customMode ? '#fff' : 'rgba(0,0,0,0.65)',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}
+          >Custom</button>
+        </div>
+      </div>
+
+      {customMode && (
+        <div style={{
+          display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap',
+          alignItems: 'center', fontSize: 13,
+        }}>
+          <label>From <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} style={{ marginLeft: 4 }} /></label>
+          <label>To <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} style={{ marginLeft: 4 }} /></label>
+        </div>
+      )}
+
+      {loading && <div style={{ color: 'rgba(0,0,0,0.4)', padding: '24px 0', fontSize: 13 }}>Loading… (first load over a long range can take 20-40s while we hydrate the cache)</div>}
+      {error && <div style={{ color: '#c0392b', padding: '12px 0', fontSize: 13 }}>{error}</div>}
+      {!loading && !error && series.length > 0 && (
+        <DualSeriesChart series={series} isMobile={isMobile} />
+      )}
+    </div>
+  );
+}
+
+function DualSeriesChart({ series, isMobile }: { series: DailyPoint[]; isMobile: boolean }) {
+  // Two stacked bar charts sharing an x-axis. Top: avg ticket time
+  // (minutes), bottom: daily sales ($). Same date order so visual
+  // correlation is easy to spot.
+  const W = 760;
+  const H_TIME = 110;
+  const H_SALES = 110;
+  const PAD = { left: 44, right: 12, top: 12, bottom: 22 };
+  const innerW = W - PAD.left - PAD.right;
+  const n = series.length;
+  const bw = n > 0 ? innerW / n : innerW;
+
+  const maxTime = Math.max(0.1, ...series.map((p) => p.avgTicketMin ?? 0));
+  const maxSales = Math.max(1, ...series.map((p) => p.salesCents));
+
+  const timeY = (v: number) => PAD.top + (H_TIME - PAD.top - PAD.bottom) * (1 - v / maxTime);
+  const salesY = (v: number) => PAD.top + (H_SALES - PAD.top - PAD.bottom) * (1 - v / maxSales);
+
+  // Tick labels — show 6 evenly spaced dates so x-axis doesn't drown.
+  const tickIdx = Array.from({ length: 6 }, (_, i) => Math.round((i * (n - 1)) / 5));
+
+  const renderChart = (
+    height: number,
+    yFn: (v: number) => number,
+    color: string,
+    max: number,
+    valueFn: (p: DailyPoint) => number | null,
+    yLabel: (v: number) => string,
+    title: string,
+  ) => (
+    <div style={{ overflowX: isMobile ? 'auto' : 'visible' }}>
+      <svg viewBox={`0 0 ${W} ${height}`} style={{ width: '100%', height, minWidth: isMobile ? 600 : 0 }}>
+        <text x={PAD.left} y={10} fontSize="10" fill="#888" fontWeight="700">{title}</text>
+        {[0, 0.5, 1].map((f, i) => {
+          const v = max * (1 - f);
+          const y = PAD.top + (height - PAD.top - PAD.bottom) * f;
+          return (
+            <g key={i}>
+              <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} stroke="#eee" />
+              <text x={PAD.left - 4} y={y + 3} fontSize="9" fill="#aaa" textAnchor="end">{yLabel(v)}</text>
+            </g>
+          );
+        })}
+        {series.map((p, i) => {
+          const v = valueFn(p);
+          if (v == null) return null;
+          const x = PAD.left + i * bw;
+          const y = yFn(v);
+          return (
+            <rect
+              key={p.date}
+              x={x + 0.5}
+              y={y}
+              width={Math.max(1, bw - 1)}
+              height={Math.max(0, height - PAD.bottom - y)}
+              fill={color}
+              opacity={0.85}
+            />
+          );
+        })}
+        {tickIdx.map((i) => {
+          if (i < 0 || i >= n) return null;
+          const p = series[i];
+          const x = PAD.left + i * bw + bw / 2;
+          const label = p.date.slice(5); // MM-DD
+          return (
+            <text key={i} x={x} y={height - 6} fontSize="9" fill="#888" textAnchor="middle">{label}</text>
+          );
+        })}
+      </svg>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {renderChart(
+        H_TIME, timeY, '#c97a3f', maxTime,
+        (p) => p.avgTicketMin,
+        (v) => `${v.toFixed(1)}m`,
+        'AVG TICKET TIME (min)',
+      )}
+      {renderChart(
+        H_SALES, salesY, '#2c5f8d', maxSales,
+        (p) => p.salesCents > 0 ? p.salesCents : null,
+        (v) => `$${(v / 100 / 1000).toFixed(1)}k`,
+        'DAILY SALES',
+      )}
+    </div>
+  );
+}

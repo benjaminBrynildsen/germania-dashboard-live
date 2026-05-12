@@ -969,6 +969,104 @@ export async function buildTicketTimeReport(
   };
 }
 
+// ── Daily ticket time + sales correlation ────────────────────────────────
+/**
+ * Convert an epoch-ms to YYYY-MM-DD in America/Chicago — the brewery's
+ * operating timezone. Needed to bucket hourly completion data by day
+ * without UTC drift.
+ */
+function chicagoDateKey(epochMs: number): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: 'America/Chicago',
+  }).format(new Date(epochMs));
+  return parts; // en-CA gives YYYY-MM-DD natively
+}
+
+export interface DailyTicketAndSales {
+  date: string;        // YYYY-MM-DD
+  avgTicketMin: number | null;
+  ticketCount: number;
+  salesCents: number;
+}
+
+/**
+ * For one location, return [days] of per-day avg ticket completion time
+ * (weighted by ticket count) alongside that day's gross sales. Used by
+ * the Location detail page's correlation chart.
+ *
+ * Today is excluded (incomplete day). Ticket-time data is fetched a week
+ * at a time (via fetchCompletion, cached forever for past weeks), then
+ * the hourly entries are aggregated to days. Daily sales come from
+ * fetchDailySales (cached forever for past days at the salessummary
+ * level). First call for a long range can be slow; subsequent loads
+ * are instant.
+ */
+export async function fetchDailyTicketAndSales(
+  locationId: number,
+  days: number,
+): Promise<DailyTicketAndSales[]> {
+  const today = dateOnly(new Date());
+  const lastDay = addDays(today, -1);          // skip today (incomplete)
+  const firstDay = addDays(lastDay, -(days - 1));
+
+  // Step back to the Sunday of firstDay's week so we don't miss data.
+  const firstSun = addDays(firstDay, -((firstDay.getDay()) % 7));
+  // Walk forward by 7 days at a time, capturing every week that touches
+  // the range; fetchCompletion is cached so weeks already fetched are free.
+  const weekJobs: Promise<CompletionHour[]>[] = [];
+  for (let s = new Date(firstSun); s <= lastDay; s = addDays(s, 7)) {
+    const sat = addDays(s, 6);
+    weekJobs.push(fetchCompletion(locationId, new Date(s), sat));
+  }
+  const weeks = await Promise.all(weekJobs);
+
+  // Sum TICKET_SECONDS / TICKET_COUNT per day across all weeks.
+  const byDate: Record<string, { secs: number; count: number }> = {};
+  for (const hours of weeks) {
+    for (const h of hours) {
+      if (!h.TICKET_COUNT) continue;
+      const key = chicagoDateKey(h.HOUR);
+      const row = byDate[key] ?? (byDate[key] = { secs: 0, count: 0 });
+      row.secs += h.TICKET_SECONDS;
+      row.count += h.TICKET_COUNT;
+    }
+  }
+
+  // Pull daily sales for every day in the range (cached).
+  const dayList: Date[] = [];
+  for (let d = new Date(firstDay); d <= lastDay; d = addDays(d, 1)) {
+    dayList.push(new Date(d));
+  }
+
+  // Cap parallelism so we don't hammer Dripos on first load.
+  const CHUNK = 6;
+  const salesByDate: Record<string, DailySales> = {};
+  for (let i = 0; i < dayList.length; i += CHUNK) {
+    const slice = dayList.slice(i, i + CHUNK);
+    const results = await Promise.allSettled(
+      slice.map((d) => fetchDailySales(locationId, d)),
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') salesByDate[r.value.date] = r.value;
+    }
+  }
+
+  const out: DailyTicketAndSales[] = [];
+  for (const d of dayList) {
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const tt = byDate[key];
+    const sales = salesByDate[key];
+    out.push({
+      date: key,
+      avgTicketMin: tt && tt.count > 0 ? (tt.secs / tt.count) / 60 : null,
+      ticketCount: tt?.count ?? 0,
+      salesCents: sales?.totalSales ?? 0,
+    });
+  }
+  return out;
+}
+
 interface LaborVsSalesData {
   breakdown: Array<{
     label: string;
