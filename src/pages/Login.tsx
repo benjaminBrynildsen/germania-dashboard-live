@@ -48,7 +48,7 @@ export default function Login() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #f0f0f3 0%, #e4e4ea 50%, #f0f0f3 100%)',
+        background: '#ffffff',
       }}
     >
       <div

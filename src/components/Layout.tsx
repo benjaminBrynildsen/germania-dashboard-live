@@ -57,7 +57,7 @@ export default function Layout({ user, onLogout, children }: Props) {
       minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      background: 'linear-gradient(135deg, #f0f0f3 0%, #e8e8ee 50%, #f0f0f3 100%)',
+      background: '#ffffff',
     }}>
       <header style={{
         background: scrolled ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.60)',

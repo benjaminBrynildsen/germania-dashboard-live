@@ -37,7 +37,7 @@ export default function App() {
         justifyContent: 'center',
         alignItems: 'center',
         height: '100vh',
-        background: '#f0f0f3',
+        background: '#ffffff',
       }}>
         <div style={{ textAlign: 'center' }}>
           <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" style={{ height: 44, marginBottom: 16, opacity: 0.4 }}

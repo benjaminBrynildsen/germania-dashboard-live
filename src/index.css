@@ -4,9 +4,19 @@
   box-sizing: border-box;
 }
 
+:root {
+  /* Body sans — Geist Variable. Falls back to Inter (also loaded) then
+     system sans if the variable file hasn't downloaded yet. */
+  --font-body: 'Geist Variable', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Display serif — Fraunces (variable), with optical sizing so larger
+     sizes render with more flair. Old-world feel that nods to the
+     Germania blackletter logo without becoming illegible. */
+  --font-display: 'Fraunces Variable', 'Fraunces', Georgia, serif;
+}
+
 html, body, #root {
   min-height: 100vh;
-  background: #f0f0f3;
+  background: #ffffff;
   color: #1a1a1a;
 }
 
@@ -19,10 +29,22 @@ html, body {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-body);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
 }
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-feature-settings: 'ss01', 'liga';
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+/* Display serif optical-size tuning */
+h1 { font-variation-settings: 'opsz' 144, 'wght' 600, 'SOFT' 30; }
+h2 { font-variation-settings: 'opsz' 72,  'wght' 600, 'SOFT' 20; }
+h3 { font-variation-settings: 'opsz' 24,  'wght' 600, 'SOFT' 10; }
 
 a {
   color: #1a1a1a;

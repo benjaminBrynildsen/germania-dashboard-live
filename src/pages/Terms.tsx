@@ -3,7 +3,7 @@ export default function Terms() {
     <div
       style={{
         minHeight: '100vh',
-        background: '#f0f0f3',
+        background: '#ffffff',
         padding: '40px 20px',
       }}
     >

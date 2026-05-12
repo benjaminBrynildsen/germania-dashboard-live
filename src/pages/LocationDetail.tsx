@@ -277,7 +277,7 @@ export default function LocationDetail() {
 
 const pageWrap: React.CSSProperties = {
   minHeight: '100vh',
-  background: 'linear-gradient(145deg, #f5f5f7 0%, #ebebef 50%, #f0f0f5 100%)',
+  background: '#ffffff',
   marginLeft: -32,
   marginRight: -32,
   marginTop: -32,
