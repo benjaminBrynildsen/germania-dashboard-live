@@ -42,18 +42,26 @@ export const STORES: Store[] = [
 ];
 
 /**
- * Total chain-wide salaried-manager labor pool per WEEK, in cents.
+ * Salaried-manager pool per WEEK, in cents.
  *
  * Dripos's /report/laborvssales only counts clocked-in hourly labor;
  * salaried managers never punch in so they're invisible there. The
- * accountant allocates the salary pool across stores proportionally to
- * each store's share of sales for the period — so the dashboard does
- * the same (see buildReport, look for SALARIED_POOL_CENTS_PER_WEEK).
+ * accountant pools salaries chain-wide and allocates by sales share.
  *
- * Seeded at $7,000/wk based on bi-weekly totals running $13.5k–$14.2k
- * (avg $13,968 / 2 = $6,984). Refine when payroll changes.
+ * Seeded at $6,500/wk — solved from the manual labor % anchors for
+ * week 18 (G1 32%, G4 31%) which gave pool=$6,519 + kitchen=$1,736.
+ * Refine when payroll changes.
  */
-export const SALARIED_POOL_CENTS_PER_WEEK = 700_000;
+export const SALARIED_POOL_CENTS_PER_WEEK = 650_000;
+
+/**
+ * G4's kitchen feeds the chain. The kitchen labor cost is embedded in
+ * G4's Dripos hourly number but really belongs to chain overhead, so
+ * we extract this amount from G4's hourly and pool it with salaries
+ * before allocating by sales share. Solved from the same week-18
+ * anchors as SALARIED_POOL_CENTS_PER_WEEK.
+ */
+export const G4_KITCHEN_OFFLOAD_CENTS_PER_WEEK = 175_000;
 
 /**
  * Best-effort: extract every store the applicant ticked. Multi-checkbox form
@@ -1359,19 +1367,30 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
         r !== null,
     );
 
-    // Allocate the salaried pool across stores by each store's share of
-    // chain sales for the week (the same calc the accountant runs to
-    // produce the bi-weekly contribution sheet).
+    // Extract G4's kitchen labor from its hourly (the kitchen feeds the
+    // whole chain), pool it with the salary pool, then allocate the
+    // combined pool to every store by sales share. G4 keeps its FOH
+    // hourly + gets its sales-share slice of the pool back.
     const chainGross = successful.reduce((a, r) => a + r.grossSalesCents, 0);
+    const combinedPool =
+      SALARIED_POOL_CENTS_PER_WEEK + G4_KITCHEN_OFFLOAD_CENTS_PER_WEEK;
+
     laborByStore = successful.map((r) => {
+      const isG4 = r.label === 'G4';
+      const effectiveHourly = isG4
+        ? Math.max(0, r.hourlyCents - G4_KITCHEN_OFFLOAD_CENTS_PER_WEEK)
+        : r.hourlyCents;
       const share = chainGross > 0 ? r.grossSalesCents / chainGross : 0;
-      const salariedCents = Math.round(SALARIED_POOL_CENTS_PER_WEEK * share);
-      const totalLabor = r.hourlyCents + salariedCents;
+      const salariedCents = Math.round(combinedPool * share);
+      const totalLabor = effectiveHourly + salariedCents;
       return {
         label: r.label,
         locationId: r.locationId,
         laborCents: totalLabor,
-        hourlyCents: r.hourlyCents,
+        // The displayed hourly is post-kitchen-offload so the row's
+        // hourly + salaried = total math actually adds up. The raw
+        // Dripos number for G4 is `effectiveHourly + offload`.
+        hourlyCents: effectiveHourly,
         salariedCents,
         grossSalesCents: r.grossSalesCents,
         laborPct: r.grossSalesCents > 0 ? (totalLabor / r.grossSalesCents) * 100 : null,

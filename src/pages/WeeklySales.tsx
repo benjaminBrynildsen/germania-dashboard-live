@@ -1028,7 +1028,7 @@ export default function WeeklySales() {
 
           <Card
             title="Labor · % of sales (target ≤ 35%)"
-            subtitle="Hourly from Dripos, plus the $7k/week salaried-manager pool allocated to each store proportionally to its share of chain sales — the same allocation used on the bi-weekly contribution sheets."
+            subtitle="Hourly from Dripos minus G4's kitchen labor (≈$1,750/wk, the kitchen feeds every store), pooled with the $6,500/wk salaried-manager budget, then allocated to each store by sales share — same allocation the accountant runs on the bi-weekly contribution sheets."
           >
             {data.laborByStore.length === 0 ? (
               <Stub>Labor data unavailable.</Stub>
