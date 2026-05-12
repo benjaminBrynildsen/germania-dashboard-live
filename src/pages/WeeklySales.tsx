@@ -1028,7 +1028,7 @@ export default function WeeklySales() {
 
           <Card
             title="Labor · % of sales (target ≤ 35%)"
-            subtitle="Hourly from Dripos, salaried managers added per store (configured server-side). G4 salaried is $0 pending confirmation."
+            subtitle="Hourly from Dripos, plus the $7k/week salaried-manager pool allocated to each store proportionally to its share of chain sales — the same allocation used on the bi-weekly contribution sheets."
           >
             {data.laborByStore.length === 0 ? (
               <Stub>Labor data unavailable.</Stub>

@@ -42,20 +42,18 @@ export const STORES: Store[] = [
 ];
 
 /**
- * Weekly salaried-manager labor overhead per store, in cents. Dripos's
- * /report/laborvssales only counts clocked-in hourly labor; salaried
- * managers never punch in so they're invisible there. Add them here so
- * the dashboard's labor % reflects true total labor cost.
+ * Total chain-wide salaried-manager labor pool per WEEK, in cents.
  *
- * G4 placeholder until Ben confirms the kitchen manager number.
- * Update these manually — annual salary ÷ 52 ÷ 100 → cents.
+ * Dripos's /report/laborvssales only counts clocked-in hourly labor;
+ * salaried managers never punch in so they're invisible there. The
+ * accountant allocates the salary pool across stores proportionally to
+ * each store's share of sales for the period — so the dashboard does
+ * the same (see buildReport, look for SALARIED_POOL_CENTS_PER_WEEK).
+ *
+ * Seeded at $7,000/wk based on bi-weekly totals running $13.5k–$14.2k
+ * (avg $13,968 / 2 = $6,984). Refine when payroll changes.
  */
-export const SALARIED_OVERHEAD_CENTS_PER_WEEK: Record<string, number> = {
-  G1: 245_000, // $2,450/wk
-  G2: 245_000, // $2,450/wk
-  G3: 245_000, // $2,450/wk
-  G4: 0,       // TODO: kitchen manager — Ben to confirm
-};
+export const SALARIED_POOL_CENTS_PER_WEEK = 700_000;
 
 /**
  * Best-effort: extract every store the applicant ticked. Multi-checkbox form
@@ -1341,7 +1339,7 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
 
   let laborByStore: LaborRow[] = [];
   try {
-    const laborResults = await Promise.all(
+    const hourlyResults = await Promise.all(
       STORES.map(async (s) => {
         try {
           const { laborCents: hourlyCents, grossSalesCents } = await fetchLaborVsSales(
@@ -1349,24 +1347,36 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
             startMs,
             endMs,
           );
-          const salariedCents = SALARIED_OVERHEAD_CENTS_PER_WEEK[s.label] ?? 0;
-          const totalLabor = hourlyCents + salariedCents;
-          return {
-            label: s.label,
-            locationId: s.locationId,
-            laborCents: totalLabor,
-            hourlyCents,
-            salariedCents,
-            grossSalesCents,
-            laborPct: grossSalesCents > 0 ? (totalLabor / grossSalesCents) * 100 : null,
-          } as LaborRow;
+          return { label: s.label, locationId: s.locationId, hourlyCents, grossSalesCents };
         } catch (err) {
           console.error(`[buildReport] laborvssales ${s.label} failed:`, err);
           return null;
         }
       }),
     );
-    laborByStore = laborResults.filter((r): r is LaborRow => r !== null);
+    const successful = hourlyResults.filter(
+      (r): r is { label: string; locationId: number; hourlyCents: number; grossSalesCents: number } =>
+        r !== null,
+    );
+
+    // Allocate the salaried pool across stores by each store's share of
+    // chain sales for the week (the same calc the accountant runs to
+    // produce the bi-weekly contribution sheet).
+    const chainGross = successful.reduce((a, r) => a + r.grossSalesCents, 0);
+    laborByStore = successful.map((r) => {
+      const share = chainGross > 0 ? r.grossSalesCents / chainGross : 0;
+      const salariedCents = Math.round(SALARIED_POOL_CENTS_PER_WEEK * share);
+      const totalLabor = r.hourlyCents + salariedCents;
+      return {
+        label: r.label,
+        locationId: r.locationId,
+        laborCents: totalLabor,
+        hourlyCents: r.hourlyCents,
+        salariedCents,
+        grossSalesCents: r.grossSalesCents,
+        laborPct: r.grossSalesCents > 0 ? (totalLabor / r.grossSalesCents) * 100 : null,
+      };
+    });
   } catch (err) {
     console.error('[buildReport] labor failed:', err);
   }
