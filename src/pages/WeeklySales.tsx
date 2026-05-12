@@ -809,11 +809,13 @@ export default function WeeklySales() {
 
       {data && (
         <div style={{ display: 'grid', gap: 16 }}>
-          {/* Hero KPIs */}
+          {/* Hero KPIs — 2x2 on mobile (hero spans both cols),
+              4-across on desktop */}
           <div style={{
             display: 'grid', gap: 12,
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)',
+            gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
           }}>
+            <div style={isMobile ? { gridColumn: 'span 2' } : undefined}>
             <KpiTile
               label="Gross sales"
               value={fmtMoney(data.totals.current)}
@@ -821,6 +823,7 @@ export default function WeeklySales() {
               deltaLabel="vs prev wk"
               hero
             />
+            </div>
             <KpiTile
               label="vs same wk last yr"
               value={fmtPct(data.totals.yoyPct)}
@@ -1339,29 +1342,49 @@ function WeekOverrideCard({
 }: {
   ov: { sun: string; reason: string; forcedGrossCents: number; forcedTickets: number };
 }) {
+  // Default to collapsed on phones — the full reason is multiple paragraphs
+  // and was eating ~25% of the mobile viewport.
+  const [expanded, setExpanded] = useState(false);
   return (
     <div style={{
       background: '#fff7e6',
       border: '1px solid #f0c36d',
       borderLeft: '4px solid #d4a843',
       borderRadius: 10,
-      padding: '14px 22px',
-      display: 'flex', alignItems: 'flex-start', gap: 14,
+      padding: '12px 16px',
+      display: 'flex', alignItems: 'flex-start', gap: 12,
     }}>
       <div style={{
-        fontSize: 22, lineHeight: 1, color: '#b06d00',
-        flexShrink: 0, marginTop: 2,
+        fontSize: 20, lineHeight: 1, color: '#b06d00',
+        flexShrink: 0, marginTop: 1,
       }}>⚠</div>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          fontSize: 11, textTransform: 'uppercase', letterSpacing: 1,
-          color: '#7a5a00', fontWeight: 700, marginBottom: 4,
-        }}>Manual headline override · week of {ov.sun}</div>
-        <div style={{ fontSize: 13, color: '#5a4500', lineHeight: 1.5 }}>
-          {ov.reason} Headline shows <strong>{fmtMoney(ov.forcedGrossCents)}</strong> /{' '}
-          <strong>{ov.forcedTickets.toLocaleString()} tickets</strong> instead of the per-store
-          sum. Per-store breakdown and platform tables below remain unadjusted.
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 8,
+        }}>
+          <div style={{
+            fontSize: 11, textTransform: 'uppercase', letterSpacing: 1,
+            color: '#7a5a00', fontWeight: 700,
+          }}>Headline override · {ov.sun}</div>
+          <button
+            onClick={() => setExpanded((e) => !e)}
+            style={{
+              border: 0, background: 'transparent', color: '#7a5a00',
+              fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 2,
+              textDecoration: 'underline',
+            }}
+          >{expanded ? 'Hide' : 'Why?'}</button>
         </div>
+        <div style={{ fontSize: 12, color: '#5a4500', marginTop: 4 }}>
+          Showing <strong>{fmtMoney(ov.forcedGrossCents)}</strong> /{' '}
+          <strong>{ov.forcedTickets.toLocaleString()} tix</strong> (Dripos chain Sales Summary).
+        </div>
+        {expanded && (
+          <div style={{
+            fontSize: 13, color: '#5a4500', lineHeight: 1.5, marginTop: 8,
+          }}>{ov.reason}</div>
+        )}
       </div>
     </div>
   );
