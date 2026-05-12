@@ -1,4 +1,5 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -276,29 +277,50 @@ function currentPageLabel(pathname: string): string {
 
 function MoreMenu({ current }: { current: string }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
   const activeItem = MORE_ITEMS.find((it) =>
     (it.exact !== false ? current === it.to : current.startsWith(it.to)),
   );
   const active = !!activeItem;
 
+  // Recompute position whenever it opens (the nav has overflow:auto so the
+  // dropdown has to be rendered via a portal to escape the clipping;
+  // position is computed from the button's bounding rect).
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    setPos({ top: rect.bottom + 4, left: rect.left });
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t)) return;
+      if (menuRef.current?.contains(t)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onResize = () => setOpen(false);
     document.addEventListener('mousedown', onDocClick);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onResize, true);
     return () => {
       document.removeEventListener('mousedown', onDocClick);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onResize, true);
     };
   }, [open]);
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <>
       <button
+        ref={btnRef}
         onClick={() => setOpen((o) => !o)}
         style={{
           padding: '8px 16px',
@@ -311,6 +333,7 @@ function MoreMenu({ current }: { current: string }) {
           display: 'inline-flex', alignItems: 'center', gap: 4,
           fontFamily: 'inherit',
           transition: 'all 0.2s',
+          whiteSpace: 'nowrap',
         }}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -318,14 +341,15 @@ function MoreMenu({ current }: { current: string }) {
         {activeItem ? activeItem.label : 'More'}
         <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
       </button>
-      {open && (
+      {open && pos && createPortal(
         <div
+          ref={menuRef}
           role="menu"
           style={{
-            position: 'absolute', top: '100%', left: 0, marginTop: 4,
-            minWidth: 160, background: 'rgba(255,255,255,0.98)',
+            position: 'fixed', top: pos.top, left: pos.left,
+            minWidth: 170, background: 'rgba(255,255,255,0.98)',
             border: '1px solid rgba(0,0,0,0.08)',
-            borderRadius: 10, padding: 4, zIndex: 50,
+            borderRadius: 10, padding: 4, zIndex: 100,
             boxShadow: '0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.05)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
@@ -353,9 +377,10 @@ function MoreMenu({ current }: { current: string }) {
               </Link>
             );
           })}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
 

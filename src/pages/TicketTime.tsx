@@ -89,16 +89,21 @@ export default function TicketTime() {
   const weekOptions = useMemo(() => {
     const fmtDate = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
     const today = new Date();
+    // Anchor offset 0 on the most-recently-completed Sun-Sat — must match
+    // the server's weekBounds() in server/dripos.ts, otherwise the label
+    // says one week and the data is from a different week. `|| 7` keeps
+    // Saturday from anchoring on the in-progress week.
+    const daysSinceSat = ((today.getDay() + 1) % 7) || 7;
+    const sun0 = new Date(today);
+    sun0.setDate(today.getDate() - daysSinceSat - 6);
     const opts: Array<{ offset: number; label: string }> = [];
     for (let i = 0; i < 12; i++) {
-      const ref = new Date(today);
-      ref.setDate(today.getDate() - 7 * i);
-      const sun = new Date(ref);
-      sun.setDate(ref.getDate() - ref.getDay());
+      const sun = new Date(sun0);
+      sun.setDate(sun0.getDate() - 7 * i);
       const sat = new Date(sun);
       sat.setDate(sun.getDate() + 6);
       const range = `${fmtDate(sun)}–${fmtDate(sat)}`;
-      opts.push({ offset: i, label: i === 0 ? `This week · ${range}` : range });
+      opts.push({ offset: i, label: i === 0 ? `Last week · ${range}` : range });
     }
     return opts;
   }, []);
