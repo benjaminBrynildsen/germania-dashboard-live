@@ -1347,9 +1347,6 @@ function WeekOverrideCard({
 }: {
   ov: { sun: string; reason: string; forcedGrossCents: number; forcedTickets: number };
 }) {
-  // Default to collapsed on phones — the full reason is multiple paragraphs
-  // and was eating ~25% of the mobile viewport.
-  const [expanded, setExpanded] = useState(false);
   return (
     <div style={{
       background: '#fff7e6',
@@ -1365,31 +1362,16 @@ function WeekOverrideCard({
       }}>⚠</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: 8,
-        }}>
-          <div style={{
-            fontSize: 11, textTransform: 'uppercase', letterSpacing: 1,
-            color: '#7a5a00', fontWeight: 700,
-          }}>Headline override · {ov.sun}</div>
-          <button
-            onClick={() => setExpanded((e) => !e)}
-            style={{
-              border: 0, background: 'transparent', color: '#7a5a00',
-              fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 2,
-              textDecoration: 'underline',
-            }}
-          >{expanded ? 'Hide' : 'Why?'}</button>
-        </div>
+          fontSize: 11, textTransform: 'uppercase', letterSpacing: 1,
+          color: '#7a5a00', fontWeight: 700,
+        }}>Headline override · {ov.sun}</div>
         <div style={{ fontSize: 12, color: '#5a4500', marginTop: 4 }}>
           Showing <strong>{fmtMoney(ov.forcedGrossCents)}</strong> /{' '}
           <strong>{ov.forcedTickets.toLocaleString()} tix</strong> (Dripos chain Sales Summary).
         </div>
-        {expanded && (
-          <div style={{
-            fontSize: 13, color: '#5a4500', lineHeight: 1.5, marginTop: 8,
-          }}>{ov.reason}</div>
-        )}
+        <div style={{
+          fontSize: 13, color: '#5a4500', lineHeight: 1.5, marginTop: 8,
+        }}>{ov.reason}</div>
       </div>
     </div>
   );

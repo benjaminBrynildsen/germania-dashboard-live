@@ -49,25 +49,6 @@ function getWeekAvg(week: TicketWeek | null, loc: string): number | null {
   return avg(vals);
 }
 
-// Per the manager's rule of thumb: target labor at most 34.5% of gross
-// sales. New barista hours added at the average hourly wage push the
-// labor cost up; headroom = (target labor $) − (current labor $) / wage.
-const LABOR_TARGET_PCT = 0.345;
-const AVG_BARISTA_WAGE_CENTS_PER_HOUR = 1100; // $11/hr
-
-interface LaborRow {
-  label: string;
-  laborCents: number;
-  hourlyCents: number;
-  salariedCents: number;
-  grossSalesCents: number;
-  laborPct: number | null;
-}
-interface ReportShape {
-  laborByStore: LaborRow[];
-  laborTotals: { laborCents: number; grossSalesCents: number; laborPct: number | null };
-}
-
 export default function TicketTime() {
   const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
@@ -77,7 +58,6 @@ export default function TicketTime() {
 
   const [week, setWeek] = useState<TicketWeek | null>(null);
   const [prevWeek, setPrevWeek] = useState<TicketWeek | null>(null);
-  const [report, setReport] = useState<ReportShape | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,19 +67,16 @@ export default function TicketTime() {
     setError(null);
     const load = async () => {
       try {
-        const [curRes, prevRes, reportRes] = await Promise.all([
+        const [curRes, prevRes] = await Promise.all([
           fetch(`/api/dripos/ticket-time?weekOffset=${weekOffset}`, { cache: 'no-store' }),
           fetch(`/api/dripos/ticket-time?weekOffset=${weekOffset + 1}`, { cache: 'no-store' }),
-          fetch(`/api/dripos/report?weekOffset=${weekOffset}`, { cache: 'no-store' }),
         ]);
         const cur = await curRes.json();
         const prev = await prevRes.json();
-        const rep = await reportRes.json();
         if (cancelled) return;
         if (!curRes.ok) throw new Error(cur.message || cur.error || 'Ticket time failed');
         setWeek(cur.week);
         setPrevWeek(prevRes.ok ? prev.week : null);
-        setReport(reportRes.ok ? rep.report : null);
       } catch (err: any) {
         if (!cancelled) setError(err.message || String(err));
       } finally {
@@ -142,38 +119,6 @@ export default function TicketTime() {
   }, [week, prevWeek]);
 
   const locData = week?.data[activeLoc] ?? { hours: {} };
-
-  /** Barista hours headroom: how many more (or fewer) hours could be scheduled
-   *  before total labor exceeds 34.5% of gross sales. Negative = over target.
-   *  Computed off the same labor numbers the Weekly Sales labor card uses
-   *  (hourly from Dripos + salaried-pool allocation), so this stays in sync
-   *  with the headline labor % automatically. */
-  const headroom = useMemo(() => {
-    if (!report) return null;
-    const wage = AVG_BARISTA_WAGE_CENTS_PER_HOUR;
-    const byStore: Record<string, { hours: number; pct: number | null; targetCents: number; currentCents: number }> = {};
-    for (const row of report.laborByStore) {
-      const targetCents = LABOR_TARGET_PCT * row.grossSalesCents;
-      const headroomCents = targetCents - row.laborCents;
-      byStore[row.label] = {
-        hours: headroomCents / wage,
-        pct: row.laborPct,
-        targetCents,
-        currentCents: row.laborCents,
-      };
-    }
-    const chainTargetCents = LABOR_TARGET_PCT * report.laborTotals.grossSalesCents;
-    const chainHeadroomCents = chainTargetCents - report.laborTotals.laborCents;
-    return {
-      byStore,
-      chain: {
-        hours: chainHeadroomCents / wage,
-        pct: report.laborTotals.laborPct,
-        targetCents: chainTargetCents,
-        currentCents: report.laborTotals.laborCents,
-      },
-    };
-  }, [report]);
 
   const dailyTotals = useMemo(() => {
     return DAYS.map((_, i) => {
@@ -254,16 +199,6 @@ export default function TicketTime() {
 
       {week && (
         <>
-          {/* Barista hours headroom — how many more hours can be added
-              before labor hits 34.5% of sales at $11/hr average wage. */}
-          {headroom && (
-            <BaristaHeadroomBanner
-              activeLoc={activeLoc}
-              headroom={headroom}
-              isMobile={isMobile}
-            />
-          )}
-
           {/* Location summary cards */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
             {summaries.map(({ loc, weekAvg, diff }) => (
@@ -375,56 +310,3 @@ export default function TicketTime() {
   );
 }
 
-function BaristaHeadroomBanner({
-  activeLoc,
-  headroom,
-  isMobile,
-}: {
-  activeLoc: string;
-  headroom: NonNullable<ReturnType<typeof useMemo<{
-    byStore: Record<string, { hours: number; pct: number | null; targetCents: number; currentCents: number }>;
-    chain: { hours: number; pct: number | null; targetCents: number; currentCents: number };
-  } | null>>>;
-  isMobile: boolean;
-}) {
-  const active = headroom.byStore[activeLoc] ?? headroom.chain;
-  const over = active.hours < 0;
-  const fmtUSD = (cents: number) =>
-    `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-  return (
-    <div style={{
-      background: over ? '#fce8e6' : '#e6f4ea',
-      border: `1px solid ${over ? '#f5b5b0' : '#a8d8b7'}`,
-      borderRadius: 12, padding: '12px 16px', marginBottom: 18,
-      display: 'flex', flexDirection: isMobile ? 'column' : 'row',
-      gap: isMobile ? 8 : 16, alignItems: isMobile ? 'flex-start' : 'center',
-    }}>
-      <div style={{ flex: 1 }}>
-        <div style={{
-          fontSize: 11, textTransform: 'uppercase', letterSpacing: 1,
-          color: over ? '#7a2a23' : '#1f5a2e', fontWeight: 700, marginBottom: 2,
-        }}>Barista hours headroom · {activeLoc}</div>
-        <div style={{ fontSize: 14, color: '#1a1a1a' }}>
-          {over ? (
-            <>
-              <strong>{Math.abs(active.hours).toFixed(1)} hours over.</strong>{' '}
-              Cut hours or push sales to bring labor back to {(LABOR_TARGET_PCT * 100).toFixed(1)}%.
-            </>
-          ) : (
-            <>
-              Could add <strong>{active.hours.toFixed(1)} more barista hours</strong> this week
-              before labor exceeds {(LABOR_TARGET_PCT * 100).toFixed(1)}%.
-            </>
-          )}
-        </div>
-      </div>
-      <div style={{
-        fontSize: 11, color: 'rgba(0,0,0,0.55)', textAlign: isMobile ? 'left' : 'right',
-        whiteSpace: 'nowrap',
-      }}>
-        <div>Current labor: <strong>{fmtUSD(active.currentCents)}</strong>{active.pct != null ? ` (${active.pct.toFixed(1)}%)` : ''}</div>
-        <div>Target labor: <strong>{fmtUSD(active.targetCents)}</strong> @ ${(AVG_BARISTA_WAGE_CENTS_PER_HOUR / 100).toFixed(0)}/hr</div>
-      </div>
-    </div>
-  );
-}
