@@ -64,9 +64,10 @@ export default function Layout({ user, onLogout, children }: Props) {
         borderBottom: '1px solid rgba(0,0,0,0.07)',
         padding: isMobile ? '10px 14px' : '0 40px',
         minHeight: isMobile ? 56 : 64,
-        display: 'flex',
+        display: isMobile ? 'flex' : 'grid',
+        gridTemplateColumns: isMobile ? undefined : '1fr auto 1fr',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: isMobile ? 'space-between' : undefined,
         gap: 10,
         position: 'sticky',
         top: 0,
@@ -114,16 +115,15 @@ export default function Layout({ user, onLogout, children }: Props) {
           </>
         ) : (
           <>
-            {/* Desktop: nav left, hanging logo center, user right.
-                maxWidth keeps the nav clear of the centered logo (logo is
-                absolutely positioned at left: 50%, so without this the
-                rightmost nav links bleed behind it). */}
+            {/* Desktop: 3-column grid — nav | hanging logo | user.
+                Each lives in its own column so the logo can never overlap
+                the rightmost nav links regardless of viewport width. */}
             <nav style={{
               display: 'flex', gap: 2, whiteSpace: 'nowrap',
-              maxWidth: 'calc(50% - 80px)',
               overflowX: 'auto',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
+              minWidth: 0,
             }}>
               {NAV_ITEMS.map((it) => (
                 <NavLink key={it.to} to={it.to} current={location.pathname} exact={it.exact !== false}>
@@ -135,10 +135,12 @@ export default function Layout({ user, onLogout, children }: Props) {
             <Link
               to="/"
               style={{
-                position: 'absolute',
-                left: '50%',
-                top: scrolled ? 14 : 10,
-                transform: 'translateX(-50%)',
+                position: 'relative',
+                display: 'flex',
+                justifyContent: 'center',
+                alignSelf: 'start',
+                marginTop: scrolled ? 14 : 10,
+                marginBottom: scrolled ? -10 : -66,
                 zIndex: 60,
                 transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
               }}
@@ -155,7 +157,10 @@ export default function Layout({ user, onLogout, children }: Props) {
                 }}
               />
             </Link>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              justifySelf: 'end',
+            }}>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>{user.name}</div>
                 <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)', textTransform: 'capitalize' }}>{user.role}</div>
