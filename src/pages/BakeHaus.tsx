@@ -196,6 +196,33 @@ export default function BakeHaus() {
   );
 }
 
+/** Harry Potter house palettes for each store. Tuned for dashboard
+ *  legibility — pale tinted body, deep header band, accent-colored
+ *  metadata. The 4 stores map: G1=Gryffindor (scarlet + gold),
+ *  G2=Ravenclaw (navy + bronze), G3=Slytherin (emerald + silver),
+ *  G4=Hufflepuff (gold + black). */
+const STORE_THEMES: Record<string, {
+  bg: string;       // Card body tint
+  border: string;   // Card border
+  headerBg: string; // Header band
+  headerFg: string; // Header text
+  accent: string;   // Header metadata color
+  rowAlt: string;   // Inactive-row tint (on top of bg)
+}> = {
+  G1: { bg: '#fdf4f5', border: '#e8c5c8', headerBg: '#7f1d1d', headerFg: '#fde68a', accent: 'rgba(253, 230, 138, 0.7)', rowAlt: 'rgba(127, 29, 29, 0.035)' },
+  G2: { bg: '#eff6fc', border: '#c5d6e8', headerBg: '#1e3a5f', headerFg: '#e6c89f', accent: 'rgba(230, 200, 159, 0.75)', rowAlt: 'rgba(30, 58, 95, 0.035)' },
+  G3: { bg: '#eef6f0', border: '#bfdac9', headerBg: '#14532d', headerFg: '#e5e7eb', accent: 'rgba(229, 231, 235, 0.7)', rowAlt: 'rgba(20, 83, 45, 0.035)' },
+  G4: { bg: '#fefae0', border: '#e6d8a3', headerBg: '#a16207', headerFg: '#fefce8', accent: 'rgba(254, 252, 232, 0.7)', rowAlt: 'rgba(161, 98, 7, 0.04)' },
+};
+
+function getTheme(store: string) {
+  return STORE_THEMES[store] ?? {
+    bg: '#fff', border: 'rgba(0,0,0,0.07)',
+    headerBg: '#1a1a1a', headerFg: '#fff', accent: 'rgba(255,255,255,0.6)',
+    rowAlt: 'rgba(0,0,0,0.015)',
+  };
+}
+
 function StoreOrderCard({
   store, rows, catalog, onSave, onDelete,
 }: {
@@ -205,6 +232,7 @@ function StoreOrderCard({
   onSave: (item: string, qty: number) => void;
   onDelete: (item: string) => void;
 }) {
+  const theme = getTheme(store);
   // Cart-style: render every catalog item by default, with the qty pre-
   // filled from an existing order row if there is one. Items the user
   // typed in ad-hoc that aren't in the catalog get appended at the end.
@@ -240,25 +268,26 @@ function StoreOrderCard({
 
   return (
     <div style={{
-      background: '#fff', borderRadius: 14,
-      border: '1px solid rgba(0,0,0,0.07)',
-      boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
+      background: theme.bg, borderRadius: 14,
+      border: `1px solid ${theme.border}`,
+      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
       padding: 0, overflow: 'hidden',
     }}>
       <div style={{
-        padding: '14px 18px', borderBottom: '1px solid rgba(0,0,0,0.05)',
+        padding: '14px 18px',
+        background: theme.headerBg, color: theme.headerFg,
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
       }}>
         <span style={{
           fontSize: 16, fontWeight: 700, letterSpacing: -0.2,
         }}>{store}</span>
-        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>
+        <span style={{ fontSize: 12, color: theme.accent }}>
           {orderedRows.length} items · {total} total
         </span>
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
-          <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
+          <tr style={{ background: theme.rowAlt }}>
             <Th>Item</Th>
             <Th align="right">Week</Th>
             <Th align="right">Mon</Th>
@@ -273,13 +302,17 @@ function StoreOrderCard({
               itemName={it.name}
               row={it.row}
               isCustom={it.custom}
+              inactiveBg={theme.rowAlt}
               onSave={(qty) => onSave(it.name, qty)}
               onDelete={() => onDelete(it.name)}
             />
           ))}
         </tbody>
       </table>
-      <div style={{ padding: '10px 18px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+      <div style={{
+        padding: '10px 18px',
+        borderTop: `1px solid ${theme.border}`,
+      }}>
         {adding ? (
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
             <input
@@ -290,13 +323,12 @@ function StoreOrderCard({
               style={{
                 flex: 1, minWidth: 140, padding: '6px 10px', borderRadius: 6,
                 border: '1px solid rgba(0,0,0,0.15)', fontSize: 13,
+                background: '#fff',
               }}
             />
             <button onClick={() => {
               const name = newName.trim();
               if (!name) { setAdding(false); return; }
-              // Save a 1 so it appears in the cart with a real value;
-              // user can edit from there.
               onSave(name, 1);
               setNewName('');
               setAdding(false);
@@ -307,7 +339,8 @@ function StoreOrderCard({
         ) : (
           <button onClick={() => setAdding(true)} style={{
             ...pillBtn,
-            fontSize: 11, color: 'rgba(0,0,0,0.45)',
+            fontSize: 11, color: 'rgba(0,0,0,0.5)',
+            background: 'rgba(255,255,255,0.7)',
           }}>+ Add custom item</button>
         )}
       </div>
@@ -316,11 +349,12 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, row, isCustom, onSave, onDelete,
+  itemName, row, isCustom, inactiveBg, onSave, onDelete,
 }: {
   itemName: string;
   row: OrderRow | null;
   isCustom: boolean;
+  inactiveBg: string;
   onSave: (qty: number) => void;
   onDelete: () => void;
 }) {
@@ -335,7 +369,7 @@ function CartRowEditor({
   return (
     <tr style={{
       borderTop: '1px solid rgba(0,0,0,0.05)',
-      background: active ? 'transparent' : 'rgba(0,0,0,0.015)',
+      background: active ? 'transparent' : inactiveBg,
     }}>
       <Td>
         <span style={{
