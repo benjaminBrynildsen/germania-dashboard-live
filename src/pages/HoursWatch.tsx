@@ -536,7 +536,19 @@ export default function HoursWatch() {
 }
 
 function WeeklyBreakdown({ row, isMobile }: { row: DerivedRow; isMobile: boolean }) {
-  const max = Math.max(THRESHOLD_HARD + 5, ...row.weeklyHours);
+  // Per-row projection state. Independent of the chain-wide projector at
+  // the top — this is for "what if THIS person works X hrs?"
+  const [hrsText, setHrsText] = useState('');
+  const [weeksText, setWeeksText] = useState('13');
+  const projHrs = hrsText.trim() === '' ? null : Number(hrsText);
+  const projWeeks = Math.max(0, Math.min(52, parseInt(weeksText, 10) || 0));
+  const projOn = projHrs != null && !Number.isNaN(projHrs) && projWeeks > 0;
+  const projectedAvg = projOn ? projectAvg(row, projHrs!, projWeeks, '52w') : null;
+  const projectedBand = projectedAvg != null ? band(projectedAvg) : null;
+  const currentBand = band(row.rollingAvg);
+  const projDelta = projectedAvg != null ? projectedAvg - row.rollingAvg : 0;
+
+  const max = Math.max(THRESHOLD_HARD + 5, ...row.weeklyHours, projHrs ?? 0);
   const fmtDate = (ms: number) => {
     const d = new Date(ms);
     return `${d.getMonth() + 1}/${d.getDate()}`;
@@ -548,13 +560,24 @@ function WeeklyBreakdown({ row, isMobile }: { row: DerivedRow; isMobile: boolean
     if (h > 0) return '#16a34a';
     return 'rgba(0,0,0,0.08)';
   };
-  // Bar width: scale chart so all bars fit in the row width with a min/max.
   const numBars = row.weeklyHours.length;
+  const projectedBars = projOn ? projWeeks : 0;
+  const totalBars = numBars + projectedBars;
   const containerPad = isMobile ? 12 : 24;
-  // For mobile we let the chart scroll horizontally; for desktop we fill.
-  const barWidth = isMobile ? 12 : Math.max(6, Math.min(20, 600 / numBars));
+  const barWidth = isMobile ? 12 : Math.max(6, Math.min(20, 600 / totalBars));
   const barGap = isMobile ? 2 : 3;
   const chartHeight = 110;
+
+  // Build the projected week-start dates so labels read continuously past
+  // the actual data. Each projected bar is 7 days after the previous.
+  const projectedWeekStarts: number[] = [];
+  if (projOn) {
+    let lastMs = row.weekStartsMs[row.weekStartsMs.length - 1] ?? Date.now();
+    for (let i = 0; i < projWeeks; i++) {
+      lastMs += 7 * 24 * 60 * 60 * 1000;
+      projectedWeekStarts.push(lastMs);
+    }
+  }
 
   return (
     <div style={{ padding: `0 ${containerPad}px` }}>
@@ -571,6 +594,82 @@ function WeeklyBreakdown({ row, isMobile }: { row: DerivedRow; isMobile: boolean
         </div>
       </div>
 
+      {/* Per-row what-if projector */}
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+        background: projOn ? 'rgba(245, 158, 11, 0.08)' : '#fff',
+        border: `1px solid ${projOn ? 'rgba(245, 158, 11, 0.25)' : 'rgba(0,0,0,0.08)'}`,
+        borderRadius: 8, padding: '8px 12px', marginBottom: 12,
+      }}>
+        <span style={{
+          fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5,
+          color: projOn ? '#92400e' : 'rgba(0,0,0,0.45)', fontWeight: 700,
+        }}>What if:</span>
+        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.7)' }}>{row.fullName} works</span>
+        <input
+          type="number" min={0} max={80} step={1}
+          value={hrsText}
+          onChange={(e) => setHrsText(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="35"
+          style={{
+            width: 60, padding: '3px 8px', borderRadius: 6,
+            border: '1px solid rgba(0,0,0,0.15)', fontSize: 13,
+            fontVariantNumeric: 'tabular-nums', textAlign: 'right',
+          }}
+        />
+        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.7)' }}>hr / week for the next</span>
+        <input
+          type="number" min={1} max={52} step={1}
+          value={weeksText}
+          onChange={(e) => setWeeksText(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: 50, padding: '3px 8px', borderRadius: 6,
+            border: '1px solid rgba(0,0,0,0.15)', fontSize: 13,
+            fontVariantNumeric: 'tabular-nums', textAlign: 'right',
+          }}
+        />
+        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.7)' }}>weeks</span>
+
+        {/* Current → Projected pill on the right */}
+        <div style={{
+          marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{
+            fontSize: 11, color: 'rgba(0,0,0,0.45)', fontWeight: 600,
+          }}>Rolling avg:</span>
+          <span style={{
+            display: 'inline-block', padding: '2px 8px', borderRadius: 6,
+            background: currentBand.bg, color: currentBand.color,
+            fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+          }}>{row.rollingAvg.toFixed(1)}</span>
+          {projectedAvg != null && projectedBand && (
+            <>
+              <span style={{ color: 'rgba(0,0,0,0.3)', fontSize: 14 }}>→</span>
+              <span style={{
+                display: 'inline-block', padding: '2px 8px', borderRadius: 6,
+                background: projectedBand.bg, color: projectedBand.color,
+                fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+              }}>{projectedAvg.toFixed(1)}</span>
+              <span style={{
+                fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+                color: projDelta >= 0 ? '#9a3412' : '#166534',
+              }}>{projDelta >= 0 ? '+' : ''}{projDelta.toFixed(1)}</span>
+            </>
+          )}
+          {projOn && (
+            <button onClick={(e) => { e.stopPropagation(); setHrsText(''); }}
+              style={{
+                marginLeft: 4, padding: '3px 8px',
+                borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)',
+                background: '#fff', cursor: 'pointer',
+                fontSize: 11, color: 'rgba(0,0,0,0.6)',
+              }}>Clear</button>
+          )}
+        </div>
+      </div>
+
       {/* Chart */}
       <div style={{
         position: 'relative',
@@ -583,7 +682,6 @@ function WeeklyBreakdown({ row, isMobile }: { row: DerivedRow; isMobile: boolean
           display: 'flex',
           alignItems: 'flex-end',
           gap: barGap,
-          // Reserve room on the right for the y-axis labels
           paddingRight: 36,
         }}>
           {/* 30-hr reference line */}
@@ -629,20 +727,54 @@ function WeeklyBreakdown({ row, isMobile }: { row: DerivedRow; isMobile: boolean
               />
             );
           })}
+
+          {/* Projected bars — same color rules, hatched fill to distinguish
+              from actuals */}
+          {projOn && projectedWeekStarts.map((ms, i) => {
+            const heightPct = max > 0 ? (projHrs! / max) * 100 : 0;
+            const c = barColor(projHrs!);
+            return (
+              <div key={`proj-${i}`}
+                title={`Projected week of ${new Date(ms).toLocaleDateString()}: ${projHrs!.toFixed(1)} hr`}
+                style={{
+                  width: barWidth,
+                  flexShrink: 0,
+                  height: `${heightPct}%`,
+                  minHeight: 1,
+                  background: `repeating-linear-gradient(45deg, ${c}, ${c} 3px, ${c}88 3px, ${c}88 6px)`,
+                  borderRadius: '2px 2px 0 0',
+                  position: 'relative',
+                  opacity: 0.85,
+                }}
+              />
+            );
+          })}
         </div>
-        {/* X-axis labels: show every ~Nth week so they don't overlap */}
+        {/* X-axis labels */}
         <div style={{
           display: 'flex', gap: barGap, marginTop: 4,
           paddingRight: 36, fontVariantNumeric: 'tabular-nums',
         }}>
           {row.weekStartsMs.map((ms, i) => {
-            const everyN = Math.max(1, Math.floor(numBars / (isMobile ? 6 : 12)));
+            const everyN = Math.max(1, Math.floor(totalBars / (isMobile ? 6 : 12)));
             const show = i % everyN === 0 || i === numBars - 1;
             return (
               <div key={ms} style={{
                 width: barWidth, flexShrink: 0, fontSize: 9,
                 color: 'rgba(0,0,0,0.35)', textAlign: 'center',
                 whiteSpace: 'nowrap',
+                visibility: show ? 'visible' : 'hidden',
+              }}>{fmtDate(ms)}</div>
+            );
+          })}
+          {projOn && projectedWeekStarts.map((ms, i) => {
+            const everyN = Math.max(1, Math.floor(totalBars / (isMobile ? 6 : 12)));
+            const show = (numBars + i) % everyN === 0 || i === projectedBars - 1;
+            return (
+              <div key={`proj-l-${i}`} style={{
+                width: barWidth, flexShrink: 0, fontSize: 9,
+                color: '#92400e', textAlign: 'center',
+                whiteSpace: 'nowrap', fontStyle: 'italic',
                 visibility: show ? 'visible' : 'hidden',
               }}>{fmtDate(ms)}</div>
             );
