@@ -1973,7 +1973,7 @@ export async function buildEmployeeHoursReport(
 // minus sum of barista preferred hours = gap. Divided by 30 hr/wk to
 // estimate hires needed.
 
-export const HIRING_BUFFER = 1.1;
+export const HIRING_BUFFER = 1.12;
 export const HIRES_TARGET_HRS_PER_WK = 30;
 
 interface PrefRow {
