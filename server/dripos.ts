@@ -1705,6 +1705,8 @@ export interface EmployeeHoursReport {
   windowStartMs: number;
   windowEndMs: number;
   weekStartsMs: number[]; // length 52, oldest Sun → newest Sun
+  weeksFetched: number;
+  weeksFailed: number;
   employees: EmployeeWeekHours[];
 }
 
@@ -1733,13 +1735,33 @@ export async function buildEmployeeHoursReport(
 
   const perEmpWeek = new Map<number, { name: string; storeCounts: Record<string, number>; hours: number[] }>();
 
-  for (let i = 0; i < weekStarts.length; i++) {
-    const sun = weekStarts[i];
-    const sat = new Date(sun);
-    sat.setDate(sun.getDate() + 6);
-    sat.setHours(23, 59, 59, 999);
-    const shifts = await fetchTimesheetsRaw(sun.getTime(), sat.getTime());
-    for (const s of shifts) {
+  // Pull every week in parallel — the cached() layer dedupes inside a request
+  // and Dripos's per-week response is fast enough that 52 in parallel completes
+  // in ~30s where 52 sequential takes 5+ minutes (and 504s on Render).
+  // The DRIPOS_MAX_CONCURRENT semaphore already gates real concurrency to 6.
+  // Use allSettled so one slow/failed week doesn't tank the whole report —
+  // failed weeks show as zero hours but the rest of the data renders.
+  const weekResults = await Promise.allSettled(
+    weekStarts.map((sun) => {
+      const sat = new Date(sun);
+      sat.setDate(sun.getDate() + 6);
+      sat.setHours(23, 59, 59, 999);
+      return fetchTimesheetsRaw(sun.getTime(), sat.getTime());
+    }),
+  );
+  let weeksFetched = 0;
+  let weeksFailed = 0;
+  const weekShifts: RawTimesheet[][] = weekResults.map((r) => {
+    if (r.status === 'fulfilled') { weeksFetched++; return r.value; }
+    weeksFailed++;
+    return [];
+  });
+  if (weeksFailed > 0) {
+    console.warn(`[employee-hours] ${weeksFailed}/${weekShifts.length} weeks failed to fetch`);
+  }
+
+  for (let i = 0; i < weekShifts.length; i++) {
+    for (const s of weekShifts[i]) {
       if (!isCountedRole(s.ROLE_NAME)) continue;
       const mins = s.AMOUNT_TOTAL_MINUTES || 0;
       if (mins <= 0) continue;
@@ -1784,6 +1806,8 @@ export async function buildEmployeeHoursReport(
     windowStartMs: weekStarts[0].getTime(),
     windowEndMs: weekStarts[weekStarts.length - 1].getTime() + 7 * 24 * 60 * 60 * 1000 - 1,
     weekStartsMs: weekStarts.map((d) => d.getTime()),
+    weeksFetched,
+    weeksFailed,
     employees,
   };
 }

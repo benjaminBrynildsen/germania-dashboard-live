@@ -17,6 +17,8 @@ interface EmployeeHoursReport {
   windowStartMs: number;
   windowEndMs: number;
   weekStartsMs: number[];
+  weeksFetched: number;
+  weeksFailed: number;
   employees: EmployeeWeekHours[];
 }
 
@@ -241,6 +243,11 @@ export default function HoursWatch() {
             Window: {new Date(report.windowStartMs).toLocaleDateString()} —{' '}
             {new Date(report.windowEndMs).toLocaleDateString()} ·{' '}
             Generated {new Date(report.generatedAt).toLocaleString()}
+            {report.weeksFailed > 0 && (
+              <span style={{ color: '#9a3412', marginLeft: 8 }}>
+                · {report.weeksFailed} of {report.weeksFetched + report.weeksFailed} weeks failed to load — refresh to retry
+              </span>
+            )}
           </div>
         </>
       )}
