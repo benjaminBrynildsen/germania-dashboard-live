@@ -43,6 +43,17 @@ export default function HiringNeeds() {
   // Track save state per row so we can show a saving indicator.
   const [saving, setSaving] = useState<Set<number>>(new Set());
   const [hideInactive, setHideInactive] = useState(true);
+  const [storeFilter, setStoreFilter] = useState<Set<string>>(new Set(STORES));
+
+  const toggleStore = (s: string) => {
+    setStoreFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      if (next.size === 0) return new Set(STORES);
+      return next;
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +80,7 @@ export default function HiringNeeds() {
     if (!report) return [];
     return report.baristas
       .filter((b) => STORES.includes(b.primaryStore))
+      .filter((b) => storeFilter.has(b.primaryStore))
       .filter((b) => !hideInactive || b.last4WkAvg > 0)
       .sort((a, b) => {
         // Group by store, then by name within store.
@@ -77,7 +89,12 @@ export default function HiringNeeds() {
         }
         return a.fullName.localeCompare(b.fullName);
       });
-  }, [report, hideInactive]);
+  }, [report, hideInactive, storeFilter]);
+
+  const filteredStoreCards = useMemo(() => {
+    if (!report) return [];
+    return report.byStore.filter((s) => storeFilter.has(s.storeLabel));
+  }, [report, storeFilter]);
 
   /** Persist a preferred-hours value for one employee. The summary cards
    *  reload from the server so the gap recomputes. */
@@ -135,13 +152,39 @@ export default function HiringNeeds() {
 
       {report && (
         <>
-          {/* Per-store summary cards */}
+          {/* Store filter chips */}
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 8,
+            alignItems: 'center', marginBottom: 14,
+          }}>
+            <span style={{
+              fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5,
+              color: 'rgba(0,0,0,0.4)', marginRight: 4, fontWeight: 600,
+            }}>Stores:</span>
+            {STORES.map((s) => {
+              const on = storeFilter.has(s);
+              return (
+                <button key={s} onClick={() => toggleStore(s)}
+                  style={{
+                    padding: '6px 12px', borderRadius: 999,
+                    border: '1px solid', borderColor: on ? '#1a1a1a' : 'rgba(0,0,0,0.12)',
+                    background: on ? '#1a1a1a' : '#fff',
+                    color: on ? '#fff' : 'rgba(0,0,0,0.6)',
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}>{s}</button>
+              );
+            })}
+          </div>
+
+          {/* Per-store summary cards (filtered) */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+            gridTemplateColumns: isMobile
+              ? `repeat(${Math.min(2, filteredStoreCards.length || 1)}, 1fr)`
+              : `repeat(${Math.min(4, filteredStoreCards.length || 1)}, 1fr)`,
             gap: 12, marginBottom: 24,
           }}>
-            {report.byStore.map((s) => <StoreCard key={s.storeLabel} s={s} buffer={report.buffer} />)}
+            {filteredStoreCards.map((s) => <StoreCard key={s.storeLabel} s={s} buffer={report.buffer} />)}
           </div>
 
           {/* Filter row */}

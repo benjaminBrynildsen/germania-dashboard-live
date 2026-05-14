@@ -337,6 +337,14 @@ function fmtRange(sun: Date, sat: Date): string {
 // hammering Dripos.
 const CACHE_CURRENT_WEEK_TTL_MS = 5 * 60 * 1000;
 
+// In-flight dedupe: when two callers ask for the same cache key at the
+// same time and there's a miss, they share the single Dripos call instead
+// of both firing it. Critical when the boot pre-warm and a user page-load
+// race for the same 208 cells — without this they'd double-pull every
+// cell, doubling Dripos load and slowing both. The map is keyed by the
+// SAME string we use for the DB cache key.
+const inFlightFetches = new Map<string, Promise<unknown>>();
+
 async function cached<T>(
   key: string,
   rangeEndMs: number,
@@ -349,35 +357,48 @@ async function cached<T>(
   if (row && (row.expires_at == null || row.expires_at > now)) {
     try { return JSON.parse(row.value) as T; } catch { /* fallthrough to refetch */ }
   }
-  try {
-    const fresh = await fetcher();
-    // Range ends before today's start → past data, cache forever. Else short TTL.
-    const todayStart = startOfDayMs(new Date());
-    const expires = rangeEndMs < todayStart ? null : now + CACHE_CURRENT_WEEK_TTL_MS;
-    db.prepare(
-      'INSERT INTO dripos_cache (key, value, created_at, expires_at) VALUES (?, ?, ?, ?) ' +
-      'ON CONFLICT(key) DO UPDATE SET value = excluded.value, created_at = excluded.created_at, expires_at = excluded.expires_at',
-    ).run(key, JSON.stringify(fresh), now, expires);
-    return fresh;
-  } catch (err) {
-    // Auth failures should always surface — the user needs to re-login.
-    if (err instanceof AuthExpired || err instanceof NoToken) throw err;
-    // For everything else (Dripos 5xx, "OK" text response, network timeout),
-    // fall back to the stale cached value if we have one. This keeps the
-    // dashboard usable when Dripos is having a bad day.
-    if (row) {
-      try {
-        const stale = JSON.parse(row.value) as T;
-        console.warn(
-          `[cache] ${key}: Dripos fetch failed (${err instanceof Error ? err.message : err}); serving stale value`,
-        );
-        return stale;
-      } catch {
-        /* malformed cache row → throw original error */
+
+  // If another call is already fetching this key, ride on its promise.
+  const inFlight = inFlightFetches.get(key);
+  if (inFlight) return inFlight as Promise<T>;
+
+  const p = (async (): Promise<T> => {
+    try {
+      const fresh = await fetcher();
+      // Range ends before today's start → past data, cache forever. Else short TTL.
+      const todayStart = startOfDayMs(new Date());
+      const expires = rangeEndMs < todayStart ? null : now + CACHE_CURRENT_WEEK_TTL_MS;
+      db.prepare(
+        'INSERT INTO dripos_cache (key, value, created_at, expires_at) VALUES (?, ?, ?, ?) ' +
+        'ON CONFLICT(key) DO UPDATE SET value = excluded.value, created_at = excluded.created_at, expires_at = excluded.expires_at',
+      ).run(key, JSON.stringify(fresh), now, expires);
+      return fresh;
+    } catch (err) {
+      // Auth failures should always surface — the user needs to re-login.
+      if (err instanceof AuthExpired || err instanceof NoToken) throw err;
+      // For everything else (Dripos 5xx, "OK" text response, network timeout),
+      // fall back to the stale cached value if we have one. This keeps the
+      // dashboard usable when Dripos is having a bad day.
+      if (row) {
+        try {
+          const stale = JSON.parse(row.value) as T;
+          console.warn(
+            `[cache] ${key}: Dripos fetch failed (${err instanceof Error ? err.message : err}); serving stale value`,
+          );
+          return stale;
+        } catch {
+          /* malformed cache row → throw original error */
+        }
       }
+      throw err;
+    } finally {
+      // Clear the in-flight slot regardless of outcome so the next request
+      // gets a fresh attempt.
+      inFlightFetches.delete(key);
     }
-    throw err;
-  }
+  })();
+  inFlightFetches.set(key, p);
+  return p;
 }
 
 export function clearDriposCache(): void {
@@ -2010,8 +2031,12 @@ export async function buildHiringNeedsReport(
   // last-13 averages and the primary-store assignment for free.
   const hoursReport = await buildEmployeeHoursReport(referenceDate);
 
-  // Re-pull just the last 4 weeks of scheduled minutes per store. This
-  // is cheap — those rows are already cached from buildEmployeeHoursReport.
+  // Re-pull just the last 4 weeks of demand per store. The cells are
+  // already cached from buildEmployeeHoursReport. We compute demand from
+  // per-shift minutes filtered by isCountedRole, NOT from the gross
+  // AMOUNT_MINUTES_SCHEDULED total (which would lump training and
+  // pure-management shifts into the demand baseline — those aren't
+  // shifts we're trying to staff baristas for).
   const SCHED_LOOKBACK_WEEKS = 4;
   const scheduledByStore: Record<string, number[]> = {};
   for (const store of STORES) scheduledByStore[store.label] = [];
@@ -2024,7 +2049,12 @@ export async function buildHiringNeedsReport(
     for (const store of STORES) {
       lookbackPromises.push(
         fetchTimesheetsCell(sun.getTime(), sat.getTime(), store.locationId)
-          .then((cell) => { scheduledByStore[store.label].push(cell.scheduledMinutes); })
+          .then((cell) => {
+            const countedMinutes = cell.shifts
+              .filter((s) => isCountedRole(s.ROLE_NAME))
+              .reduce((sum, s) => sum + (s.AMOUNT_TOTAL_MINUTES ?? 0), 0);
+            scheduledByStore[store.label].push(countedMinutes);
+          })
           .catch(() => { scheduledByStore[store.label].push(0); }),
       );
     }
