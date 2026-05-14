@@ -115,6 +115,42 @@ function tenureLabel(weeksSinceHire: number | null): string {
   return remWeeks === 0 ? `${years}y` : `${years}y ${remWeeks}w`;
 }
 
+/**
+ * Project the rolling average N weeks into the future at a given weekly
+ * rate. Slides the window forward — oldest N weeks roll off in rolling
+ * mode (no drop in YTD mode since YTD just keeps growing). Denominator
+ * still caps at min(window length, weeks since hire) so projections for
+ * new hires honor tenure.
+ */
+function projectAvg(
+  row: DerivedRow,
+  projHrs: number,
+  projWeeks: number,
+  windowMode: WindowMode,
+): number {
+  if (projWeeks <= 0) return row.rollingAvg;
+  let droppedHours = 0;
+  if (windowMode === '52w') {
+    const droppedCount = Math.min(projWeeks, row.weeklyHours.length);
+    for (let i = 0; i < droppedCount; i++) droppedHours += row.weeklyHours[i];
+  }
+  const keptHours = row.totalHours - droppedHours;
+  const newHours = projWeeks * projHrs;
+
+  let newDenom: number;
+  if (windowMode === '52w') {
+    const newWeeksSinceHire = (row.weeksSinceHire ?? 52) + projWeeks;
+    newDenom = Math.min(52, newWeeksSinceHire);
+  } else {
+    // YTD: window grows by the projected weeks, capped by tenure
+    const newWindow = row.windowWeeks + projWeeks;
+    const newWeeksSinceHire = (row.weeksSinceHire ?? newWindow) + projWeeks;
+    newDenom = Math.min(newWindow, newWeeksSinceHire);
+  }
+  if (newDenom < 1) newDenom = 1;
+  return (keptHours + newHours) / newDenom;
+}
+
 export default function HoursWatch() {
   const isMobile = useIsMobile();
   const [report, setReport] = useState<EmployeeHoursReport | null>(null);
@@ -124,6 +160,13 @@ export default function HoursWatch() {
   const [hideInactive, setHideInactive] = useState(true);
   const [windowMode, setWindowMode] = useState<WindowMode>('52w');
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  // Projection: blank = off. Typing a number turns on the Projected column.
+  // Default to 13 weeks (≈ 3 months) but let the user override.
+  const [projHrsText, setProjHrsText] = useState('');
+  const [projWeeksText, setProjWeeksText] = useState('13');
+  const projHrs = projHrsText.trim() === '' ? null : Number(projHrsText);
+  const projWeeks = Math.max(0, Math.min(52, parseInt(projWeeksText, 10) || 0));
+  const projectionOn = projHrs != null && !Number.isNaN(projHrs) && projWeeks > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -149,25 +192,41 @@ export default function HoursWatch() {
   const derived = useMemo(() => (report ? deriveRows(report, windowMode) : []), [report, windowMode]);
 
   const filtered = useMemo(() => {
-    return derived
+    const rows = derived
       .filter((e) => {
         if (!storeFilter.has(e.primaryStore)) return false;
         if (hideInactive && e.last4WkAvg <= 0) return false;
         return true;
       })
-      .sort((a, b) => b.rollingAvg - a.rollingAvg);
-  }, [derived, storeFilter, hideInactive]);
+      .map((e) => {
+        const projected = projectionOn
+          ? Math.round(projectAvg(e, projHrs!, projWeeks, windowMode) * 100) / 100
+          : null;
+        return { ...e, projected };
+      });
+    rows.sort((a, b) => {
+      // When projection is on, ranking by projected makes the table
+      // immediately useful — riskiest projected outcome at the top.
+      const av = projectionOn && a.projected != null ? a.projected : a.rollingAvg;
+      const bv = projectionOn && b.projected != null ? b.projected : b.rollingAvg;
+      return bv - av;
+    });
+    return rows;
+  }, [derived, storeFilter, hideInactive, projectionOn, projHrs, projWeeks, windowMode]);
 
   const bandCounts = useMemo(() => {
     const counts = { over: 0, danger: 0, watch: 0, safe: 0 };
     for (const e of filtered) {
-      if (e.rollingAvg >= THRESHOLD_HARD) counts.over++;
-      else if (e.rollingAvg >= THRESHOLD_DANGER) counts.danger++;
-      else if (e.rollingAvg >= THRESHOLD_WATCH) counts.watch++;
+      // If projection is on, the summary cards reflect the projected
+      // distribution — that's the whole point of running the what-if.
+      const v = projectionOn && e.projected != null ? e.projected : e.rollingAvg;
+      if (v >= THRESHOLD_HARD) counts.over++;
+      else if (v >= THRESHOLD_DANGER) counts.danger++;
+      else if (v >= THRESHOLD_WATCH) counts.watch++;
       else counts.safe++;
     }
     return counts;
-  }, [filtered]);
+  }, [filtered, projectionOn]);
 
   const toggleStore = (s: string) => {
     setStoreFilter((prev) => {
@@ -287,6 +346,55 @@ export default function HoursWatch() {
             </label>
           </div>
 
+          {/* What-if projector */}
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+            background: projectionOn ? 'rgba(245, 158, 11, 0.08)' : 'rgba(0,0,0,0.02)',
+            border: `1px solid ${projectionOn ? 'rgba(245, 158, 11, 0.25)' : 'rgba(0,0,0,0.06)'}`,
+            borderRadius: 10, padding: '10px 14px', marginBottom: 14,
+            transition: 'background 0.15s, border 0.15s',
+          }}>
+            <span style={{
+              fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5,
+              color: projectionOn ? '#92400e' : 'rgba(0,0,0,0.45)', fontWeight: 700,
+            }}>What-if:</span>
+            <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>If everyone works</span>
+            <input
+              type="number" min={0} max={80} step={1}
+              value={projHrsText}
+              onChange={(e) => setProjHrsText(e.target.value)}
+              placeholder="35"
+              style={{
+                width: 64, padding: '4px 8px', borderRadius: 6,
+                border: '1px solid rgba(0,0,0,0.15)', fontSize: 13,
+                fontVariantNumeric: 'tabular-nums', textAlign: 'right',
+              }}
+            />
+            <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>hr / week for the next</span>
+            <input
+              type="number" min={1} max={52} step={1}
+              value={projWeeksText}
+              onChange={(e) => setProjWeeksText(e.target.value)}
+              style={{
+                width: 52, padding: '4px 8px', borderRadius: 6,
+                border: '1px solid rgba(0,0,0,0.15)', fontSize: 13,
+                fontVariantNumeric: 'tabular-nums', textAlign: 'right',
+              }}
+            />
+            <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>
+              weeks{projectionOn ? ' — projected column shows the new rolling avg.' : ''}
+            </span>
+            {projectionOn && (
+              <button onClick={() => setProjHrsText('')}
+                style={{
+                  marginLeft: 'auto', padding: '4px 10px',
+                  borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)',
+                  background: '#fff', cursor: 'pointer',
+                  fontSize: 12, color: 'rgba(0,0,0,0.6)',
+                }}>Clear</button>
+            )}
+          </div>
+
           {/* Main table */}
           <div style={{
             background: '#fff', borderRadius: 14, padding: 0,
@@ -304,6 +412,9 @@ export default function HoursWatch() {
                     <Th>Store</Th>
                     <Th align="right">Tenure</Th>
                     <Th align="right">{avgColLabel}</Th>
+                    {projectionOn && (
+                      <Th align="right">Projected</Th>
+                    )}
                     <Th align="right">13 wk avg</Th>
                     <Th align="right">Last 4 wk</Th>
                     <Th align="right">Total hrs</Th>
@@ -313,8 +424,13 @@ export default function HoursWatch() {
                 </thead>
                 <tbody>
                   {filtered.map((e) => {
-                    const b = band(e.rollingAvg);
+                    const statusAvg = projectionOn && e.projected != null ? e.projected : e.rollingAvg;
+                    const b = band(statusAvg);
                     const expanded = expandedId === e.employeeId;
+                    const projDelta = projectionOn && e.projected != null
+                      ? e.projected - e.rollingAvg : 0;
+                    const projBand = projectionOn && e.projected != null
+                      ? band(e.projected) : null;
                     return (
                       <Fragment key={e.employeeId}>
                         <tr onClick={() => setExpandedId(expanded ? null : e.employeeId)}
@@ -342,6 +458,20 @@ export default function HoursWatch() {
                           <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
                             {e.rollingAvg.toFixed(1)}
                           </Td>
+                          {projectionOn && e.projected != null && projBand && (
+                            <Td align="right" style={{
+                              fontVariantNumeric: 'tabular-nums', fontWeight: 700,
+                              color: projBand.color,
+                            }}>
+                              {e.projected.toFixed(1)}
+                              <span style={{
+                                marginLeft: 6, fontWeight: 500, fontSize: 11,
+                                color: projDelta >= 0 ? '#9a3412' : '#166534',
+                              }}>
+                                {projDelta >= 0 ? '+' : ''}{projDelta.toFixed(1)}
+                              </span>
+                            </Td>
+                          )}
                           <Td align="right" style={{ fontVariantNumeric: 'tabular-nums' }}>
                             {e.last13WkAvg.toFixed(1)}
                           </Td>
@@ -364,7 +494,7 @@ export default function HoursWatch() {
                         </tr>
                         {expanded && (
                           <tr>
-                            <td colSpan={9} style={{
+                            <td colSpan={projectionOn ? 10 : 9} style={{
                               padding: '8px 0 18px',
                               background: 'rgba(0,0,0,0.015)',
                               borderTop: '1px solid rgba(0,0,0,0.04)',
@@ -378,7 +508,7 @@ export default function HoursWatch() {
                     );
                   })}
                   {filtered.length === 0 && (
-                    <tr><Td colSpan={9} style={{ textAlign: 'center', padding: 32, color: 'rgba(0,0,0,0.4)' }}>
+                    <tr><Td colSpan={projectionOn ? 10 : 9} style={{ textAlign: 'center', padding: 32, color: 'rgba(0,0,0,0.4)' }}>
                       No employees match the filters.
                     </Td></tr>
                   )}
