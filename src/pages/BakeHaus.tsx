@@ -672,7 +672,7 @@ function CartRowEditor({
           {imageUrl ? (
             <img src={imageUrl} alt="" loading="lazy"
               style={{
-                width: 68, height: 68, borderRadius: 10,
+                width: 96, height: 96, borderRadius: 12,
                 objectFit: 'cover', flexShrink: 0,
                 opacity: active ? 1 : 0.55,
                 background: 'rgba(0,0,0,0.04)',
@@ -680,8 +680,8 @@ function CartRowEditor({
             />
           ) : (
             <span style={{
-              display: 'inline-block', width: 68, height: 68,
-              borderRadius: 10, flexShrink: 0,
+              display: 'inline-block', width: 96, height: 96,
+              borderRadius: 12, flexShrink: 0,
               background: 'rgba(0,0,0,0.04)',
             }} />
           )}
