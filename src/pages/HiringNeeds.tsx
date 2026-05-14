@@ -21,9 +21,6 @@ interface StoreSummary {
   gapHours: number;
   hiresNeeded: number;
   baristaCount: number;
-  uncoveredHoursPerWk: number;
-  managerCoverageHrsPerWk: number;
-  trueUncoveredHrsPerWk: number;
 }
 
 interface Report {
@@ -159,11 +156,7 @@ export default function HiringNeeds() {
             gap: 12, marginBottom: 24,
           }}>
             {report.byStore.map((s) => (
-              <StoreCard key={s.storeLabel}
-                s={s}
-                buffer={report.buffer}
-                onCoverageSaved={(label, newReport) => setReport(newReport)}
-              />
+              <StoreCard key={s.storeLabel} s={s} buffer={report.buffer} />
             ))}
           </div>
 
@@ -314,48 +307,9 @@ export default function HiringNeeds() {
   );
 }
 
-function StoreCard({
-  s, buffer, onCoverageSaved,
-}: {
-  s: StoreSummary;
-  buffer: number;
-  onCoverageSaved: (label: string, freshReport: Report) => void;
-}) {
+function StoreCard({ s, buffer }: { s: StoreSummary; buffer: number }) {
   const gapColor = s.gapHours > 0 ? '#9a3412' : '#166534';
   const hiresColor = s.hiresNeeded > 0 ? '#9a3412' : '#166534';
-  const trueUncovColor = s.trueUncoveredHrsPerWk > 0 ? '#9a3412' : '#166534';
-  const [covText, setCovText] = useState<string>(s.managerCoverageHrsPerWk.toString());
-  const [saving, setSaving] = useState(false);
-
-  // Sync local input when parent report refreshes (so save → reload doesn't
-  // wipe an in-progress edit).
-  useEffect(() => {
-    if (!saving) setCovText(s.managerCoverageHrsPerWk.toString());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.managerCoverageHrsPerWk]);
-
-  const saveCoverage = async (raw: string) => {
-    const num = raw.trim() === '' ? 0 : Number(raw);
-    if (!Number.isFinite(num) || num < 0) return;
-    setSaving(true);
-    try {
-      const r = await fetch(`/api/dripos/store-settings/${s.storeLabel}`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ managerCoverageHrsPerWk: num }),
-      });
-      if (!r.ok) throw new Error('save_failed');
-      const fresh = await fetch('/api/dripos/hiring-needs', { cache: 'no-store' });
-      const body = await fresh.json();
-      if (fresh.ok) onCoverageSaved(s.storeLabel, body.report);
-    } catch {
-      // Surface a soft failure by re-syncing to server value
-      setCovText(s.managerCoverageHrsPerWk.toString());
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <div style={{
       background: '#fff', borderRadius: 14, padding: '14px 16px',
@@ -380,40 +334,6 @@ function StoreCard({
       <Row k="Hires needed" v={
         <span style={{ color: hiresColor, fontWeight: 700, fontSize: 18 }}>
           {s.hiresNeeded}
-        </span>
-      } />
-      <div style={{ height: 1, background: 'rgba(0,0,0,0.06)', margin: '6px 0' }} />
-      <Row k="Apparent uncov" v={`${s.uncoveredHoursPerWk.toFixed(1)} hr/wk`} dim />
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '3px 0', fontSize: 12,
-      }}>
-        <span style={{ color: 'rgba(0,0,0,0.5)' }}>− Mgr cover</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <input type="number" min={0} max={200} step={0.5}
-            value={covText}
-            onChange={(e) => setCovText(e.target.value)}
-            onBlur={(e) => {
-              if (e.target.value !== s.managerCoverageHrsPerWk.toString()) {
-                saveCoverage(e.target.value);
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            }}
-            style={{
-              width: 52, padding: '2px 6px', borderRadius: 6,
-              border: '1px solid rgba(0,0,0,0.15)', fontSize: 12,
-              fontVariantNumeric: 'tabular-nums', textAlign: 'right',
-            }}
-          />
-          <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)' }}>hr</span>
-          {saving && <span style={{ fontSize: 9, color: 'rgba(0,0,0,0.4)' }}>…</span>}
-        </span>
-      </div>
-      <Row k="True uncov" v={
-        <span style={{ color: trueUncovColor, fontWeight: 700 }}>
-          {s.trueUncoveredHrsPerWk.toFixed(1)} hr/wk
         </span>
       } />
     </div>

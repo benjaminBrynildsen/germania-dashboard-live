@@ -195,17 +195,6 @@ db.exec(`
     notes TEXT,
     updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
   );
-
-  -- Per-store manager-tuned settings. Currently used for the
-  -- "manager coverage" adjustment on Hiring Needs — uncovered hours
-  -- that were actually picked up by salaried managers (Joe / Tristan)
-  -- who don't clock in. Subtracted from raw uncovered to get true
-  -- uncovered.
-  CREATE TABLE IF NOT EXISTS store_settings (
-    store_label TEXT PRIMARY KEY,
-    manager_coverage_hrs_per_wk REAL DEFAULT 0,
-    updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
-  );
 `);
 
 // Apply additional schema (sales_daily, weather_daily, closure_decisions)
