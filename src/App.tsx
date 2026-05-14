@@ -16,6 +16,7 @@ import WeeklySales from './pages/WeeklySales';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Applicants from './pages/Applicants';
+import HoursWatch from './pages/HoursWatch';
 
 export default function App() {
   const { user, loading, logout } = useAuth();
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="/weather-closure" element={<WeatherClosure />} />
         <Route path="/cog" element={<CogManager />} />
         <Route path="/applicants" element={<Applicants />} />
+        <Route path="/hours" element={<HoursWatch />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="*" element={<Navigate to="/" />} />

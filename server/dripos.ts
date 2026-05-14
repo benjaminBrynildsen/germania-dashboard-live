@@ -1618,3 +1618,172 @@ function aggregatePlatformSales(
   }
   return { platformSalesByStore, platformSalesTotals: finalize(totals) };
 }
+
+// ── Hours Watch: rolling 12-month per-employee hours ──────────────────────
+// /report/timesheets returns each clocked shift with its ROLE_NAME tagged.
+// We pull it week-by-week (52 weeks), filter out training / pure-management
+// roles per QSEHRA tracking rules, and roll up per-employee weekly hours.
+
+interface RawTimesheet {
+  EMPLOYEE_ID: number;
+  FULL_NAME: string;
+  ROLE_NAME: string | null;
+  LOCATION_ID: number;
+  AMOUNT_TOTAL_MINUTES: number;
+  SHIFT_DATE_START?: number | null;
+  DATE_START?: number | null;
+}
+
+/**
+ * Should this shift's role be counted toward the 30-hr/wk QSEHRA threshold?
+ * Excludes training, admin/owner, and non-shift management roles. Everything
+ * else (Barista, Shift Manager, Baker, Kitchen, Delivery Driver, etc.)
+ * counts.
+ */
+export function isCountedRole(roleName: string | null | undefined): boolean {
+  if (!roleName) return false;
+  const lower = roleName.toLowerCase();
+  if (lower.includes('training')) return false;
+  if (lower.includes('admin')) return false;
+  if (lower.includes('owner')) return false;
+  // "Shift Manager" counts; "General Manager" / "Manager" alone does not.
+  if (lower.includes('manager') && !lower.includes('shift')) return false;
+  return true;
+}
+
+async function fetchTimesheetsRaw(
+  startMs: number,
+  endMs: number,
+): Promise<RawTimesheet[]> {
+  return cached(
+    `report/timesheets|all|${startMs}|${endMs}`,
+    endMs,
+    async () => {
+      const body = await callApi<{ ALL_TIMESHEETS?: RawTimesheet[] }>(
+        '/report/timesheets',
+        {
+          method: 'POST',
+          // Header location is required by callApi shape but the endpoint
+          // reads LOCATION_ID_ARRAY from the body. Pass any store id.
+          locationId: STORES[0].locationId,
+          body: {
+            START_EPOCH: startMs,
+            END_EPOCH: endMs,
+            LOCATION_ID_ARRAY: STORES.map((s) => s.locationId),
+            TIP_CALCULATION_METHOD: 'DAILY',
+          },
+        },
+      );
+      const rows = body.data?.ALL_TIMESHEETS ?? [];
+      // Drop everything except the few fields we need so the cache row
+      // stays small — full shift records carry ~50 fields each.
+      return rows.map((r) => ({
+        EMPLOYEE_ID: r.EMPLOYEE_ID,
+        FULL_NAME: r.FULL_NAME,
+        ROLE_NAME: r.ROLE_NAME ?? null,
+        LOCATION_ID: r.LOCATION_ID,
+        AMOUNT_TOTAL_MINUTES: r.AMOUNT_TOTAL_MINUTES ?? 0,
+        SHIFT_DATE_START: r.SHIFT_DATE_START ?? r.DATE_START ?? null,
+      }));
+    },
+  );
+}
+
+export interface EmployeeWeekHours {
+  employeeId: number;
+  fullName: string;
+  primaryStore: string;
+  weeklyHours: number[];  // length 52, oldest → newest
+  totalHours: number;
+  weeksWithHours: number;
+  rollingAvg: number;     // total / 52
+  last4WkAvg: number;
+}
+
+export interface EmployeeHoursReport {
+  generatedAt: number;
+  windowStartMs: number;
+  windowEndMs: number;
+  weekStartsMs: number[]; // length 52, oldest Sun → newest Sun
+  employees: EmployeeWeekHours[];
+}
+
+const STORE_BY_LOCATION_ID: Record<number, string> = Object.fromEntries(
+  STORES.map((s) => [s.locationId, s.label]),
+);
+
+/**
+ * Build a rolling 52-week per-employee hours report. Pulls each Sun–Sat
+ * week one at a time so the per-week response stays under Dripos's 60s
+ * timeout, and so completed weeks cache forever (only the current week
+ * has a short TTL).
+ */
+export async function buildEmployeeHoursReport(
+  referenceDate: Date = new Date(),
+): Promise<EmployeeHoursReport> {
+  const NUM_WEEKS = 52;
+  // Anchor on the most-recently-completed Sun, then walk back 51 more
+  // weeks. The current in-progress week is week-index 52 (1 extra) so we
+  // can show partial in-progress hours alongside the rolling history.
+  const weekStarts: Date[] = [];
+  for (let i = NUM_WEEKS - 1; i >= 0; i--) {
+    const [sun] = weekBounds(referenceDate, i);
+    weekStarts.push(sun);
+  }
+
+  const perEmpWeek = new Map<number, { name: string; storeCounts: Record<string, number>; hours: number[] }>();
+
+  for (let i = 0; i < weekStarts.length; i++) {
+    const sun = weekStarts[i];
+    const sat = new Date(sun);
+    sat.setDate(sun.getDate() + 6);
+    sat.setHours(23, 59, 59, 999);
+    const shifts = await fetchTimesheetsRaw(sun.getTime(), sat.getTime());
+    for (const s of shifts) {
+      if (!isCountedRole(s.ROLE_NAME)) continue;
+      const mins = s.AMOUNT_TOTAL_MINUTES || 0;
+      if (mins <= 0) continue;
+      let row = perEmpWeek.get(s.EMPLOYEE_ID);
+      if (!row) {
+        row = { name: s.FULL_NAME, storeCounts: {}, hours: new Array(NUM_WEEKS).fill(0) };
+        perEmpWeek.set(s.EMPLOYEE_ID, row);
+      }
+      row.hours[i] += mins / 60;
+      const storeLabel = STORE_BY_LOCATION_ID[s.LOCATION_ID];
+      if (storeLabel) {
+        row.storeCounts[storeLabel] = (row.storeCounts[storeLabel] ?? 0) + mins;
+      }
+    }
+  }
+
+  const employees: EmployeeWeekHours[] = [];
+  for (const [empId, row] of perEmpWeek) {
+    const totalHours = row.hours.reduce((a, b) => a + b, 0);
+    const weeksWithHours = row.hours.filter((h) => h > 0).length;
+    const rollingAvg = totalHours / NUM_WEEKS;
+    const last4 = row.hours.slice(-4);
+    const last4WkAvg = last4.reduce((a, b) => a + b, 0) / 4;
+    const primaryStore = Object.entries(row.storeCounts)
+      .sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—';
+    employees.push({
+      employeeId: empId,
+      fullName: row.name,
+      primaryStore,
+      weeklyHours: row.hours.map((h) => Math.round(h * 100) / 100),
+      totalHours: Math.round(totalHours * 100) / 100,
+      weeksWithHours,
+      rollingAvg: Math.round(rollingAvg * 100) / 100,
+      last4WkAvg: Math.round(last4WkAvg * 100) / 100,
+    });
+  }
+
+  employees.sort((a, b) => b.rollingAvg - a.rollingAvg);
+
+  return {
+    generatedAt: Date.now(),
+    windowStartMs: weekStarts[0].getTime(),
+    windowEndMs: weekStarts[weekStarts.length - 1].getTime() + 7 * 24 * 60 * 60 * 1000 - 1,
+    weekStartsMs: weekStarts.map((d) => d.getTime()),
+    employees,
+  };
+}

@@ -7,6 +7,7 @@ import { requireAuth, AuthRequest } from './auth.js';
 import {
   AuthExpired,
   NoToken,
+  buildEmployeeHoursReport,
   buildReport,
   buildTicketTimeReport,
   clearToken,
@@ -80,6 +81,30 @@ router.get('/dripos/ticket-time', requireAuth, async (req: AuthRequest, res: Res
     console.error('[dripos-ticket-time] failed:', err);
     res.status(500).json({
       error: 'ticket_time_failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+router.get('/dripos/employee-hours', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (req.query.force === '1') {
+      const { default: db } = await import('./db.js');
+      // Drop only the timesheets cache (per-week rows) so completed weeks
+      // get re-fetched. We don't want to nuke the whole dripos_cache table.
+      db.prepare("DELETE FROM dripos_cache WHERE key LIKE 'report/timesheets|%'").run();
+    }
+    const report = await buildEmployeeHoursReport();
+    res.json({ ok: true, report });
+  } catch (err) {
+    if (err instanceof NoToken || err instanceof AuthExpired) {
+      res.status(401).json({ error: 'dripos_auth_required', message: err.message });
+      return;
+    }
+    console.error('[dripos-employee-hours] failed:', err);
+    res.status(500).json({
+      error: 'employee_hours_failed',
       message: err instanceof Error ? err.message : String(err),
     });
   }
