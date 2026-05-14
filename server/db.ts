@@ -210,6 +210,16 @@ db.exec(`
     updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
     PRIMARY KEY (week_start_iso, store_label, item_name)
   );
+
+  -- "This week's order is finalized / sent to chef." Joe/Tristan auto-
+  -- save edits on blur, but explicit Save adds a row here so the
+  -- Saved Orders tab has a list of submitted weeks. Re-saving the
+  -- same week just bumps the timestamp.
+  CREATE TABLE IF NOT EXISTS bake_haus_saved_weeks (
+    week_start_iso TEXT PRIMARY KEY,
+    saved_at INTEGER NOT NULL,
+    saved_by TEXT
+  );
 `);
 
 // Apply additional schema (sales_daily, weather_daily, closure_decisions)

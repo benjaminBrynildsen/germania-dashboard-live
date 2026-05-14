@@ -12,6 +12,7 @@ interface OrderRow {
 
 interface WeekReport {
   weekStartIso: string;
+  savedAt: number | null;
   byStore: Record<string, OrderRow[]>;
   deliverySummary: {
     mon: Record<string, Record<string, number>>;
@@ -21,6 +22,17 @@ interface WeekReport {
 }
 
 interface CatalogItem { name: string; sort: number }
+
+interface SavedWeek {
+  weekStartIso: string;
+  savedAt: number;
+  savedBy: string | null;
+  itemCount: number;
+  totalQty: number;
+  storeCount: number;
+}
+
+type Tab = 'current' | 'saved';
 
 function fmtDateRange(weekStartIso: string): string {
   const start = new Date(weekStartIso + 'T00:00:00');
@@ -49,12 +61,15 @@ function shiftWeeks(weekIso: string, weeks: number): string {
 
 export default function BakeHaus() {
   const isMobile = useIsMobile();
+  const [tab, setTab] = useState<Tab>('current');
   const [weekIso, setWeekIso] = useState<string>(isoMondayOf(new Date()));
   const [report, setReport] = useState<WeekReport | null>(null);
   const [stores, setStores] = useState<string[]>(['G1', 'G2', 'G3', 'G4']);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [savedWeeks, setSavedWeeks] = useState<SavedWeek[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const loadWeek = useCallback(async (iso: string) => {
     setLoading(true);
@@ -85,6 +100,40 @@ export default function BakeHaus() {
   }, []);
 
   useEffect(() => { loadWeek(weekIso); }, [weekIso, loadWeek]);
+
+  const loadSavedWeeks = useCallback(async () => {
+    try {
+      const r = await fetch('/api/bake-haus/saved', { cache: 'no-store' });
+      const body = await r.json();
+      if (r.ok) setSavedWeeks(body.weeks ?? []);
+    } catch {/* non-fatal */}
+  }, []);
+
+  useEffect(() => {
+    if (tab === 'saved') loadSavedWeeks();
+  }, [tab, loadSavedWeeks]);
+
+  const saveWeek = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const r = await fetch('/api/bake-haus/save', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ week: weekIso }),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.message || body.error || 'Save failed');
+      }
+      await loadWeek(weekIso);
+      await loadSavedWeeks();
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const saveItem = async (store: string, item: string, weeklyQty: number) => {
     try {
@@ -119,7 +168,7 @@ export default function BakeHaus() {
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 18 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>Bake Haus</h1>
         <p style={{ color: 'rgba(0,0,0,0.4)', fontSize: 14, marginTop: 4 }}>
           Weekly food orders to Chef Maggie, auto-split into the three Mon/Wed/Fri deliveries
@@ -129,19 +178,32 @@ export default function BakeHaus() {
         </p>
       </div>
 
-      {/* Week selector */}
+      {/* Tab bar */}
       <div style={{
-        display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 18,
+        display: 'flex', gap: 4, marginBottom: 22,
+        borderBottom: '1px solid rgba(0,0,0,0.08)',
       }}>
-        <button onClick={() => setWeekIso(shiftWeeks(weekIso, -1))}
-          style={pillBtn}>‹ Prev wk</button>
-        <button onClick={() => setWeekIso(isoMondayOf(new Date()))}
-          style={pillBtn}>This week</button>
-        <button onClick={() => setWeekIso(shiftWeeks(weekIso, 1))}
-          style={pillBtn}>Next wk ›</button>
-        <span style={{
-          marginLeft: 12, fontSize: 13, color: 'rgba(0,0,0,0.7)', fontWeight: 600,
-        }}>{fmtDateRange(weekIso)}</span>
+        {([
+          { id: 'current', label: 'Current Order' },
+          { id: 'saved', label: 'Saved Orders' },
+        ] as Array<{ id: Tab; label: string }>).map((t) => {
+          const active = tab === t.id;
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              style={{
+                padding: '10px 18px',
+                background: 'transparent',
+                border: 0,
+                borderBottom: `2px solid ${active ? '#1a1a1a' : 'transparent'}`,
+                color: active ? '#1a1a1a' : 'rgba(0,0,0,0.45)',
+                fontSize: 13, fontWeight: 600,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                marginBottom: -1,
+              }}>{t.label}</button>
+          );
+        })}
       </div>
 
       {error && (
@@ -151,47 +213,178 @@ export default function BakeHaus() {
         }}>{error}</div>
       )}
 
-      {loading && !report && (
-        <div style={{ color: 'rgba(0,0,0,0.4)', padding: 24 }}>Loading…</div>
-      )}
-
-      {report && (
+      {tab === 'current' && (
         <>
-          {/* Per-store order cards */}
+          {/* Week selector + Save button */}
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
-            gap: 16, marginBottom: 32,
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 18,
           }}>
-            {stores.map((store) => (
-              <StoreOrderCard key={store}
-                store={store}
-                rows={report.byStore[store] ?? []}
-                catalog={catalog}
-                onSave={(item, qty) => saveItem(store, item, qty)}
-                onDelete={(item) => deleteItem(store, item)}
-              />
-            ))}
+            <button onClick={() => setWeekIso(shiftWeeks(weekIso, -1))}
+              style={pillBtn}>‹ Prev wk</button>
+            <button onClick={() => setWeekIso(isoMondayOf(new Date()))}
+              style={pillBtn}>This week</button>
+            <button onClick={() => setWeekIso(shiftWeeks(weekIso, 1))}
+              style={pillBtn}>Next wk ›</button>
+            <span style={{
+              marginLeft: 12, fontSize: 13, color: 'rgba(0,0,0,0.7)', fontWeight: 600,
+            }}>{fmtDateRange(weekIso)}</span>
+            {report?.savedAt && (
+              <span style={{
+                fontSize: 11, color: '#166534', fontWeight: 600,
+                padding: '3px 8px', borderRadius: 6,
+                background: 'rgba(22, 101, 52, 0.08)',
+                marginLeft: 4,
+              }}>
+                ✓ Saved {new Date(report.savedAt).toLocaleString([], {
+                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                })}
+              </span>
+            )}
+            <button onClick={saveWeek} disabled={saving || loading}
+              style={{
+                ...primaryBtn,
+                marginLeft: 'auto',
+                padding: '8px 18px',
+                fontSize: 13,
+                opacity: saving ? 0.6 : 1,
+                cursor: saving ? 'wait' : 'pointer',
+              }}>
+              {saving ? 'Saving…' : report?.savedAt ? 'Update saved order' : 'Save order'}
+            </button>
           </div>
 
-          {/* Cross-store delivery summary */}
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
-            Delivery summary
-          </h2>
-          <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13, marginBottom: 14 }}>
-            What goes on each truck. Empty cells mean that store didn't order the item this week.
-          </p>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
-            gap: 12,
-          }}>
-            <DeliveryCard day="Monday"    items={report.deliverySummary.mon} stores={stores} catalog={catalog} />
-            <DeliveryCard day="Wednesday" items={report.deliverySummary.wed} stores={stores} catalog={catalog} />
-            <DeliveryCard day="Friday"    items={report.deliverySummary.fri} stores={stores} catalog={catalog} />
-          </div>
+          {loading && !report && (
+            <div style={{ color: 'rgba(0,0,0,0.4)', padding: 24 }}>Loading…</div>
+          )}
+
+          {report && (
+            <>
+              {/* Per-store order cards */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
+                gap: 16, marginBottom: 32,
+              }}>
+                {stores.map((store) => (
+                  <StoreOrderCard key={store}
+                    store={store}
+                    rows={report.byStore[store] ?? []}
+                    catalog={catalog}
+                    onSave={(item, qty) => saveItem(store, item, qty)}
+                    onDelete={(item) => deleteItem(store, item)}
+                  />
+                ))}
+              </div>
+
+              {/* Cross-store delivery summary */}
+              <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
+                Delivery summary
+              </h2>
+              <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13, marginBottom: 14 }}>
+                What goes on each truck. Empty cells mean that store didn't order the item this week.
+              </p>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+                gap: 12,
+              }}>
+                <DeliveryCard day="Monday"    items={report.deliverySummary.mon} stores={stores} catalog={catalog} />
+                <DeliveryCard day="Wednesday" items={report.deliverySummary.wed} stores={stores} catalog={catalog} />
+                <DeliveryCard day="Friday"    items={report.deliverySummary.fri} stores={stores} catalog={catalog} />
+              </div>
+            </>
+          )}
         </>
       )}
+
+      {tab === 'saved' && (
+        <SavedOrdersList
+          weeks={savedWeeks}
+          onOpen={(iso) => { setWeekIso(iso); setTab('current'); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function SavedOrdersList({
+  weeks, onOpen,
+}: {
+  weeks: SavedWeek[];
+  onOpen: (weekIso: string) => void;
+}) {
+  if (weeks.length === 0) {
+    return (
+      <div style={{
+        background: '#fff', borderRadius: 14,
+        border: '1px solid rgba(0,0,0,0.07)',
+        padding: '40px 24px', textAlign: 'center',
+        color: 'rgba(0,0,0,0.45)', fontSize: 14,
+      }}>
+        No saved orders yet. Fill out a week's order on the Current Order tab and hit Save —
+        it'll show up here for future reference.
+      </div>
+    );
+  }
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14,
+      border: '1px solid rgba(0,0,0,0.07)',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
+      overflow: 'hidden',
+    }}>
+      <table style={{
+        width: '100%', borderCollapse: 'collapse',
+        fontSize: 14, fontFamily: 'var(--font-body)',
+      }}>
+        <thead>
+          <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
+            <Th>Week</Th>
+            <Th align="right">Items</Th>
+            <Th align="right">Total qty</Th>
+            <Th align="right">Stores</Th>
+            <Th>Saved</Th>
+            <Th />
+          </tr>
+        </thead>
+        <tbody>
+          {weeks.map((w) => (
+            <tr key={w.weekStartIso}
+              onClick={() => onOpen(w.weekStartIso)}
+              style={{
+                borderTop: '1px solid rgba(0,0,0,0.05)',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.02)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              <Td>
+                <strong>{fmtDateRange(w.weekStartIso)}</strong>
+                {w.savedBy && (
+                  <span style={{
+                    marginLeft: 8, fontSize: 11, color: 'rgba(0,0,0,0.45)',
+                  }}>by {w.savedBy}</span>
+                )}
+              </Td>
+              <Td align="right" style={{
+                fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.6)',
+              }}>{w.itemCount}</Td>
+              <Td align="right" style={{
+                fontVariantNumeric: 'tabular-nums', fontWeight: 600,
+              }}>{Math.round(w.totalQty)}</Td>
+              <Td align="right" style={{
+                fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.6)',
+              }}>{w.storeCount}/4</Td>
+              <Td style={{ color: 'rgba(0,0,0,0.55)', fontSize: 12 }}>
+                {new Date(w.savedAt).toLocaleString([], {
+                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                })}
+              </Td>
+              <Td align="right" style={{ color: 'rgba(0,0,0,0.3)' }}>›</Td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

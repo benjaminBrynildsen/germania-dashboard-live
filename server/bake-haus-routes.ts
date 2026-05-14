@@ -8,7 +8,10 @@ import {
   BAKE_HAUS_ITEMS,
   deleteOrderItem,
   getWeekReport,
+  listSavedWeeks,
+  markWeekSaved,
   mondayOfWeek,
+  unmarkWeekSaved,
   upsertOrderItem,
 } from './bake-haus.js';
 
@@ -62,6 +65,33 @@ router.put('/bake-haus/item', requireAuth, (req: AuthRequest, res: Response) => 
     weeklyQty,
     notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
   });
+  res.json({ ok: true });
+});
+
+router.get('/bake-haus/saved', requireAuth, (_req: AuthRequest, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  const weeks = listSavedWeeks();
+  res.json({ ok: true, weeks });
+});
+
+router.post('/bake-haus/save', requireAuth, (req: AuthRequest, res: Response) => {
+  const week = String(req.body?.week ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
+    res.status(400).json({ error: 'invalid_week' });
+    return;
+  }
+  const savedBy = req.user?.name ?? null;
+  markWeekSaved(week, savedBy);
+  res.json({ ok: true, savedAt: Date.now() });
+});
+
+router.delete('/bake-haus/save', requireAuth, (req: AuthRequest, res: Response) => {
+  const week = String(req.body?.week ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
+    res.status(400).json({ error: 'invalid_week' });
+    return;
+  }
+  unmarkWeekSaved(week);
   res.json({ ok: true });
 });
 

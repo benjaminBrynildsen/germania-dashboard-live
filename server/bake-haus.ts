@@ -100,6 +100,9 @@ export interface BakeHausOrderRow {
 
 export interface BakeHausWeekReport {
   weekStartIso: string;
+  /** When this week was last saved (ms epoch). null = never explicitly
+   *  saved (only auto-saved per-item edits). */
+  savedAt: number | null;
   /** Per-store rows, sorted by the canonical item catalog order. */
   byStore: Record<string, BakeHausOrderRow[]>;
   /** Cross-store summary: for each delivery day (mon/wed/fri), a map of
@@ -169,7 +172,16 @@ export function getWeekReport(weekStartIso: string): BakeHausWeekReport {
     );
   }
 
-  return { weekStartIso, byStore, deliverySummary };
+  const savedRow = db.prepare(
+    'SELECT saved_at FROM bake_haus_saved_weeks WHERE week_start_iso = ?',
+  ).get(weekStartIso) as { saved_at: number } | undefined;
+
+  return {
+    weekStartIso,
+    savedAt: savedRow?.saved_at ?? null,
+    byStore,
+    deliverySummary,
+  };
 }
 
 export function upsertOrderItem(args: {
@@ -199,6 +211,55 @@ export function deleteOrderItem(
     `DELETE FROM bake_haus_orders
      WHERE week_start_iso = ? AND store_label = ? AND item_name = ?`,
   ).run(weekStartIso, storeLabel, canonicalizeItemName(itemName));
+}
+
+export interface SavedWeekSummary {
+  weekStartIso: string;
+  savedAt: number;
+  savedBy: string | null;
+  itemCount: number;
+  totalQty: number;
+  storeCount: number;
+}
+
+export function markWeekSaved(weekStartIso: string, savedBy: string | null = null): void {
+  db.prepare(
+    `INSERT INTO bake_haus_saved_weeks (week_start_iso, saved_at, saved_by)
+     VALUES (?, ?, ?)
+     ON CONFLICT(week_start_iso) DO UPDATE SET
+       saved_at = excluded.saved_at,
+       saved_by = COALESCE(excluded.saved_by, bake_haus_saved_weeks.saved_by)`,
+  ).run(weekStartIso, Date.now(), savedBy);
+}
+
+export function unmarkWeekSaved(weekStartIso: string): void {
+  db.prepare('DELETE FROM bake_haus_saved_weeks WHERE week_start_iso = ?').run(weekStartIso);
+}
+
+export function listSavedWeeks(): SavedWeekSummary[] {
+  // Join saved_weeks with aggregated order totals so the UI doesn't have
+  // to make N follow-up requests for the per-week summary.
+  const rows = db.prepare(
+    `SELECT
+        s.week_start_iso AS weekStartIso,
+        s.saved_at       AS savedAt,
+        s.saved_by       AS savedBy,
+        COALESCE(o.itemCount, 0)  AS itemCount,
+        COALESCE(o.totalQty, 0)   AS totalQty,
+        COALESCE(o.storeCount, 0) AS storeCount
+     FROM bake_haus_saved_weeks s
+     LEFT JOIN (
+       SELECT week_start_iso,
+              COUNT(*) AS itemCount,
+              SUM(weekly_qty) AS totalQty,
+              COUNT(DISTINCT store_label) AS storeCount
+         FROM bake_haus_orders
+         WHERE weekly_qty > 0
+        GROUP BY week_start_iso
+     ) o ON o.week_start_iso = s.week_start_iso
+     ORDER BY s.saved_at DESC`,
+  ).all() as SavedWeekSummary[];
+  return rows;
 }
 
 /** Returns the ISO date (YYYY-MM-DD) of the Monday of the week containing
