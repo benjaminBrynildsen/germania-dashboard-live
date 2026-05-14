@@ -285,7 +285,10 @@ function StoreOrderCard({
           {orderedRows.length} items · {total} total
         </span>
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      <table style={{
+        width: '100%', borderCollapse: 'collapse',
+        fontSize: 14, fontFamily: 'var(--font-body)',
+      }}>
         <thead>
           <tr style={{ background: theme.rowAlt }}>
             <Th>Item</Th>
@@ -391,6 +394,8 @@ function CartRowEditor({
         <span style={{
           color: active ? '#1a1a1a' : 'rgba(0,0,0,0.45)',
           fontWeight: active ? 500 : 400,
+          fontSize: 16,
+          fontFamily: 'var(--font-body)',
         }}>
           {itemName}
           {isCustom && (
@@ -513,7 +518,10 @@ function DeliveryCard({
         <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: -0.2 }}>{day}</span>
         <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{grandTotal} units</span>
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+      <table style={{
+        width: '100%', borderCollapse: 'collapse',
+        fontSize: 13, fontFamily: 'var(--font-body)',
+      }}>
         <thead>
           <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
             <Th>Item</Th>
@@ -523,7 +531,7 @@ function DeliveryCard({
         <tbody>
           {itemNames.map((name) => (
             <tr key={name} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
-              <Td>{name}</Td>
+              <Td style={{ fontSize: 14 }}>{name}</Td>
               {stores.map((s) => {
                 const q = items[name]?.[s];
                 return (
