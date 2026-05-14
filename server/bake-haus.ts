@@ -56,9 +56,11 @@ export function canonicalizeItemName(input: string): string {
  *   Wed delivery covers Wed + Thu (2 days)
  *   Fri delivery covers Fri + Sat + Sun (3 days)
  *
- * So default weights are 2/7, 2/7, 3/7. We round each component and then
- * adjust the largest to keep the sum exactly equal to the weekly qty (so
- * no quantity is lost or gained to rounding).
+ * Weights: 2/7, 2/7, 3/7. Always returns whole integers — these orders
+ * are counts of sandwiches/scones/etc., not weight measurements.
+ * Fractional inputs are rounded to the nearest whole before splitting.
+ * Rounding leftovers go to Fri so the three components always sum back
+ * to the original weekly qty exactly.
  */
 export function splitForDeliveries(weeklyQty: number): {
   mon: number;
@@ -68,30 +70,22 @@ export function splitForDeliveries(weeklyQty: number): {
   if (!Number.isFinite(weeklyQty) || weeklyQty <= 0) {
     return { mon: 0, wed: 0, fri: 0 };
   }
-  // Whole units vs fractional: if the order is in whole units (typical
-  // for things like sandwiches), keep the split whole. Fractional inputs
-  // (e.g., 1.5 lb) get fractional outputs.
-  const isInteger = Number.isInteger(weeklyQty);
-  if (isInteger) {
-    let mon = Math.round(weeklyQty * (2 / 7));
-    let wed = Math.round(weeklyQty * (2 / 7));
-    let fri = weeklyQty - mon - wed;
-    // Guard against rounding driving fri below the other two (very small
-    // weekly qty): if fri < wed, redistribute one unit.
-    if (fri < wed) {
-      const diff = wed - fri;
-      const give = Math.ceil(diff / 2);
-      wed -= give;
-      fri += give;
-    }
-    if (mon < 0) mon = 0;
-    if (wed < 0) wed = 0;
-    if (fri < 0) fri = 0;
-    return { mon, wed, fri };
+  const total = Math.round(weeklyQty);
+  if (total <= 0) return { mon: 0, wed: 0, fri: 0 };
+  let mon = Math.round(total * (2 / 7));
+  let wed = Math.round(total * (2 / 7));
+  let fri = total - mon - wed;
+  // Guard against rounding driving fri below the other two (e.g. for
+  // very small weekly qty): if fri < wed, redistribute one unit.
+  if (fri < wed) {
+    const diff = wed - fri;
+    const give = Math.ceil(diff / 2);
+    wed -= give;
+    fri += give;
   }
-  const mon = Math.round((weeklyQty * (2 / 7)) * 10) / 10;
-  const wed = Math.round((weeklyQty * (2 / 7)) * 10) / 10;
-  const fri = Math.round((weeklyQty - mon - wed) * 10) / 10;
+  if (mon < 0) mon = 0;
+  if (wed < 0) wed = 0;
+  if (fri < 0) fri = 0;
   return { mon, wed, fri };
 }
 

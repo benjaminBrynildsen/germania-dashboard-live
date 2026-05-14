@@ -366,6 +366,22 @@ function CartRowEditor({
   }, [currentQty]);
 
   const active = currentQty > 0;
+
+  const commit = (next: number) => {
+    if (!Number.isFinite(next) || next < 0) return;
+    if (next === currentQty) return;
+    if (next <= 0 && currentQty > 0) onDelete();
+    else if (next > 0) onSave(next);
+  };
+
+  const step = (delta: number) => {
+    const cur = Number.parseInt(qtyText, 10);
+    const base = Number.isFinite(cur) && cur > 0 ? cur : currentQty;
+    const next = Math.max(0, base + delta);
+    setQtyText(next > 0 ? next.toString() : '');
+    commit(next);
+  };
+
   return (
     <tr style={{
       borderTop: '1px solid rgba(0,0,0,0.05)',
@@ -387,32 +403,53 @@ function CartRowEditor({
         </span>
       </Td>
       <Td align="right">
-        <input type="number" min={0} max={100000} step={0.5}
-          value={qtyText}
-          placeholder="0"
-          onChange={(e) => setQtyText(e.target.value)}
-          onBlur={(e) => {
-            const raw = e.target.value.trim();
-            const next = raw === '' ? 0 : Number(raw);
-            if (!Number.isFinite(next) || next < 0) {
-              setQtyText(currentQty > 0 ? currentQty.toString() : '');
-              return;
-            }
-            if (next === currentQty) return;
-            if (next <= 0 && currentQty > 0) onDelete();
-            else if (next > 0) onSave(next);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-          }}
-          style={{
-            width: 64, padding: '3px 8px', borderRadius: 6,
-            border: '1px solid rgba(0,0,0,0.15)', fontSize: 13,
-            fontVariantNumeric: 'tabular-nums', textAlign: 'right',
-            background: active ? '#fff' : 'rgba(0,0,0,0.02)',
-            color: active ? '#1a1a1a' : 'rgba(0,0,0,0.5)',
-          }}
-        />
+        <div style={{
+          display: 'inline-flex', alignItems: 'stretch',
+          border: '1px solid rgba(0,0,0,0.15)', borderRadius: 8,
+          background: active ? '#fff' : 'rgba(255,255,255,0.65)',
+          overflow: 'hidden',
+        }}>
+          <button onClick={() => step(-1)} aria-label="Decrease"
+            style={{
+              width: 28, padding: 0, border: 0, cursor: 'pointer',
+              background: 'transparent', color: 'rgba(0,0,0,0.55)',
+              fontSize: 16, fontWeight: 600, lineHeight: 1,
+              borderRight: '1px solid rgba(0,0,0,0.08)',
+            }}>−</button>
+          <input type="text" inputMode="numeric" pattern="[0-9]*"
+            value={qtyText}
+            placeholder="0"
+            onChange={(e) => {
+              // Allow only digits (no decimals, no negatives).
+              const cleaned = e.target.value.replace(/[^0-9]/g, '');
+              setQtyText(cleaned);
+            }}
+            onBlur={(e) => {
+              const raw = e.target.value.trim();
+              const next = raw === '' ? 0 : Number.parseInt(raw, 10);
+              commit(Number.isFinite(next) ? next : 0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              else if (e.key === 'ArrowUp') { e.preventDefault(); step(1); }
+              else if (e.key === 'ArrowDown') { e.preventDefault(); step(-1); }
+            }}
+            style={{
+              width: 48, padding: '6px 4px', border: 0,
+              fontSize: 14, fontVariantNumeric: 'tabular-nums',
+              textAlign: 'center', background: 'transparent',
+              color: active ? '#1a1a1a' : 'rgba(0,0,0,0.5)',
+              outline: 'none',
+            }}
+          />
+          <button onClick={() => step(1)} aria-label="Increase"
+            style={{
+              width: 28, padding: 0, border: 0, cursor: 'pointer',
+              background: 'transparent', color: 'rgba(0,0,0,0.55)',
+              fontSize: 16, fontWeight: 600, lineHeight: 1,
+              borderLeft: '1px solid rgba(0,0,0,0.08)',
+            }}>+</button>
+        </div>
       </Td>
       <Td align="right" style={{
         ...delivCell,
@@ -525,7 +562,9 @@ function DeliveryCard({
 }
 
 function fmtNum(n: number): string {
-  return Number.isInteger(n) ? n.toString() : n.toFixed(1);
+  // Orders are whole-item counts (sandwiches, scones, etc.) — never
+  // show decimals even if the underlying value picked up a 0.0.
+  return Math.round(n).toString();
 }
 
 const pillBtn: React.CSSProperties = {
