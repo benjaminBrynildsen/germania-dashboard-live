@@ -672,7 +672,7 @@ function CartRowEditor({
           {imageUrl ? (
             <img src={imageUrl} alt="" loading="lazy"
               style={{
-                width: 96, height: 96, borderRadius: 12,
+                width: 128, height: 128, borderRadius: 14,
                 objectFit: 'cover', flexShrink: 0,
                 opacity: active ? 1 : 0.55,
                 background: 'rgba(0,0,0,0.04)',
