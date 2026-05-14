@@ -1652,7 +1652,9 @@ interface RawTimesheet {
   LOCATION_ID: number;
   AMOUNT_TOTAL_MINUTES: number;
   SHIFT_DATE_START?: number | null;
+  SHIFT_DATE_END?: number | null;
   DATE_START?: number | null;
+  DATE_END?: number | null;
 }
 
 /**
@@ -1669,6 +1671,27 @@ export function isCountedRole(roleName: string | null | undefined): boolean {
   if (lower.includes('owner')) return false;
   // "Shift Manager" counts; "General Manager" / "Manager" alone does not.
   if (lower.includes('manager') && !lower.includes('shift')) return false;
+  return true;
+}
+
+/** Looks like a kitchen/bakery role (not a barista or shift manager). */
+function isKitchenRole(roleName: string | null | undefined): boolean {
+  if (!roleName) return false;
+  return /baker|kitchen|cook/i.test(roleName);
+}
+
+/**
+ * For Hiring Needs demand only: same as isCountedRole but additionally
+ * excludes kitchen/baker/cook roles at G4. G4's kitchen feeds the whole
+ * chain (per the labor-card model), so those shifts aren't part of G4's
+ * barista hiring needs.
+ */
+export function isBaristaCountedRole(
+  roleName: string | null | undefined,
+  storeLabel: string,
+): boolean {
+  if (!isCountedRole(roleName)) return false;
+  if (storeLabel === 'G4' && isKitchenRole(roleName)) return false;
   return true;
 }
 
@@ -1733,11 +1756,11 @@ async function fetchTimesheetsCell(
   endMs: number,
   locationId: number,
 ): Promise<TimesheetsCell> {
-  // v2 cache key: previous rows only stored shifts; we now also persist
-  // scheduledMinutes from TOTALS so Hiring Needs has a demand baseline
-  // without a second Dripos call.
+  // v3 cache: added SHIFT_DATE_END so we can compute strict uncovered
+  // hours (scheduled length per filled shift). v2 was scheduledMinutes
+  // from TOTALS; v1 was shifts only.
   return cached(
-    `report/timesheets|v2|${locationId}|${startMs}|${endMs}`,
+    `report/timesheets|v3|${locationId}|${startMs}|${endMs}`,
     endMs,
     async () => {
       const body = await callApi<{
@@ -1766,6 +1789,7 @@ async function fetchTimesheetsCell(
           LOCATION_ID: r.LOCATION_ID,
           AMOUNT_TOTAL_MINUTES: r.AMOUNT_TOTAL_MINUTES ?? 0,
           SHIFT_DATE_START: r.SHIFT_DATE_START ?? r.DATE_START ?? null,
+          SHIFT_DATE_END: r.SHIFT_DATE_END ?? r.DATE_END ?? null,
         })),
         scheduledMinutes,
       };
@@ -1998,8 +2022,9 @@ export interface StaffingBarista {
 
 export interface StaffingStoreSummary {
   storeLabel: string;
-  /** Scheduled hours per week, averaged over last 4 weeks (from
-   *  AMOUNT_MINUTES_SCHEDULED in /report/timesheets totals). */
+  /** Counted-role hours actually worked per week, averaged over last 4
+   *  weeks (G4 excludes kitchen roles since the chain's kitchen lives
+   *  there). Proxy for "demand we're trying to staff baristas for." */
   scheduledHoursPerWk: number;
   /** scheduledHoursPerWk × 1.15 — the "true demand" once call-offs and
    *  shift swaps are factored in. */
@@ -2010,6 +2035,16 @@ export interface StaffingStoreSummary {
   gapHours: number;
   hiresNeeded: number;
   baristaCount: number;
+  /** Raw uncovered hr/wk (avg over last 4 weeks): scheduled gross
+   *  minus sum of scheduled lengths of shifts that were actually
+   *  clocked in. Includes manager-covered shifts (managers don't
+   *  clock in) — see managerCoverageHrsPerWk for the offset. */
+  uncoveredHoursPerWk: number;
+  /** Manager-entered estimate of hours per week typically covered by
+   *  salaried managers (Joe / Tristan) without clocking in. */
+  managerCoverageHrsPerWk: number;
+  /** uncoveredHoursPerWk − managerCoverageHrsPerWk, floored at 0. */
+  trueUncoveredHrsPerWk: number;
 }
 
 export interface StaffingHiringNeedsReport {
@@ -2032,14 +2067,18 @@ export async function buildHiringNeedsReport(
   const hoursReport = await buildEmployeeHoursReport(referenceDate);
 
   // Re-pull just the last 4 weeks of demand per store. The cells are
-  // already cached from buildEmployeeHoursReport. We compute demand from
-  // per-shift minutes filtered by isCountedRole, NOT from the gross
-  // AMOUNT_MINUTES_SCHEDULED total (which would lump training and
-  // pure-management shifts into the demand baseline — those aren't
-  // shifts we're trying to staff baristas for).
+  // already cached from buildEmployeeHoursReport. Per-store demand uses
+  // role-aware shift filtering (excludes training, pure-management, and
+  // G4's kitchen). Per-store uncovered uses scheduled-length per filled
+  // shift vs gross schedule total — the gap is shifts that no one
+  // clocked in for.
   const SCHED_LOOKBACK_WEEKS = 4;
   const scheduledByStore: Record<string, number[]> = {};
-  for (const store of STORES) scheduledByStore[store.label] = [];
+  const uncoveredByStore: Record<string, number[]> = {};
+  for (const store of STORES) {
+    scheduledByStore[store.label] = [];
+    uncoveredByStore[store.label] = [];
+  }
   const lookbackPromises: Array<Promise<void>> = [];
   for (let i = 0; i < SCHED_LOOKBACK_WEEKS; i++) {
     const [sun] = weekBounds(referenceDate, i);
@@ -2050,16 +2089,45 @@ export async function buildHiringNeedsReport(
       lookbackPromises.push(
         fetchTimesheetsCell(sun.getTime(), sat.getTime(), store.locationId)
           .then((cell) => {
+            // Demand baseline: counted-role minutes clocked.
             const countedMinutes = cell.shifts
-              .filter((s) => isCountedRole(s.ROLE_NAME))
+              .filter((s) => isBaristaCountedRole(s.ROLE_NAME, store.label))
               .reduce((sum, s) => sum + (s.AMOUNT_TOTAL_MINUTES ?? 0), 0);
             scheduledByStore[store.label].push(countedMinutes);
+
+            // Strict uncovered: gross scheduled minutes minus sum of
+            // (SHIFT_DATE_END − SHIFT_DATE_START) for every shift that
+            // got clocked. Anything left over represents shifts that
+            // were on the schedule but had no one clock in — i.e.,
+            // no-shows with no coverage (or coverage by managers who
+            // don't clock in; user adjusts that offset on the card).
+            const filledScheduledMinutes = cell.shifts.reduce((sum, s) => {
+              if (s.SHIFT_DATE_START != null && s.SHIFT_DATE_END != null) {
+                const span = (s.SHIFT_DATE_END - s.SHIFT_DATE_START) / 60000;
+                return sum + (span > 0 ? span : 0);
+              }
+              return sum + (s.AMOUNT_TOTAL_MINUTES ?? 0);
+            }, 0);
+            const uncovered = Math.max(0, cell.scheduledMinutes - filledScheduledMinutes);
+            uncoveredByStore[store.label].push(uncovered);
           })
-          .catch(() => { scheduledByStore[store.label].push(0); }),
+          .catch(() => {
+            scheduledByStore[store.label].push(0);
+            uncoveredByStore[store.label].push(0);
+          }),
       );
     }
   }
   await Promise.all(lookbackPromises);
+
+  // Load per-store settings (manager coverage offset).
+  const storeSettingsRows = db.prepare(
+    'SELECT store_label, manager_coverage_hrs_per_wk FROM store_settings',
+  ).all() as Array<{ store_label: string; manager_coverage_hrs_per_wk: number | null }>;
+  const storeSettingsMap = new Map<string, number>();
+  for (const r of storeSettingsRows) {
+    storeSettingsMap.set(r.store_label, r.manager_coverage_hrs_per_wk ?? 0);
+  }
 
   // Load saved preferences from SQLite.
   const prefRows = db.prepare(
@@ -2097,6 +2165,15 @@ export async function buildHiringNeedsReport(
       ? validSched.reduce((a, b) => a + b, 0) / validSched.length / 60
       : 0;
     const targetWithBuffer = scheduledHoursPerWk * HIRING_BUFFER;
+
+    const uncov = uncoveredByStore[store.label] ?? [];
+    const validUncov = uncov.filter((s) => s >= 0);
+    const uncoveredHoursPerWk = validUncov.length > 0
+      ? validUncov.reduce((a, b) => a + b, 0) / validUncov.length / 60
+      : 0;
+    const managerCoverageHrsPerWk = storeSettingsMap.get(store.label) ?? 0;
+    const trueUncoveredHrsPerWk = Math.max(0, uncoveredHoursPerWk - managerCoverageHrsPerWk);
+
     // For employees with no explicit preference, use last 6 wk avg as the
     // suggested baseline (matches Ben's "pre-seed with 6-wk avg" call).
     const here = baristas.filter((b) => b.primaryStore === store.label);
@@ -2116,6 +2193,9 @@ export async function buildHiringNeedsReport(
       gapHours: Math.round(gapHours * 10) / 10,
       hiresNeeded,
       baristaCount: here.length,
+      uncoveredHoursPerWk: Math.round(uncoveredHoursPerWk * 10) / 10,
+      managerCoverageHrsPerWk: Math.round(managerCoverageHrsPerWk * 10) / 10,
+      trueUncoveredHrsPerWk: Math.round(trueUncoveredHrsPerWk * 10) / 10,
     };
   });
 
@@ -2141,6 +2221,19 @@ export function setEmployeePreference(
        notes = COALESCE(excluded.notes, employee_preferences.notes),
        updated_at = excluded.updated_at`,
   ).run(employeeId, preferredHours, notes, Date.now());
+}
+
+export function setStoreManagerCoverage(
+  storeLabel: string,
+  hoursPerWk: number,
+): void {
+  db.prepare(
+    `INSERT INTO store_settings (store_label, manager_coverage_hrs_per_wk, updated_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT(store_label) DO UPDATE SET
+       manager_coverage_hrs_per_wk = excluded.manager_coverage_hrs_per_wk,
+       updated_at = excluded.updated_at`,
+  ).run(storeLabel, hoursPerWk, Date.now());
 }
 
 let prewarmInFlight: Promise<void> | null = null;

@@ -20,6 +20,7 @@ import {
   prewarmEmployeeHours,
   readToken,
   setEmployeePreference,
+  setStoreManagerCoverage,
   STORES,
   syncDailySales,
   writeToken,
@@ -114,6 +115,22 @@ router.get('/dripos/hiring-needs', requireAuth, async (_req: AuthRequest, res: R
       message: err instanceof Error ? err.message : String(err),
     });
   }
+});
+
+router.put('/dripos/store-settings/:storeLabel', requireAuth, (req: AuthRequest, res: Response) => {
+  const label = String(req.params.storeLabel || '').toUpperCase();
+  if (!STORES.some((s) => s.label === label)) {
+    res.status(400).json({ error: 'invalid_store_label' });
+    return;
+  }
+  const raw = req.body?.managerCoverageHrsPerWk;
+  const hrs = raw === null || raw === undefined || raw === '' ? 0 : Number(raw);
+  if (!Number.isFinite(hrs) || hrs < 0 || hrs > 200) {
+    res.status(400).json({ error: 'invalid_hours', message: 'Must be between 0 and 200.' });
+    return;
+  }
+  setStoreManagerCoverage(label, hrs);
+  res.json({ ok: true });
 });
 
 router.put('/dripos/preferences/:employeeId', requireAuth, (req: AuthRequest, res: Response) => {
