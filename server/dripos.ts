@@ -543,6 +543,11 @@ interface DriposProduct {
   CATEGORY_ID: number;
   ARCHIVED?: number;
   INVENTORY?: number | null;
+  /** Either a full image URL (Dripos default product images) or a bare
+   *  filename like "1758634796887-P1082.jpg" that resolves under the
+   *  Dripos CloudFront CDN. Resolved by resolveImageUrl in bake-haus.ts. */
+  LOGO?: string | null;
+  LOGO_LOW?: string | null;
 }
 
 /**

@@ -21,7 +21,7 @@ interface WeekReport {
   };
 }
 
-interface CatalogItem { name: string; sort: number }
+interface CatalogItem { name: string; sort: number; imageUrl?: string | null }
 
 /** Per-store city labels shown next to the G1/G2/G3/G4 code. */
 const STORE_CITIES: Record<string, string> = {
@@ -446,18 +446,20 @@ function StoreOrderCard({
       row: OrderRow | null;
       sort: number;
       custom: boolean;
+      imageUrl: string | null;
     }> = catalog.map((c) => ({
       name: c.name,
       row: rowByName.get(c.name) ?? null,
       sort: c.sort,
       custom: false,
+      imageUrl: c.imageUrl ?? null,
     }));
     // Append any rows whose item isn't in the catalog — these are ad-hoc
     // additions and live at the bottom so they don't break the catalog
     // ordering.
     for (const r of rows) {
       if (!catalogNames.has(r.itemName)) {
-        cart.push({ name: r.itemName, row: r, sort: 9999, custom: true });
+        cart.push({ name: r.itemName, row: r, sort: 9999, custom: true, imageUrl: null });
       }
     }
     return cart;
@@ -512,6 +514,7 @@ function StoreOrderCard({
           {renderItems.map((it) => (
             <CartRowEditor key={it.name}
               itemName={it.name}
+              imageUrl={it.imageUrl}
               row={it.row}
               isCustom={it.custom}
               inactiveBg={theme.rowAlt}
@@ -591,9 +594,10 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, row, isCustom, inactiveBg, onSave, onDelete,
+  itemName, imageUrl, row, isCustom, inactiveBg, onSave, onDelete,
 }: {
   itemName: string;
+  imageUrl?: string | null;
   row: OrderRow | null;
   isCustom: boolean;
   inactiveBg: string;
@@ -631,19 +635,38 @@ function CartRowEditor({
     }}>
       <Td>
         <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 12,
           color: active ? '#1a1a1a' : 'rgba(0,0,0,0.45)',
           fontWeight: active ? 500 : 400,
           fontSize: 16,
           fontFamily: 'var(--font-body)',
         }}>
-          {itemName}
-          {isCustom && (
+          {imageUrl ? (
+            <img src={imageUrl} alt="" loading="lazy"
+              style={{
+                width: 40, height: 40, borderRadius: 6,
+                objectFit: 'cover', flexShrink: 0,
+                opacity: active ? 1 : 0.55,
+                background: 'rgba(0,0,0,0.04)',
+              }}
+            />
+          ) : (
             <span style={{
-              marginLeft: 6, fontSize: 9, fontWeight: 700,
-              color: 'rgba(0,0,0,0.35)', letterSpacing: 0.5,
-              textTransform: 'uppercase',
-            }}>custom</span>
+              display: 'inline-block', width: 40, height: 40,
+              borderRadius: 6, flexShrink: 0,
+              background: 'rgba(0,0,0,0.04)',
+            }} />
           )}
+          <span>
+            {itemName}
+            {isCustom && (
+              <span style={{
+                marginLeft: 6, fontSize: 9, fontWeight: 700,
+                color: 'rgba(0,0,0,0.35)', letterSpacing: 0.5,
+                textTransform: 'uppercase',
+              }}>custom</span>
+            )}
+          </span>
         </span>
       </Td>
       <Td align="right">
@@ -768,9 +791,24 @@ function DeliveryCard({
           </tr>
         </thead>
         <tbody>
-          {itemNames.map((name) => (
+          {itemNames.map((name) => {
+            const imageUrl = catalog.find((c) => c.name === name)?.imageUrl;
+            return (
             <tr key={name} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
-              <Td style={{ fontSize: 14 }}>{name}</Td>
+              <Td style={{ fontSize: 14 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  {imageUrl ? (
+                    <img src={imageUrl} alt="" loading="lazy"
+                      style={{
+                        width: 28, height: 28, borderRadius: 5,
+                        objectFit: 'cover', flexShrink: 0,
+                        background: 'rgba(0,0,0,0.04)',
+                      }}
+                    />
+                  ) : null}
+                  <span>{name}</span>
+                </span>
+              </Td>
               {stores.map((s) => {
                 const q = items[name]?.[s];
                 return (
@@ -780,7 +818,8 @@ function DeliveryCard({
                 );
               })}
             </tr>
-          ))}
+            );
+          })}
           {itemNames.length === 0 && (
             <tr><Td colSpan={1 + stores.length} style={{
               textAlign: 'center', padding: 18, color: 'rgba(0,0,0,0.4)', fontSize: 12,

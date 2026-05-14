@@ -7,7 +7,20 @@
  * down by the chef on prep days and handled outside this system.
  */
 import db from './db.js';
-import { STORES } from './dripos.js';
+import { fetchInventory, STORES } from './dripos.js';
+
+/** CDN base for Dripos product images. The /products endpoint returns
+ *  each item's LOGO field as either:
+ *    - a full `http(s)://...` URL (Dripos default product images), or
+ *    - a bare filename like `1758634796887-P1082.jpg` for custom uploads.
+ *  Custom-upload filenames resolve under this CloudFront distribution. */
+const DRIPOS_IMAGE_CDN = 'https://d3ahdv1y47pkz0.cloudfront.net';
+
+function resolveImageUrl(logo: string | null | undefined): string | null {
+  if (!logo) return null;
+  if (logo.startsWith('http://') || logo.startsWith('https://')) return logo;
+  return `${DRIPOS_IMAGE_CDN}/${logo}`;
+}
 
 /** Master catalog of food items the kitchen produces. Seeded from the
  *  four order sheets Ben shared (May 4 & May 11, 2026). Aliases let
@@ -45,6 +58,77 @@ export function canonicalizeItemName(input: string): string {
     if (item.aliases.some((a) => a === lower)) return item.name;
   }
   return input.trim();
+}
+
+/** Strip punctuation + lowercase + collapse whitespace so fuzzy-matching
+ *  catalog names against Dripos product names is forgiving of "&" vs
+ *  "and", trailing tags like "(GF, DF)", etc. */
+function normalizeForMatch(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9\s]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Resolve a catalog item's image URL by matching against the Dripos
+ *  Bake Haus product list. Match is "does the Dripos product name
+ *  contain every meaningful token of the catalog name?" — handles
+ *  variations like "Bacon, Egg, & Cheese Strudel" ↔ "Bacon, Egg & Cheese". */
+function findImageForCatalogItem(
+  item: BakeHausItem,
+  products: Array<{ NAME: string; LOGO?: string | null }>,
+): string | null {
+  const wantTokens = new Set(normalizeForMatch(item.name).split(' ').filter(Boolean));
+  // Aliases give us more match surface (e.g., "BEC" should match
+  // "Bacon, Egg, & Cheese Strudel" via the BEC alias if we ever add it
+  // to the product side, but the canonical token-set match is the
+  // primary path).
+  const candidates: Array<{ logo: string; score: number }> = [];
+  for (const p of products) {
+    const have = new Set(normalizeForMatch(p.NAME).split(' ').filter(Boolean));
+    const wantArray = Array.from(wantTokens);
+    const hits = wantArray.filter((t) => have.has(t));
+    if (hits.length === 0) continue;
+    // Require at least 60% of catalog tokens to appear in the product
+    // name. Score = hit ratio, with archived/no-logo products excluded.
+    const score = hits.length / wantArray.length;
+    if (score >= 0.6 && p.LOGO) {
+      candidates.push({ logo: p.LOGO, score });
+    }
+  }
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0] ? resolveImageUrl(candidates[0].logo) : null;
+}
+
+interface CachedImageMap {
+  map: Record<string, string | null>;
+  fetchedAt: number;
+}
+let imageMapCache: CachedImageMap | null = null;
+const IMAGE_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+/** Build a map from catalog item name -> resolved image URL by joining
+ *  our static catalog against Dripos /products. Cached for an hour
+ *  since menu photos rarely change. Returns an empty map (no images
+ *  rendered, no crash) if Dripos is unavailable. */
+export async function getCatalogImageMap(): Promise<Record<string, string | null>> {
+  if (imageMapCache && Date.now() - imageMapCache.fetchedAt < IMAGE_CACHE_TTL_MS) {
+    return imageMapCache.map;
+  }
+  try {
+    const products = await fetchInventory(STORES[0].locationId);
+    const map: Record<string, string | null> = {};
+    for (const item of BAKE_HAUS_ITEMS) {
+      map[item.name] = findImageForCatalogItem(item, products);
+    }
+    imageMapCache = { map, fetchedAt: Date.now() };
+    return map;
+  } catch (err) {
+    console.warn('[bake-haus] image map fetch failed:', err instanceof Error ? err.message : err);
+    return imageMapCache?.map ?? {};
+  }
 }
 
 /**

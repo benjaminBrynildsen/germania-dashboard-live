@@ -7,6 +7,7 @@ import { STORES } from './dripos.js';
 import {
   BAKE_HAUS_ITEMS,
   deleteOrderItem,
+  getCatalogImageMap,
   getWeekReport,
   listSavedOrders,
   markOrderSaved,
@@ -17,10 +18,16 @@ import {
 
 const router = Router();
 
-router.get('/bake-haus/catalog', requireAuth, (_req: AuthRequest, res: Response) => {
+router.get('/bake-haus/catalog', requireAuth, async (_req: AuthRequest, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  const imageMap = await getCatalogImageMap();
   res.json({
     ok: true,
-    items: BAKE_HAUS_ITEMS.map(({ name, sort }) => ({ name, sort })),
+    items: BAKE_HAUS_ITEMS.map(({ name, sort }) => ({
+      name,
+      sort,
+      imageUrl: imageMap[name] ?? null,
+    })),
   });
 });
 
