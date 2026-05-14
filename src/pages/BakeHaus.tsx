@@ -672,7 +672,7 @@ function CartRowEditor({
           {imageUrl ? (
             <img src={imageUrl} alt="" loading="lazy"
               style={{
-                width: 52, height: 52, borderRadius: 8,
+                width: 68, height: 68, borderRadius: 10,
                 objectFit: 'cover', flexShrink: 0,
                 opacity: active ? 1 : 0.55,
                 background: 'rgba(0,0,0,0.04)',
@@ -680,8 +680,8 @@ function CartRowEditor({
             />
           ) : (
             <span style={{
-              display: 'inline-block', width: 52, height: 52,
-              borderRadius: 8, flexShrink: 0,
+              display: 'inline-block', width: 68, height: 68,
+              borderRadius: 10, flexShrink: 0,
               background: 'rgba(0,0,0,0.04)',
             }} />
           )}
@@ -819,24 +819,9 @@ function DeliveryCard({
           </tr>
         </thead>
         <tbody>
-          {itemNames.map((name) => {
-            const imageUrl = catalog.find((c) => c.name === name)?.imageUrl;
-            return (
+          {itemNames.map((name) => (
             <tr key={name} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
-              <Td style={{ fontSize: 14 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  {imageUrl ? (
-                    <img src={imageUrl} alt="" loading="lazy"
-                      style={{
-                        width: 28, height: 28, borderRadius: 5,
-                        objectFit: 'cover', flexShrink: 0,
-                        background: 'rgba(0,0,0,0.04)',
-                      }}
-                    />
-                  ) : null}
-                  <span>{name}</span>
-                </span>
-              </Td>
+              <Td style={{ fontSize: 14 }}>{name}</Td>
               {stores.map((s) => {
                 const q = items[name]?.[s];
                 return (
@@ -846,8 +831,7 @@ function DeliveryCard({
                 );
               })}
             </tr>
-            );
-          })}
+          ))}
           {itemNames.length === 0 && (
             <tr><Td colSpan={1 + stores.length} style={{
               textAlign: 'center', padding: 18, color: 'rgba(0,0,0,0.4)', fontSize: 12,
