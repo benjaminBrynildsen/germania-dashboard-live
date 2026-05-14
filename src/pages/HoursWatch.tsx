@@ -10,6 +10,9 @@ interface EmployeeWeekHours {
   weeksWithHours: number;
   rollingAvg: number;
   last4WkAvg: number;
+  last13WkAvg: number;
+  dateStartedMs: number | null;
+  weeksSinceHire: number | null;
 }
 
 interface EmployeeHoursReport {
@@ -29,10 +32,13 @@ interface DerivedRow {
   weeklyHours: number[];     // sliced to current window
   weekStartsMs: number[];    // matching weeks
   totalHours: number;
-  rollingAvg: number;        // total / window length
+  rollingAvg: number;        // total / min(window weeks, weeks since hire)
   last4WkAvg: number;
+  last13WkAvg: number;
   weeksWithHours: number;
   windowWeeks: number;
+  weeksSinceHire: number | null;
+  dateStartedMs: number | null;
 }
 
 const STORES = ['G1', 'G2', 'G3', 'G4'];
@@ -65,8 +71,24 @@ function deriveRows(
   return report.employees.map((e) => {
     const wh = e.weeklyHours.slice(startIdx);
     const total = wh.reduce((a, b) => a + b, 0);
+    // Denominator is the smaller of the window size and the number of
+    // weeks since this employee was hired (capped at window size). For a
+    // hire who started inside the window we further cap at how many of
+    // the windowed weeks fell on or after their hire date.
+    let weeksInWindowSinceHire = windowWeeks;
+    if (e.dateStartedMs != null) {
+      weeksInWindowSinceHire = slicedWeekStarts.filter(
+        (ms) => ms + 6 * 24 * 60 * 60 * 1000 >= e.dateStartedMs!,
+      ).length;
+      if (weeksInWindowSinceHire < 1) weeksInWindowSinceHire = 1;
+    }
+    const rollingDenom = Math.min(windowWeeks, weeksInWindowSinceHire);
     const last4 = wh.slice(-4);
-    const last4Avg = last4.length > 0 ? last4.reduce((a, b) => a + b, 0) / Math.min(4, last4.length) : 0;
+    const last4Denom = Math.max(1, Math.min(4, weeksInWindowSinceHire));
+    const last4Avg = last4.reduce((a, b) => a + b, 0) / last4Denom;
+    const last13 = wh.slice(-13);
+    const last13Denom = Math.max(1, Math.min(13, weeksInWindowSinceHire));
+    const last13Avg = last13.reduce((a, b) => a + b, 0) / last13Denom;
     return {
       employeeId: e.employeeId,
       fullName: e.fullName,
@@ -74,12 +96,23 @@ function deriveRows(
       weeklyHours: wh,
       weekStartsMs: slicedWeekStarts,
       totalHours: Math.round(total * 100) / 100,
-      rollingAvg: Math.round((total / windowWeeks) * 100) / 100,
+      rollingAvg: Math.round((total / rollingDenom) * 100) / 100,
       last4WkAvg: Math.round(last4Avg * 100) / 100,
+      last13WkAvg: Math.round(last13Avg * 100) / 100,
       weeksWithHours: wh.filter((h) => h > 0).length,
-      windowWeeks,
+      windowWeeks: rollingDenom,
+      weeksSinceHire: e.weeksSinceHire,
+      dateStartedMs: e.dateStartedMs,
     };
   });
+}
+
+function tenureLabel(weeksSinceHire: number | null): string {
+  if (weeksSinceHire == null) return '—';
+  if (weeksSinceHire < 52) return `${weeksSinceHire}w`;
+  const years = Math.floor(weeksSinceHire / 52);
+  const remWeeks = weeksSinceHire - years * 52;
+  return remWeeks === 0 ? `${years}y` : `${years}y ${remWeeks}w`;
 }
 
 export default function HoursWatch() {
@@ -154,7 +187,10 @@ export default function HoursWatch() {
         <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>Hours Watch</h1>
         <p style={{ color: 'rgba(0,0,0,0.4)', fontSize: 14, marginTop: 4 }}>
           Rolling average weekly hours per employee. Goal: keep under 30 hr/wk for QSEHRA eligibility.
-          Training and pure-management hours are excluded.
+          Training and pure-management hours are excluded. For employees hired in the last 52 weeks
+          the average is divided by weeks-since-hire, not 52, so new hires aren't diluted by pre-hire
+          zero weeks. The <strong>13 wk avg</strong> column is the closer proxy for QSEHRA's
+          "customary weekly employment" test.
         </p>
       </div>
 
@@ -266,7 +302,9 @@ export default function HoursWatch() {
                   <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
                     <Th>Name</Th>
                     <Th>Store</Th>
+                    <Th align="right">Tenure</Th>
                     <Th align="right">{avgColLabel}</Th>
+                    <Th align="right">13 wk avg</Th>
                     <Th align="right">Last 4 wk</Th>
                     <Th align="right">Total hrs</Th>
                     <Th align="right">Wks worked</Th>
@@ -295,10 +333,19 @@ export default function HoursWatch() {
                             <strong>{e.fullName}</strong>
                           </Td>
                           <Td>{e.primaryStore}</Td>
+                          <Td align="right" style={{
+                            fontVariantNumeric: 'tabular-nums',
+                            color: e.weeksSinceHire != null && e.weeksSinceHire < 52 ? '#9a3412' : 'rgba(0,0,0,0.5)',
+                          }} title={e.dateStartedMs ? `Hired ${new Date(e.dateStartedMs).toLocaleDateString()}` : 'Hire date unknown'}>
+                            {tenureLabel(e.weeksSinceHire)}
+                          </Td>
                           <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
                             {e.rollingAvg.toFixed(1)}
                           </Td>
                           <Td align="right" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            {e.last13WkAvg.toFixed(1)}
+                          </Td>
+                          <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>
                             {e.last4WkAvg.toFixed(1)}
                           </Td>
                           <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>
@@ -317,7 +364,7 @@ export default function HoursWatch() {
                         </tr>
                         {expanded && (
                           <tr>
-                            <td colSpan={7} style={{
+                            <td colSpan={9} style={{
                               padding: '8px 0 18px',
                               background: 'rgba(0,0,0,0.015)',
                               borderTop: '1px solid rgba(0,0,0,0.04)',
@@ -331,7 +378,7 @@ export default function HoursWatch() {
                     );
                   })}
                   {filtered.length === 0 && (
-                    <tr><Td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'rgba(0,0,0,0.4)' }}>
+                    <tr><Td colSpan={9} style={{ textAlign: 'center', padding: 32, color: 'rgba(0,0,0,0.4)' }}>
                       No employees match the filters.
                     </Td></tr>
                   )}
@@ -488,15 +535,16 @@ function Th({ children, align }: { children: React.ReactNode; align?: 'left' | '
 }
 
 function Td({
-  children, align, style, colSpan,
+  children, align, style, colSpan, title,
 }: {
   children: React.ReactNode;
   align?: 'left' | 'right';
   style?: React.CSSProperties;
   colSpan?: number;
+  title?: string;
 }) {
   return (
-    <td colSpan={colSpan} style={{
+    <td colSpan={colSpan} title={title} style={{
       textAlign: align ?? 'left',
       padding: '10px 16px', whiteSpace: 'nowrap',
       ...style,

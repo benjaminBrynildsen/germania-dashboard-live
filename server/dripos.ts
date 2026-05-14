@@ -1651,6 +1651,45 @@ export function isCountedRole(roleName: string | null | undefined): boolean {
   return true;
 }
 
+interface RawEmployee {
+  ID: number;
+  FULL_NAME?: string | null;
+  DATE_STARTED?: number | null;
+  ACTIVE?: number;
+}
+
+/**
+ * Pull the full employee directory. Used to look up each person's hire
+ * date so the rolling-avg denominator can be capped to weeks-since-hire
+ * (a new hire averaging 40 hr/wk for 6 months reads as 40, not 20). Cached
+ * for an hour — employee records don't change that often.
+ */
+export async function fetchEmployeeDirectory(): Promise<Map<number, { fullName: string; dateStartedMs: number | null }>> {
+  const oneHourFromNow = Date.now() + 60 * 60 * 1000;
+  const rows = await cached<RawEmployee[]>(
+    'employees|directory',
+    oneHourFromNow,
+    async () => {
+      // Header location is required by callApi; the /employees endpoint
+      // returns the full chain-wide directory regardless of which store
+      // we pass.
+      const body = await callApi<RawEmployee[]>('/employees', {
+        locationId: STORES[0].locationId,
+      });
+      return (body.data ?? []) as RawEmployee[];
+    },
+  );
+  const map = new Map<number, { fullName: string; dateStartedMs: number | null }>();
+  for (const r of rows) {
+    if (r.ID == null) continue;
+    map.set(r.ID, {
+      fullName: r.FULL_NAME ?? `Employee ${r.ID}`,
+      dateStartedMs: r.DATE_STARTED ?? null,
+    });
+  }
+  return map;
+}
+
 async function fetchTimesheetsRaw(
   startMs: number,
   endMs: number,
@@ -1695,8 +1734,15 @@ export interface EmployeeWeekHours {
   weeklyHours: number[];  // length 52, oldest → newest
   totalHours: number;
   weeksWithHours: number;
-  rollingAvg: number;     // total / 52
+  rollingAvg: number;     // total / min(52, weeksSinceHire)
   last4WkAvg: number;
+  last13WkAvg: number;
+  /** Epoch ms of the hire date per Dripos /employees DATE_STARTED, if known. */
+  dateStartedMs: number | null;
+  /** Weeks elapsed between hire date and the end of the window. Capped at 52
+   *  for the rolling-avg denominator but reported uncapped here so the UI
+   *  can show "1y 4w" type tenure strings. */
+  weeksSinceHire: number | null;
 }
 
 export interface EmployeeHoursReport {
@@ -1733,6 +1779,14 @@ export async function buildEmployeeHoursReport(
   }
 
   const perEmpWeek = new Map<number, { name: string; storeCounts: Record<string, number>; hours: number[] }>();
+
+  // Kick off the employee directory pull in parallel with the timesheets —
+  // it's a single cheap call so it'll finish first, but starting it now
+  // saves a round trip at the end.
+  const directoryPromise = fetchEmployeeDirectory().catch((err) => {
+    console.warn('[employee-hours] directory fetch failed:', err instanceof Error ? err.message : err);
+    return new Map<number, { fullName: string; dateStartedMs: number | null }>();
+  });
 
   // Fan out as 52 weeks × 4 stores = 208 small calls. Each single-week-
   // single-store request returns in ~2s; bundling weeks or stores together
@@ -1797,24 +1851,47 @@ export async function buildEmployeeHoursReport(
     }
   }
 
+  const directory = await directoryPromise;
+  // Anchor "now" at the END of the most-recent week we're tracking so
+  // weeksSinceHire is stable across cache refreshes on the same window.
+  const windowEndMs = weekStarts[weekStarts.length - 1].getTime() + 7 * 24 * 60 * 60 * 1000 - 1;
   const employees: EmployeeWeekHours[] = [];
   for (const [empId, row] of perEmpWeek) {
     const totalHours = row.hours.reduce((a, b) => a + b, 0);
     const weeksWithHours = row.hours.filter((h) => h > 0).length;
-    const rollingAvg = totalHours / NUM_WEEKS;
+    const dirEntry = directory.get(empId);
+    const dateStartedMs = dirEntry?.dateStartedMs ?? null;
+    const weeksSinceHire = dateStartedMs != null
+      ? Math.max(1, Math.floor((windowEndMs - dateStartedMs) / (7 * 24 * 60 * 60 * 1000)))
+      : null;
+    // Denominator: weeks elapsed since hire, capped at the rolling window
+    // length. New hires with < 52 weeks of tenure don't get diluted by
+    // pre-hire zero weeks — matches how QSEHRA's "customary weekly
+    // employment" is read in practice.
+    const rollingDenom = weeksSinceHire != null
+      ? Math.min(NUM_WEEKS, weeksSinceHire)
+      : NUM_WEEKS;
+    const rollingAvg = totalHours / rollingDenom;
     const last4 = row.hours.slice(-4);
-    const last4WkAvg = last4.reduce((a, b) => a + b, 0) / 4;
+    const last4Denom = weeksSinceHire != null ? Math.min(4, weeksSinceHire) : 4;
+    const last4WkAvg = last4.reduce((a, b) => a + b, 0) / last4Denom;
+    const last13 = row.hours.slice(-13);
+    const last13Denom = weeksSinceHire != null ? Math.min(13, weeksSinceHire) : 13;
+    const last13WkAvg = last13.reduce((a, b) => a + b, 0) / last13Denom;
     const primaryStore = Object.entries(row.storeCounts)
       .sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—';
     employees.push({
       employeeId: empId,
-      fullName: row.name,
+      fullName: dirEntry?.fullName ?? row.name,
       primaryStore,
       weeklyHours: row.hours.map((h) => Math.round(h * 100) / 100),
       totalHours: Math.round(totalHours * 100) / 100,
       weeksWithHours,
       rollingAvg: Math.round(rollingAvg * 100) / 100,
       last4WkAvg: Math.round(last4WkAvg * 100) / 100,
+      last13WkAvg: Math.round(last13WkAvg * 100) / 100,
+      dateStartedMs,
+      weeksSinceHire,
     });
   }
 
