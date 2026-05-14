@@ -524,13 +524,34 @@ function StoreOrderCard({
           {orderedRows.length} items · {total} total
         </span>
       </div>
-      <ItemColumns
-        items={renderItems}
-        theme={theme}
-        isMobile={isMobile}
-        onSave={onSave}
-        onDelete={onDelete}
-      />
+      <table style={{
+        width: '100%', borderCollapse: 'collapse',
+        fontSize: 14, fontFamily: 'var(--font-body)',
+      }}>
+        <thead>
+          <tr style={{ background: theme.rowAlt }}>
+            <Th>Item</Th>
+            <Th align="right">Week</Th>
+            <Th align="right">Mon</Th>
+            <Th align="right">Wed</Th>
+            <Th align="right">Fri</Th>
+            <Th />
+          </tr>
+        </thead>
+        <tbody>
+          {renderItems.map((it) => (
+            <CartRowEditor key={it.name}
+              itemName={it.name}
+              imageUrl={it.imageUrl}
+              row={it.row}
+              isCustom={it.custom}
+              inactiveBg={theme.rowAlt}
+              onSave={(qty) => onSave(it.name, qty)}
+              onDelete={() => onDelete(it.name)}
+            />
+          ))}
+        </tbody>
+      </table>
       <div style={{
         padding: '10px 18px',
         borderTop: `1px solid ${theme.border}`,
@@ -596,73 +617,6 @@ function StoreOrderCard({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-interface RenderItem {
-  name: string;
-  row: OrderRow | null;
-  sort: number;
-  custom: boolean;
-  imageUrl: string | null;
-}
-
-function ItemColumns({
-  items, theme, isMobile, onSave, onDelete,
-}: {
-  items: RenderItem[];
-  theme: { rowAlt: string };
-  isMobile: boolean;
-  onSave: (item: string, qty: number) => void;
-  onDelete: (item: string) => void;
-}) {
-  // Split into 2 columns on desktop so a typical 9-item order fits in
-  // one screen-height. Left column gets the ceil(n/2) leftmost items.
-  const columns = useMemo(() => {
-    if (isMobile) return [items];
-    const half = Math.ceil(items.length / 2);
-    return [items.slice(0, half), items.slice(half)];
-  }, [items, isMobile]);
-
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
-      gap: 0,
-    }}>
-      {columns.map((col, i) => (
-        <table key={i} style={{
-          width: '100%', borderCollapse: 'collapse',
-          fontSize: 14, fontFamily: 'var(--font-body)',
-          // Divider line between the two desktop columns.
-          borderLeft: i > 0 ? '1px solid rgba(0,0,0,0.05)' : undefined,
-        }}>
-          <thead>
-            <tr style={{ background: theme.rowAlt }}>
-              <Th>Item</Th>
-              <Th align="right">Week</Th>
-              <Th align="right">Mon</Th>
-              <Th align="right">Wed</Th>
-              <Th align="right">Fri</Th>
-              <Th />
-            </tr>
-          </thead>
-          <tbody>
-            {col.map((it) => (
-              <CartRowEditor key={it.name}
-                itemName={it.name}
-                imageUrl={it.imageUrl}
-                row={it.row}
-                isCustom={it.custom}
-                inactiveBg={theme.rowAlt}
-                onSave={(qty) => onSave(it.name, qty)}
-                onDelete={() => onDelete(it.name)}
-              />
-            ))}
-          </tbody>
-        </table>
-      ))}
     </div>
   );
 }
