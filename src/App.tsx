@@ -18,6 +18,7 @@ import Terms from './pages/Terms';
 import Applicants from './pages/Applicants';
 import HoursWatch from './pages/HoursWatch';
 import Staffing from './pages/Staffing';
+import BakeHaus from './pages/BakeHaus';
 
 export default function App() {
   const { user, loading, logout } = useAuth();
@@ -74,6 +75,7 @@ export default function App() {
         <Route path="/cog" element={<CogManager />} />
         <Route path="/applicants" element={<Applicants />} />
         <Route path="/staffing" element={<Staffing />} />
+        <Route path="/bake-haus" element={<BakeHaus />} />
         {/* Legacy alias so old /hours bookmarks still resolve. */}
         <Route path="/hours" element={<HoursWatch />} />
         <Route path="/privacy" element={<Privacy />} />

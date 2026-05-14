@@ -8,6 +8,7 @@ import apiRouter from './routes.js';
 import anomalyRouter from './anomaly-routes.js';
 import driposRouter from './dripos-routes.js';
 import applicantsRouter from './applicants-routes.js';
+import bakeHausRouter from './bake-haus-routes.js';
 import { startReviewSync } from './places.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +23,7 @@ app.use('/api', apiRouter);
 app.use('/api', anomalyRouter);
 app.use('/api', driposRouter);
 app.use('/api', applicantsRouter);
+app.use('/api', bakeHausRouter);
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '..', 'dist');

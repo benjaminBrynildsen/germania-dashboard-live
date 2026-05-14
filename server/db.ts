@@ -195,6 +195,21 @@ db.exec(`
     notes TEXT,
     updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
   );
+
+  -- Bake Haus weekly orders. One row per (week × store × item). The
+  -- week_start_iso is the Monday of the week (YYYY-MM-DD). Weekly qty
+  -- is what Joe/Tristan are ordering from Chef Maggie; the Mon/Wed/Fri
+  -- split is computed on the fly (2/7-2/7-3/7 by default) rather than
+  -- persisted, so changes to the split formula don't require migration.
+  CREATE TABLE IF NOT EXISTS bake_haus_orders (
+    week_start_iso TEXT NOT NULL,
+    store_label TEXT NOT NULL,
+    item_name TEXT NOT NULL,
+    weekly_qty REAL NOT NULL,
+    notes TEXT,
+    updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
+    PRIMARY KEY (week_start_iso, store_label, item_name)
+  );
 `);
 
 // Apply additional schema (sales_daily, weather_daily, closure_decisions)
