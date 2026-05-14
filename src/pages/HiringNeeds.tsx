@@ -91,10 +91,6 @@ export default function HiringNeeds() {
       });
   }, [report, hideInactive, storeFilter]);
 
-  const filteredStoreCards = useMemo(() => {
-    if (!report) return [];
-    return report.byStore.filter((s) => storeFilter.has(s.storeLabel));
-  }, [report, storeFilter]);
 
   /** Persist a preferred-hours value for one employee. The summary cards
    *  reload from the server so the gap recomputes. */
@@ -152,10 +148,20 @@ export default function HiringNeeds() {
 
       {report && (
         <>
-          {/* Store filter chips */}
+          {/* Per-store summary cards — always all four; the filter below
+              only narrows the barista list, not the chain overview. */}
           <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: 8,
-            alignItems: 'center', marginBottom: 14,
+            display: 'grid',
+            gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+            gap: 12, marginBottom: 24,
+          }}>
+            {report.byStore.map((s) => <StoreCard key={s.storeLabel} s={s} buffer={report.buffer} />)}
+          </div>
+
+          {/* Filter row — store chips + hide-inactive, sits just above the
+              barista list so it visually scopes that list. */}
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12,
           }}>
             <span style={{
               fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5,
@@ -174,26 +180,9 @@ export default function HiringNeeds() {
                   }}>{s}</button>
               );
             })}
-          </div>
-
-          {/* Per-store summary cards (filtered) */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile
-              ? `repeat(${Math.min(2, filteredStoreCards.length || 1)}, 1fr)`
-              : `repeat(${Math.min(4, filteredStoreCards.length || 1)}, 1fr)`,
-            gap: 12, marginBottom: 24,
-          }}>
-            {filteredStoreCards.map((s) => <StoreCard key={s.storeLabel} s={s} buffer={report.buffer} />)}
-          </div>
-
-          {/* Filter row */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
-          }}>
             <label style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: 12, color: 'rgba(0,0,0,0.6)', cursor: 'pointer',
+              fontSize: 12, color: 'rgba(0,0,0,0.6)', marginLeft: 12, cursor: 'pointer',
             }}>
               <input type="checkbox" checked={hideInactive}
                 onChange={(e) => setHideInactive(e.target.checked)} />
