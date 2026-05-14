@@ -7,6 +7,8 @@ interface OrderRow {
   itemName: string;
   weeklyQty: number;
   notes: string | null;
+  onHand: number;
+  netQty: number;
   delivery: { mon: number; wed: number; fri: number };
 }
 
@@ -19,6 +21,8 @@ interface WeekReport {
     wed: Record<string, Record<string, number>>;
     fri: Record<string, Record<string, number>>;
   };
+  inventoryByStore: Record<string, Record<string, number>>;
+  inventoryFetchedAt: number;
 }
 
 interface CatalogItem { name: string; sort: number; imageUrl?: string | null }
@@ -287,6 +291,8 @@ export default function BakeHaus() {
                   store={activeStore}
                   rows={report.byStore[activeStore] ?? []}
                   catalog={catalog}
+                  inventory={report.inventoryByStore[activeStore] ?? {}}
+                  inventoryFetchedAt={report.inventoryFetchedAt}
                   savedAt={report.savedAtByStore[activeStore] ?? null}
                   saving={savingStores.has(activeStore)}
                   isMobile={isMobile}
@@ -446,11 +452,13 @@ function getTheme(store: string) {
 }
 
 function StoreOrderCard({
-  store, rows, catalog, savedAt, saving, isMobile, onSaveOrder, onSave, onDelete,
+  store, rows, catalog, inventory, inventoryFetchedAt, savedAt, saving, isMobile, onSaveOrder, onSave, onDelete,
 }: {
   store: string;
   rows: OrderRow[];
   catalog: CatalogItem[];
+  inventory: Record<string, number>;
+  inventoryFetchedAt: number;
   savedAt: number | null;
   saving: boolean;
   isMobile: boolean;
@@ -510,6 +518,7 @@ function StoreOrderCard({
         padding: '14px 18px',
         background: theme.headerBg, color: theme.headerFg,
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+        flexWrap: 'wrap', gap: 8,
       }}>
         <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>
           {store}
@@ -521,7 +530,8 @@ function StoreOrderCard({
           )}
         </span>
         <span style={{ fontSize: 12, color: theme.accent }}>
-          {orderedRows.length} items · {total} total
+          {orderedRows.length} items · {total} ordered ·{' '}
+          Inventory @ {new Date(inventoryFetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
         </span>
       </div>
       <table style={{
@@ -531,6 +541,7 @@ function StoreOrderCard({
         <thead>
           <tr style={{ background: theme.rowAlt }}>
             <Th>Item</Th>
+            <Th align="right">On hand</Th>
             <Th align="right">Week</Th>
             <Th align="right">Mon</Th>
             <Th align="right">Wed</Th>
@@ -544,6 +555,7 @@ function StoreOrderCard({
               itemName={it.name}
               imageUrl={it.imageUrl}
               row={it.row}
+              onHand={inventory[it.name] ?? 0}
               isCustom={it.custom}
               inactiveBg={theme.rowAlt}
               onSave={(qty) => onSave(it.name, qty)}
@@ -622,11 +634,12 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, imageUrl, row, isCustom, inactiveBg, onSave, onDelete,
+  itemName, imageUrl, row, onHand, isCustom, inactiveBg, onSave, onDelete,
 }: {
   itemName: string;
   imageUrl?: string | null;
   row: OrderRow | null;
+  onHand: number;
   isCustom: boolean;
   inactiveBg: string;
   onSave: (qty: number) => void;
@@ -697,6 +710,10 @@ function CartRowEditor({
           </span>
         </span>
       </Td>
+      <Td align="right" style={{
+        fontVariantNumeric: 'tabular-nums',
+        color: onHand > 0 ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.25)',
+      }}>{onHand}</Td>
       <Td align="right">
         <div style={{
           display: 'inline-flex', alignItems: 'stretch',

@@ -31,7 +31,7 @@ router.get('/bake-haus/catalog', requireAuth, async (_req: AuthRequest, res: Res
   });
 });
 
-router.get('/bake-haus/week', requireAuth, (req: AuthRequest, res: Response) => {
+router.get('/bake-haus/week', requireAuth, async (req: AuthRequest, res: Response) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   const weekParam = String(req.query.week ?? '').trim();
   const week = weekParam || mondayOfWeek();
@@ -39,7 +39,7 @@ router.get('/bake-haus/week', requireAuth, (req: AuthRequest, res: Response) => 
     res.status(400).json({ error: 'invalid_week', message: 'Expected YYYY-MM-DD.' });
     return;
   }
-  const report = getWeekReport(week);
+  const report = await getWeekReport(week);
   res.json({ ok: true, report, stores: STORES.map((s) => s.label) });
 });
 

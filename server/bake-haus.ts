@@ -130,6 +130,63 @@ export async function getCatalogImageMap(): Promise<Record<string, string | null
   }
 }
 
+/** Per-store, per-catalog-item current on-hand inventory from Dripos.
+ *  Inventory moves fast (sells through the day), so cached for only
+ *  2 minutes — refresh per page load is too much, stale-by-an-hour
+ *  is misleading. Missing items / null inventory show as 0. */
+interface CachedInventoryMap {
+  map: Record<string, Record<string, number>>;
+  fetchedAt: number;
+}
+let inventoryMapCache: CachedInventoryMap | null = null;
+const INVENTORY_CACHE_TTL_MS = 2 * 60 * 1000;
+
+export async function getBakeHausInventoryByStore(): Promise<Record<string, Record<string, number>>> {
+  if (inventoryMapCache && Date.now() - inventoryMapCache.fetchedAt < INVENTORY_CACHE_TTL_MS) {
+    return inventoryMapCache.map;
+  }
+  const map: Record<string, Record<string, number>> = {};
+  for (const store of STORES) map[store.label] = {};
+
+  await Promise.all(STORES.map(async (store) => {
+    try {
+      const products = await fetchInventory(store.locationId);
+      for (const item of BAKE_HAUS_ITEMS) {
+        const found = findProductForCatalogItem(item, products);
+        if (found && typeof found.INVENTORY === 'number') {
+          map[store.label][item.name] = found.INVENTORY;
+        }
+      }
+    } catch (err) {
+      console.warn(`[bake-haus] inventory fetch for ${store.label} failed:`, err instanceof Error ? err.message : err);
+    }
+  }));
+
+  inventoryMapCache = { map, fetchedAt: Date.now() };
+  return map;
+}
+
+/** Token-set fuzzy match. Used by both image and inventory lookups —
+ *  same matching logic, different field on the matched product. */
+function findProductForCatalogItem(
+  item: BakeHausItem,
+  products: Array<{ NAME: string; INVENTORY?: number | null; LOGO?: string | null; ARCHIVED?: number }>,
+): { NAME: string; INVENTORY?: number | null; LOGO?: string | null } | null {
+  const wantTokens = new Set(normalizeForMatch(item.name).split(' ').filter(Boolean));
+  const candidates: Array<{ p: typeof products[number]; score: number }> = [];
+  for (const p of products) {
+    if (p.ARCHIVED) continue;
+    const have = new Set(normalizeForMatch(p.NAME).split(' ').filter(Boolean));
+    const wantArray = Array.from(wantTokens);
+    const hits = wantArray.filter((t) => have.has(t));
+    if (hits.length === 0) continue;
+    const score = hits.length / wantArray.length;
+    if (score >= 0.6) candidates.push({ p, score });
+  }
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0]?.p ?? null;
+}
+
 /**
  * Split a weekly qty across the three deliveries (Mon/Wed/Fri).
  *
@@ -177,7 +234,12 @@ export interface BakeHausOrderRow {
   itemName: string;
   weeklyQty: number;
   notes: string | null;
-  /** Computed Mon/Wed/Fri split. */
+  /** Current Dripos on-hand inventory for this (store, item). 0 if no
+   *  inventory tracking or no Dripos product match. */
+  onHand: number;
+  /** Net qty to deliver = max(0, weeklyQty - onHand). */
+  netQty: number;
+  /** Mon/Wed/Fri split of netQty. */
   delivery: { mon: number; wed: number; fri: number };
 }
 
@@ -189,12 +251,19 @@ export interface BakeHausWeekReport {
   /** Per-store rows, sorted by the canonical item catalog order. */
   byStore: Record<string, BakeHausOrderRow[]>;
   /** Cross-store summary: for each delivery day (mon/wed/fri), a map of
-   *  item -> per-store qty. Useful for the chef's day-of pull sheet. */
+   *  item -> per-store qty. Reflects the NET split (i.e., already
+   *  accounts for on-hand inventory). */
   deliverySummary: {
     mon: Record<string, Record<string, number>>;
     wed: Record<string, Record<string, number>>;
     fri: Record<string, Record<string, number>>;
   };
+  /** Per-store, per-item current Dripos on-hand inventory. Surfaced so
+   *  the order card can show it inline ("on hand: 8") even when the
+   *  store has no order row yet. */
+  inventoryByStore: Record<string, Record<string, number>>;
+  /** When the inventory snapshot was fetched (ms epoch). */
+  inventoryFetchedAt: number;
 }
 
 interface DbRow {
@@ -211,12 +280,16 @@ function itemSortKey(name: string): number {
   return found?.sort ?? 1000;
 }
 
-export function getWeekReport(weekStartIso: string): BakeHausWeekReport {
+export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekReport> {
   const rows = db.prepare(
     `SELECT week_start_iso, store_label, item_name, weekly_qty, notes
      FROM bake_haus_orders
      WHERE week_start_iso = ?`,
   ).all(weekStartIso) as DbRow[];
+
+  // Pull current Dripos inventory in parallel with everything else. Cache
+  // protects us if Dripos is slow/down — falls back to empty map.
+  const inventoryByStore = await getBakeHausInventoryByStore().catch(() => ({} as Record<string, Record<string, number>>));
 
   const byStore: Record<string, BakeHausOrderRow[]> = {};
   for (const store of STORES) byStore[store.label] = [];
@@ -228,13 +301,17 @@ export function getWeekReport(weekStartIso: string): BakeHausWeekReport {
   };
 
   for (const r of rows) {
-    const split = splitForDeliveries(r.weekly_qty);
+    const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
+    const netQty = Math.max(0, r.weekly_qty - onHand);
+    const split = splitForDeliveries(netQty);
     const row: BakeHausOrderRow = {
       weekStartIso: r.week_start_iso,
       storeLabel: r.store_label,
       itemName: r.item_name,
       weeklyQty: r.weekly_qty,
       notes: r.notes,
+      onHand,
+      netQty,
       delivery: split,
     };
     if (!byStore[r.store_label]) byStore[r.store_label] = [];
@@ -267,6 +344,8 @@ export function getWeekReport(weekStartIso: string): BakeHausWeekReport {
     savedAtByStore,
     byStore,
     deliverySummary,
+    inventoryByStore,
+    inventoryFetchedAt: inventoryMapCache?.fetchedAt ?? Date.now(),
   };
 }
 
