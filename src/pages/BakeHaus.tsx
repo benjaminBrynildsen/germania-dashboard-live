@@ -205,16 +205,38 @@ function StoreOrderCard({
   onSave: (item: string, qty: number) => void;
   onDelete: (item: string) => void;
 }) {
-  // Items not yet ordered this week (so the user can add them in one click).
-  const orderedNames = useMemo(() => new Set(rows.map((r) => r.itemName)), [rows]);
-  const availableCatalog = useMemo(
-    () => catalog.filter((c) => !orderedNames.has(c.name)),
-    [catalog, orderedNames],
-  );
+  // Cart-style: render every catalog item by default, with the qty pre-
+  // filled from an existing order row if there is one. Items the user
+  // typed in ad-hoc that aren't in the catalog get appended at the end.
+  const rowByName = useMemo(() => {
+    const m = new Map<string, OrderRow>();
+    for (const r of rows) m.set(r.itemName, r);
+    return m;
+  }, [rows]);
+  const renderItems = useMemo(() => {
+    const catalogNames = new Set(catalog.map((c) => c.name));
+    const cart: Array<{ name: string; row: OrderRow | null; sort: number; custom: boolean }> = catalog.map((c) => ({
+      name: c.name,
+      row: rowByName.get(c.name) ?? null,
+      sort: c.sort,
+      custom: false,
+    }));
+    // Append any rows whose item isn't in the catalog — these are ad-hoc
+    // additions and live at the bottom so they don't break the catalog
+    // ordering.
+    for (const r of rows) {
+      if (!catalogNames.has(r.itemName)) {
+        cart.push({ name: r.itemName, row: r, sort: 9999, custom: true });
+      }
+    }
+    return cart;
+  }, [catalog, rows, rowByName]);
+
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
 
-  const total = rows.reduce((sum, r) => sum + r.weeklyQty, 0);
+  const orderedRows = rows.filter((r) => r.weeklyQty > 0);
+  const total = orderedRows.reduce((sum, r) => sum + r.weeklyQty, 0);
 
   return (
     <div style={{
@@ -231,7 +253,7 @@ function StoreOrderCard({
           fontSize: 16, fontWeight: 700, letterSpacing: -0.2,
         }}>{store}</span>
         <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>
-          {rows.length} items · {total} total
+          {orderedRows.length} items · {total} total
         </span>
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -246,43 +268,36 @@ function StoreOrderCard({
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <OrderRowEditor key={r.itemName}
-              row={r}
-              onSave={(qty) => onSave(r.itemName, qty)}
-              onDelete={() => onDelete(r.itemName)}
+          {renderItems.map((it) => (
+            <CartRowEditor key={it.name}
+              itemName={it.name}
+              row={it.row}
+              isCustom={it.custom}
+              onSave={(qty) => onSave(it.name, qty)}
+              onDelete={() => onDelete(it.name)}
             />
           ))}
-          {rows.length === 0 && (
-            <tr><Td colSpan={6} style={{
-              textAlign: 'center', padding: 18, color: 'rgba(0,0,0,0.4)',
-              fontSize: 12,
-            }}>
-              No items ordered for {store} this week yet.
-            </Td></tr>
-          )}
         </tbody>
       </table>
       <div style={{ padding: '10px 18px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
         {adding ? (
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-            <input list={`catalog-${store}`}
+            <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Item name"
+              placeholder="Custom item name"
               autoFocus
               style={{
                 flex: 1, minWidth: 140, padding: '6px 10px', borderRadius: 6,
                 border: '1px solid rgba(0,0,0,0.15)', fontSize: 13,
               }}
             />
-            <datalist id={`catalog-${store}`}>
-              {availableCatalog.map((c) => <option key={c.name} value={c.name} />)}
-            </datalist>
             <button onClick={() => {
               const name = newName.trim();
               if (!name) { setAdding(false); return; }
-              onSave(name, 0);
+              // Save a 1 so it appears in the cart with a real value;
+              // user can edit from there.
+              onSave(name, 1);
               setNewName('');
               setAdding(false);
             }} style={primaryBtn}>Add</button>
@@ -290,36 +305,68 @@ function StoreOrderCard({
               style={pillBtn}>Cancel</button>
           </div>
         ) : (
-          <button onClick={() => setAdding(true)} style={pillBtn}>+ Add item</button>
+          <button onClick={() => setAdding(true)} style={{
+            ...pillBtn,
+            fontSize: 11, color: 'rgba(0,0,0,0.45)',
+          }}>+ Add custom item</button>
         )}
       </div>
     </div>
   );
 }
 
-function OrderRowEditor({
-  row, onSave, onDelete,
+function CartRowEditor({
+  itemName, row, isCustom, onSave, onDelete,
 }: {
-  row: OrderRow;
+  itemName: string;
+  row: OrderRow | null;
+  isCustom: boolean;
   onSave: (qty: number) => void;
   onDelete: () => void;
 }) {
-  const [qtyText, setQtyText] = useState<string>(row.weeklyQty.toString());
+  const currentQty = row?.weeklyQty ?? 0;
+  const [qtyText, setQtyText] = useState<string>(currentQty > 0 ? currentQty.toString() : '');
 
   useEffect(() => {
-    setQtyText(row.weeklyQty.toString());
-  }, [row.weeklyQty]);
+    setQtyText(currentQty > 0 ? currentQty.toString() : '');
+  }, [currentQty]);
 
+  const active = currentQty > 0;
   return (
-    <tr style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-      <Td><span>{row.itemName}</span></Td>
+    <tr style={{
+      borderTop: '1px solid rgba(0,0,0,0.05)',
+      background: active ? 'transparent' : 'rgba(0,0,0,0.015)',
+    }}>
+      <Td>
+        <span style={{
+          color: active ? '#1a1a1a' : 'rgba(0,0,0,0.45)',
+          fontWeight: active ? 500 : 400,
+        }}>
+          {itemName}
+          {isCustom && (
+            <span style={{
+              marginLeft: 6, fontSize: 9, fontWeight: 700,
+              color: 'rgba(0,0,0,0.35)', letterSpacing: 0.5,
+              textTransform: 'uppercase',
+            }}>custom</span>
+          )}
+        </span>
+      </Td>
       <Td align="right">
         <input type="number" min={0} max={100000} step={0.5}
           value={qtyText}
+          placeholder="0"
           onChange={(e) => setQtyText(e.target.value)}
           onBlur={(e) => {
-            const next = Number(e.target.value);
-            if (Number.isFinite(next) && next !== row.weeklyQty) onSave(next);
+            const raw = e.target.value.trim();
+            const next = raw === '' ? 0 : Number(raw);
+            if (!Number.isFinite(next) || next < 0) {
+              setQtyText(currentQty > 0 ? currentQty.toString() : '');
+              return;
+            }
+            if (next === currentQty) return;
+            if (next <= 0 && currentQty > 0) onDelete();
+            else if (next > 0) onSave(next);
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
@@ -328,16 +375,29 @@ function OrderRowEditor({
             width: 64, padding: '3px 8px', borderRadius: 6,
             border: '1px solid rgba(0,0,0,0.15)', fontSize: 13,
             fontVariantNumeric: 'tabular-nums', textAlign: 'right',
+            background: active ? '#fff' : 'rgba(0,0,0,0.02)',
+            color: active ? '#1a1a1a' : 'rgba(0,0,0,0.5)',
           }}
         />
       </Td>
-      <Td align="right" style={delivCell}>{fmtNum(row.delivery.mon)}</Td>
-      <Td align="right" style={delivCell}>{fmtNum(row.delivery.wed)}</Td>
-      <Td align="right" style={delivCell}>{fmtNum(row.delivery.fri)}</Td>
+      <Td align="right" style={{
+        ...delivCell,
+        color: active ? delivCell.color : 'rgba(0,0,0,0.18)',
+      }}>{active ? fmtNum(row!.delivery.mon) : '—'}</Td>
+      <Td align="right" style={{
+        ...delivCell,
+        color: active ? delivCell.color : 'rgba(0,0,0,0.18)',
+      }}>{active ? fmtNum(row!.delivery.wed) : '—'}</Td>
+      <Td align="right" style={{
+        ...delivCell,
+        color: active ? delivCell.color : 'rgba(0,0,0,0.18)',
+      }}>{active ? fmtNum(row!.delivery.fri) : '—'}</Td>
       <Td align="right">
-        <button onClick={() => {
-          if (confirm(`Remove ${row.itemName} from this order?`)) onDelete();
-        }} style={iconBtn} title="Remove">×</button>
+        {isCustom && active && (
+          <button onClick={() => {
+            if (confirm(`Remove ${itemName} from this order?`)) onDelete();
+          }} style={iconBtn} title="Remove">×</button>
+        )}
       </Td>
     </tr>
   );
