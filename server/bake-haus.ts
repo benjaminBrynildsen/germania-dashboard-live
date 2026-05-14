@@ -31,8 +31,7 @@ export const BAKE_HAUS_ITEMS: BakeHausItem[] = [
   { name: 'Croffle - Strawberry Nutella',  aliases: ['nutella croffle', 'strawberry nutella croffle', 'strawberry croffle'], sort: 50 },
   { name: 'Energy Bites',                  aliases: ['energy bites', 'energy bite'], sort: 60 },
   { name: 'Overnight Oats',                aliases: ['overnight oats', 'overnite oats'], sort: 70 },
-  { name: 'Maple Brown Sugar Scone',       aliases: ['mbs scone', 'maple brown sugar scone', 'maple scone'], sort: 80 },
-  { name: 'Scones',                        aliases: ['scones', 'scone'], sort: 85 },
+  { name: 'Maple Brown Sugar Scone',       aliases: ['mbs scone', 'maple brown sugar scone', 'maple scone', 'scones', 'scone'], sort: 80 },
   { name: 'Waffles',                       aliases: ['waffles', 'waffle'], sort: 90 },
 ];
 
