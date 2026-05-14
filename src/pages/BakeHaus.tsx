@@ -79,6 +79,7 @@ export default function BakeHaus() {
   const [error, setError] = useState<string | null>(null);
   // Per-store saving state so multiple cards could save in parallel.
   const [savingStores, setSavingStores] = useState<Set<string>>(new Set());
+  const [activeStore, setActiveStore] = useState<string>('G1');
 
   const loadWeek = useCallback(async (iso: string) => {
     setLoading(true);
@@ -249,24 +250,50 @@ export default function BakeHaus() {
 
           {report && (
             <>
-              {/* Per-store order cards */}
+              {/* Store selector — pills colored by house theme so the
+                  currently-selected store is unmistakable. */}
               <div style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
-                gap: 16, marginBottom: 32,
+                display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18,
               }}>
-                {stores.map((store) => (
-                  <StoreOrderCard key={store}
-                    store={store}
-                    rows={report.byStore[store] ?? []}
-                    catalog={catalog}
-                    savedAt={report.savedAtByStore[store] ?? null}
-                    saving={savingStores.has(store)}
-                    onSaveOrder={() => saveStore(store)}
-                    onSave={(item, qty) => saveItem(store, item, qty)}
-                    onDelete={(item) => deleteItem(store, item)}
-                  />
-                ))}
+                {stores.map((store) => {
+                  const theme = getTheme(store);
+                  const on = activeStore === store;
+                  const city = STORE_CITIES[store];
+                  return (
+                    <button key={store} onClick={() => setActiveStore(store)}
+                      style={{
+                        padding: '10px 18px', borderRadius: 12,
+                        border: on ? `2px solid ${theme.headerBg}` : '1px solid rgba(0,0,0,0.12)',
+                        background: on ? theme.headerBg : '#fff',
+                        color: on ? theme.headerFg : 'rgba(0,0,0,0.6)',
+                        fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}>
+                      {store}{city && (<>
+                        <span style={{
+                          marginLeft: 6, fontWeight: 500, opacity: on ? 0.85 : 0.55,
+                          textTransform: 'uppercase', fontSize: 11,
+                        }}>· {city}</span>
+                      </>)}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Single full-width store order card */}
+              <div style={{ marginBottom: 32 }}>
+                <StoreOrderCard
+                  store={activeStore}
+                  rows={report.byStore[activeStore] ?? []}
+                  catalog={catalog}
+                  savedAt={report.savedAtByStore[activeStore] ?? null}
+                  saving={savingStores.has(activeStore)}
+                  isMobile={isMobile}
+                  onSaveOrder={() => saveStore(activeStore)}
+                  onSave={(item, qty) => saveItem(activeStore, item, qty)}
+                  onDelete={(item) => deleteItem(activeStore, item)}
+                />
               </div>
 
               {/* Cross-store delivery summary */}
@@ -419,13 +446,14 @@ function getTheme(store: string) {
 }
 
 function StoreOrderCard({
-  store, rows, catalog, savedAt, saving, onSaveOrder, onSave, onDelete,
+  store, rows, catalog, savedAt, saving, isMobile, onSaveOrder, onSave, onDelete,
 }: {
   store: string;
   rows: OrderRow[];
   catalog: CatalogItem[];
   savedAt: number | null;
   saving: boolean;
+  isMobile: boolean;
   onSaveOrder: () => void;
   onSave: (item: string, qty: number) => void;
   onDelete: (item: string) => void;
@@ -496,34 +524,13 @@ function StoreOrderCard({
           {orderedRows.length} items · {total} total
         </span>
       </div>
-      <table style={{
-        width: '100%', borderCollapse: 'collapse',
-        fontSize: 14, fontFamily: 'var(--font-body)',
-      }}>
-        <thead>
-          <tr style={{ background: theme.rowAlt }}>
-            <Th>Item</Th>
-            <Th align="right">Week</Th>
-            <Th align="right">Mon</Th>
-            <Th align="right">Wed</Th>
-            <Th align="right">Fri</Th>
-            <Th />
-          </tr>
-        </thead>
-        <tbody>
-          {renderItems.map((it) => (
-            <CartRowEditor key={it.name}
-              itemName={it.name}
-              imageUrl={it.imageUrl}
-              row={it.row}
-              isCustom={it.custom}
-              inactiveBg={theme.rowAlt}
-              onSave={(qty) => onSave(it.name, qty)}
-              onDelete={() => onDelete(it.name)}
-            />
-          ))}
-        </tbody>
-      </table>
+      <ItemColumns
+        items={renderItems}
+        theme={theme}
+        isMobile={isMobile}
+        onSave={onSave}
+        onDelete={onDelete}
+      />
       <div style={{
         padding: '10px 18px',
         borderTop: `1px solid ${theme.border}`,
@@ -593,6 +600,73 @@ function StoreOrderCard({
   );
 }
 
+interface RenderItem {
+  name: string;
+  row: OrderRow | null;
+  sort: number;
+  custom: boolean;
+  imageUrl: string | null;
+}
+
+function ItemColumns({
+  items, theme, isMobile, onSave, onDelete,
+}: {
+  items: RenderItem[];
+  theme: { rowAlt: string };
+  isMobile: boolean;
+  onSave: (item: string, qty: number) => void;
+  onDelete: (item: string) => void;
+}) {
+  // Split into 2 columns on desktop so a typical 9-item order fits in
+  // one screen-height. Left column gets the ceil(n/2) leftmost items.
+  const columns = useMemo(() => {
+    if (isMobile) return [items];
+    const half = Math.ceil(items.length / 2);
+    return [items.slice(0, half), items.slice(half)];
+  }, [items, isMobile]);
+
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+      gap: 0,
+    }}>
+      {columns.map((col, i) => (
+        <table key={i} style={{
+          width: '100%', borderCollapse: 'collapse',
+          fontSize: 14, fontFamily: 'var(--font-body)',
+          // Divider line between the two desktop columns.
+          borderLeft: i > 0 ? '1px solid rgba(0,0,0,0.05)' : undefined,
+        }}>
+          <thead>
+            <tr style={{ background: theme.rowAlt }}>
+              <Th>Item</Th>
+              <Th align="right">Week</Th>
+              <Th align="right">Mon</Th>
+              <Th align="right">Wed</Th>
+              <Th align="right">Fri</Th>
+              <Th />
+            </tr>
+          </thead>
+          <tbody>
+            {col.map((it) => (
+              <CartRowEditor key={it.name}
+                itemName={it.name}
+                imageUrl={it.imageUrl}
+                row={it.row}
+                isCustom={it.custom}
+                inactiveBg={theme.rowAlt}
+                onSave={(qty) => onSave(it.name, qty)}
+                onDelete={() => onDelete(it.name)}
+              />
+            ))}
+          </tbody>
+        </table>
+      ))}
+    </div>
+  );
+}
+
 function CartRowEditor({
   itemName, imageUrl, row, isCustom, inactiveBg, onSave, onDelete,
 }: {
@@ -644,7 +718,7 @@ function CartRowEditor({
           {imageUrl ? (
             <img src={imageUrl} alt="" loading="lazy"
               style={{
-                width: 40, height: 40, borderRadius: 6,
+                width: 52, height: 52, borderRadius: 8,
                 objectFit: 'cover', flexShrink: 0,
                 opacity: active ? 1 : 0.55,
                 background: 'rgba(0,0,0,0.04)',
@@ -652,8 +726,8 @@ function CartRowEditor({
             />
           ) : (
             <span style={{
-              display: 'inline-block', width: 40, height: 40,
-              borderRadius: 6, flexShrink: 0,
+              display: 'inline-block', width: 52, height: 52,
+              borderRadius: 8, flexShrink: 0,
               background: 'rgba(0,0,0,0.04)',
             }} />
           )}
