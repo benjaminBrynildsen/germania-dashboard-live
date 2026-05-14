@@ -16,6 +16,7 @@ import {
   fetchDailyTicketAndSales,
   loginComplete,
   loginInitiate,
+  prewarmEmployeeHours,
   readToken,
   STORES,
   syncDailySales,
@@ -84,6 +85,15 @@ router.get('/dripos/ticket-time', requireAuth, async (req: AuthRequest, res: Res
       message: err instanceof Error ? err.message : String(err),
     });
   }
+});
+
+// Fire-and-forget pre-warm. Kicks off the 52-wk × 4-store pull in the
+// background and returns 202 immediately. Useful when /employee-hours is
+// taking too long on cold cache — you hit /prewarm, walk away, and come
+// back when the table is filled in.
+router.post('/dripos/employee-hours/prewarm', requireAuth, (_req: AuthRequest, res: Response) => {
+  prewarmEmployeeHours();
+  res.status(202).json({ ok: true, message: 'Pre-warm started in background. Check server logs for [prewarm-hours] completion.' });
 });
 
 router.get('/dripos/employee-hours', requireAuth, async (req: AuthRequest, res: Response) => {

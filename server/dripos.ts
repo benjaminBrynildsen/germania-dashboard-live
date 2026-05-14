@@ -1654,22 +1654,21 @@ export function isCountedRole(roleName: string | null | undefined): boolean {
 async function fetchTimesheetsRaw(
   startMs: number,
   endMs: number,
+  locationId: number,
 ): Promise<RawTimesheet[]> {
   return cached(
-    `report/timesheets|all|${startMs}|${endMs}`,
+    `report/timesheets|${locationId}|${startMs}|${endMs}`,
     endMs,
     async () => {
       const body = await callApi<{ ALL_TIMESHEETS?: RawTimesheet[] }>(
         '/report/timesheets',
         {
           method: 'POST',
-          // Header location is required by callApi shape but the endpoint
-          // reads LOCATION_ID_ARRAY from the body. Pass any store id.
-          locationId: STORES[0].locationId,
+          locationId,
           body: {
             START_EPOCH: startMs,
             END_EPOCH: endMs,
-            LOCATION_ID_ARRAY: STORES.map((s) => s.locationId),
+            LOCATION_ID_ARRAY: [locationId],
             TIP_CALCULATION_METHOD: 'DAILY',
           },
         },
@@ -1735,29 +1734,49 @@ export async function buildEmployeeHoursReport(
 
   const perEmpWeek = new Map<number, { name: string; storeCounts: Record<string, number>; hours: number[] }>();
 
-  // Pull every week in parallel — the cached() layer dedupes inside a request
-  // and Dripos's per-week response is fast enough that 52 in parallel completes
-  // in ~30s where 52 sequential takes 5+ minutes (and 504s on Render).
-  // The DRIPOS_MAX_CONCURRENT semaphore already gates real concurrency to 6.
-  // Use allSettled so one slow/failed week doesn't tank the whole report —
-  // failed weeks show as zero hours but the rest of the data renders.
-  const weekResults = await Promise.allSettled(
-    weekStarts.map((sun) => {
+  // Fan out as 52 weeks × 4 stores = 208 small calls. Each single-week-
+  // single-store request returns in ~2s; bundling weeks or stores together
+  // scales linearly with data volume (a 4-week-4-store request took 58s in
+  // testing) so MANY SMALL CALLS WIN. The cached() layer dedupes inside a
+  // request and persists each cell forever once successful, so subsequent
+  // page loads pull from SQLite (~ms) instead of Dripos. allSettled keeps
+  // one bad cell from tanking the whole report.
+  const cells: Array<{ weekIdx: number; locationId: number }> = [];
+  for (let i = 0; i < weekStarts.length; i++) {
+    for (const store of STORES) {
+      cells.push({ weekIdx: i, locationId: store.locationId });
+    }
+  }
+  const cellResults = await Promise.allSettled(
+    cells.map(({ weekIdx, locationId }) => {
+      const sun = weekStarts[weekIdx];
       const sat = new Date(sun);
       sat.setDate(sun.getDate() + 6);
       sat.setHours(23, 59, 59, 999);
-      return fetchTimesheetsRaw(sun.getTime(), sat.getTime());
+      return fetchTimesheetsRaw(sun.getTime(), sat.getTime(), locationId);
     }),
   );
-  let weeksFetched = 0;
-  let weeksFailed = 0;
-  const weekShifts: RawTimesheet[][] = weekResults.map((r) => {
-    if (r.status === 'fulfilled') { weeksFetched++; return r.value; }
-    weeksFailed++;
-    return [];
-  });
+  const weekShifts: RawTimesheet[][] = Array.from({ length: NUM_WEEKS }, () => []);
+  const weekStatus: Array<{ ok: number; failed: number }> = Array.from(
+    { length: NUM_WEEKS }, () => ({ ok: 0, failed: 0 }),
+  );
+  for (let i = 0; i < cells.length; i++) {
+    const r = cellResults[i];
+    const { weekIdx } = cells[i];
+    if (r.status === 'fulfilled') {
+      weekShifts[weekIdx].push(...r.value);
+      weekStatus[weekIdx].ok++;
+    } else {
+      weekStatus[weekIdx].failed++;
+    }
+  }
+  // A week is "fetched" only if all 4 stores returned (so the rolling avg
+  // for that week is complete). One bad store turns the whole week into a
+  // failed week for accounting purposes.
+  const weeksFetched = weekStatus.filter((w) => w.failed === 0).length;
+  const weeksFailed = NUM_WEEKS - weeksFetched;
   if (weeksFailed > 0) {
-    console.warn(`[employee-hours] ${weeksFailed}/${weekShifts.length} weeks failed to fetch`);
+    console.warn(`[employee-hours] ${weeksFailed}/${NUM_WEEKS} weeks had at least one store fail`);
   }
 
   for (let i = 0; i < weekShifts.length; i++) {
@@ -1810,4 +1829,32 @@ export async function buildEmployeeHoursReport(
     weeksFailed,
     employees,
   };
+}
+
+/**
+ * Kick off a full 52-week pull in the background and discard the result.
+ * The act of running it populates dripos_cache with every (week × store)
+ * cell, so the next HTTP request to /api/dripos/employee-hours reads from
+ * SQLite in milliseconds. Safe to call multiple times — already-cached
+ * cells short-circuit instantly. Errors are logged but never thrown so
+ * this won't crash the process when called fire-and-forget.
+ */
+let prewarmInFlight: Promise<void> | null = null;
+export function prewarmEmployeeHours(): Promise<void> {
+  if (prewarmInFlight) return prewarmInFlight;
+  prewarmInFlight = (async () => {
+    const startedAt = Date.now();
+    try {
+      const report = await buildEmployeeHoursReport();
+      const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+      console.log(
+        `[prewarm-hours] done in ${elapsed}s — ${report.weeksFetched}/${report.weeksFetched + report.weeksFailed} weeks, ${report.employees.length} employees`,
+      );
+    } catch (err) {
+      console.warn('[prewarm-hours] failed:', err instanceof Error ? err.message : err);
+    } finally {
+      prewarmInFlight = null;
+    }
+  })();
+  return prewarmInFlight;
 }

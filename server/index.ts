@@ -57,4 +57,18 @@ app.listen(PORT, () => {
   };
   setTimeout(driposSyncOnce, 10_000);
   setInterval(driposSyncOnce, 6 * 60 * 60 * 1000);
+
+  // Pre-warm the Hours Watch cache so the cold 52-wk pull happens out of
+  // band of any user request. Past weeks cache forever, so this is mostly
+  // a one-time hit after a fresh deploy; subsequent boots short-circuit
+  // every cached cell instantly. Fires 30s after boot to let the Dripos
+  // token + daily-sync settle first.
+  setTimeout(async () => {
+    try {
+      const { prewarmEmployeeHours } = await import('./dripos.js');
+      prewarmEmployeeHours();
+    } catch (err) {
+      console.warn('[boot] hours prewarm import failed:', err);
+    }
+  }, 30_000);
 });
