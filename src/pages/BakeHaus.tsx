@@ -663,10 +663,10 @@ function CartRowEditor({
     }}>
       <Td>
         <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 12,
+          display: 'inline-flex', alignItems: 'center', gap: 14,
           color: active ? '#1a1a1a' : 'rgba(0,0,0,0.45)',
           fontWeight: active ? 500 : 400,
-          fontSize: 16,
+          fontSize: 19,
           fontFamily: 'var(--font-body)',
         }}>
           {imageUrl ? (
