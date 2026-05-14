@@ -1690,16 +1690,39 @@ export async function fetchEmployeeDirectory(): Promise<Map<number, { fullName: 
   return map;
 }
 
+interface TimesheetsCell {
+  shifts: RawTimesheet[];
+  /** From the TOTALS object on /report/timesheets — what the schedule
+   *  called for this week at this location. Used as the "scheduled
+   *  hours" demand baseline for Hiring Needs. */
+  scheduledMinutes: number;
+}
+
 async function fetchTimesheetsRaw(
   startMs: number,
   endMs: number,
   locationId: number,
 ): Promise<RawTimesheet[]> {
+  const cell = await fetchTimesheetsCell(startMs, endMs, locationId);
+  return cell.shifts;
+}
+
+async function fetchTimesheetsCell(
+  startMs: number,
+  endMs: number,
+  locationId: number,
+): Promise<TimesheetsCell> {
+  // v2 cache key: previous rows only stored shifts; we now also persist
+  // scheduledMinutes from TOTALS so Hiring Needs has a demand baseline
+  // without a second Dripos call.
   return cached(
-    `report/timesheets|${locationId}|${startMs}|${endMs}`,
+    `report/timesheets|v2|${locationId}|${startMs}|${endMs}`,
     endMs,
     async () => {
-      const body = await callApi<{ ALL_TIMESHEETS?: RawTimesheet[] }>(
+      const body = await callApi<{
+        ALL_TIMESHEETS?: RawTimesheet[];
+        TOTALS?: { AMOUNT_MINUTES_SCHEDULED?: number };
+      }>(
         '/report/timesheets',
         {
           method: 'POST',
@@ -1713,16 +1736,18 @@ async function fetchTimesheetsRaw(
         },
       );
       const rows = body.data?.ALL_TIMESHEETS ?? [];
-      // Drop everything except the few fields we need so the cache row
-      // stays small — full shift records carry ~50 fields each.
-      return rows.map((r) => ({
-        EMPLOYEE_ID: r.EMPLOYEE_ID,
-        FULL_NAME: r.FULL_NAME,
-        ROLE_NAME: r.ROLE_NAME ?? null,
-        LOCATION_ID: r.LOCATION_ID,
-        AMOUNT_TOTAL_MINUTES: r.AMOUNT_TOTAL_MINUTES ?? 0,
-        SHIFT_DATE_START: r.SHIFT_DATE_START ?? r.DATE_START ?? null,
-      }));
+      const scheduledMinutes = body.data?.TOTALS?.AMOUNT_MINUTES_SCHEDULED ?? 0;
+      return {
+        shifts: rows.map((r) => ({
+          EMPLOYEE_ID: r.EMPLOYEE_ID,
+          FULL_NAME: r.FULL_NAME,
+          ROLE_NAME: r.ROLE_NAME ?? null,
+          LOCATION_ID: r.LOCATION_ID,
+          AMOUNT_TOTAL_MINUTES: r.AMOUNT_TOTAL_MINUTES ?? 0,
+          SHIFT_DATE_START: r.SHIFT_DATE_START ?? r.DATE_START ?? null,
+        })),
+        scheduledMinutes,
+      };
     },
   );
 }
@@ -1807,18 +1832,24 @@ export async function buildEmployeeHoursReport(
       const sat = new Date(sun);
       sat.setDate(sun.getDate() + 6);
       sat.setHours(23, 59, 59, 999);
-      return fetchTimesheetsRaw(sun.getTime(), sat.getTime(), locationId);
+      return fetchTimesheetsCell(sun.getTime(), sat.getTime(), locationId);
     }),
   );
   const weekShifts: RawTimesheet[][] = Array.from({ length: NUM_WEEKS }, () => []);
   const weekStatus: Array<{ ok: number; failed: number }> = Array.from(
     { length: NUM_WEEKS }, () => ({ ok: 0, failed: 0 }),
   );
+  // Per-week × per-store scheduled minutes (for Hiring Needs demand baseline)
+  const scheduledByLoc = new Map<number, number[]>();
+  for (const store of STORES) {
+    scheduledByLoc.set(store.locationId, new Array(NUM_WEEKS).fill(0));
+  }
   for (let i = 0; i < cells.length; i++) {
     const r = cellResults[i];
-    const { weekIdx } = cells[i];
+    const { weekIdx, locationId } = cells[i];
     if (r.status === 'fulfilled') {
-      weekShifts[weekIdx].push(...r.value);
+      weekShifts[weekIdx].push(...r.value.shifts);
+      scheduledByLoc.get(locationId)![weekIdx] = r.value.scheduledMinutes;
       weekStatus[weekIdx].ok++;
     } else {
       weekStatus[weekIdx].failed++;
@@ -1916,6 +1947,172 @@ export async function buildEmployeeHoursReport(
  * cells short-circuit instantly. Errors are logged but never thrown so
  * this won't crash the process when called fire-and-forget.
  */
+// ── Hiring Needs (capacity planning) ─────────────────────────────────────
+// Per-store: average scheduled hr/wk × 1.15 buffer (call-off factor)
+// minus sum of barista preferred hours = gap. Divided by 30 hr/wk to
+// estimate hires needed.
+
+export const HIRING_BUFFER = 1.15;
+export const HIRES_TARGET_HRS_PER_WK = 30;
+
+interface PrefRow {
+  employee_id: number;
+  preferred_hours_per_week: number | null;
+  notes: string | null;
+}
+
+export interface StaffingBarista {
+  employeeId: number;
+  fullName: string;
+  primaryStore: string;
+  tenureWeeks: number | null;
+  last4WkAvg: number;
+  last6WkAvg: number;
+  last13WkAvg: number;
+  /** User-set preferred hours from DB. null = never set; UI falls back to
+   *  last6WkAvg as the suggested default. */
+  preferredHours: number | null;
+  notes: string | null;
+}
+
+export interface StaffingStoreSummary {
+  storeLabel: string;
+  /** Scheduled hours per week, averaged over last 4 weeks (from
+   *  AMOUNT_MINUTES_SCHEDULED in /report/timesheets totals). */
+  scheduledHoursPerWk: number;
+  /** scheduledHoursPerWk × 1.15 — the "true demand" once call-offs and
+   *  shift swaps are factored in. */
+  targetWithBuffer: number;
+  /** Sum of preferred (or suggested) hours across baristas tagged to
+   *  this store. Suggested = last 6 wk avg when no preference is set. */
+  sumPreferredHours: number;
+  gapHours: number;
+  hiresNeeded: number;
+  baristaCount: number;
+}
+
+export interface StaffingHiringNeedsReport {
+  generatedAt: number;
+  buffer: number;
+  hiresTargetHrsPerWk: number;
+  baristas: StaffingBarista[];
+  byStore: StaffingStoreSummary[];
+}
+
+/**
+ * Aggregate per-store hiring-needs report. Reuses the same per-week
+ * Dripos cache as Hours Watch, so this is fast once the cache is warm.
+ */
+export async function buildHiringNeedsReport(
+  referenceDate: Date = new Date(),
+): Promise<StaffingHiringNeedsReport> {
+  // Pull the full 52-week report (cached) so we get last-4 / last-6 /
+  // last-13 averages and the primary-store assignment for free.
+  const hoursReport = await buildEmployeeHoursReport(referenceDate);
+
+  // Re-pull just the last 4 weeks of scheduled minutes per store. This
+  // is cheap — those rows are already cached from buildEmployeeHoursReport.
+  const SCHED_LOOKBACK_WEEKS = 4;
+  const scheduledByStore: Record<string, number[]> = {};
+  for (const store of STORES) scheduledByStore[store.label] = [];
+  const lookbackPromises: Array<Promise<void>> = [];
+  for (let i = 0; i < SCHED_LOOKBACK_WEEKS; i++) {
+    const [sun] = weekBounds(referenceDate, i);
+    const sat = new Date(sun);
+    sat.setDate(sun.getDate() + 6);
+    sat.setHours(23, 59, 59, 999);
+    for (const store of STORES) {
+      lookbackPromises.push(
+        fetchTimesheetsCell(sun.getTime(), sat.getTime(), store.locationId)
+          .then((cell) => { scheduledByStore[store.label].push(cell.scheduledMinutes); })
+          .catch(() => { scheduledByStore[store.label].push(0); }),
+      );
+    }
+  }
+  await Promise.all(lookbackPromises);
+
+  // Load saved preferences from SQLite.
+  const prefRows = db.prepare(
+    'SELECT employee_id, preferred_hours_per_week, notes FROM employee_preferences',
+  ).all() as PrefRow[];
+  const prefMap = new Map<number, PrefRow>();
+  for (const r of prefRows) prefMap.set(r.employee_id, r);
+
+  // Build per-barista rows. last6WkAvg is computed from the weekly hours
+  // array we already have — slice the last 6 and average with the tenure
+  // cap.
+  const baristas: StaffingBarista[] = hoursReport.employees.map((e) => {
+    const last6 = e.weeklyHours.slice(-6);
+    const last6Denom = e.weeksSinceHire != null ? Math.min(6, e.weeksSinceHire) : 6;
+    const last6WkAvg = last6.reduce((a, b) => a + b, 0) / Math.max(1, last6Denom);
+    const pref = prefMap.get(e.employeeId);
+    return {
+      employeeId: e.employeeId,
+      fullName: e.fullName,
+      primaryStore: e.primaryStore,
+      tenureWeeks: e.weeksSinceHire,
+      last4WkAvg: e.last4WkAvg,
+      last6WkAvg: Math.round(last6WkAvg * 100) / 100,
+      last13WkAvg: e.last13WkAvg,
+      preferredHours: pref?.preferred_hours_per_week ?? null,
+      notes: pref?.notes ?? null,
+    };
+  });
+
+  // Per-store summary.
+  const byStore: StaffingStoreSummary[] = STORES.map((store) => {
+    const sched = scheduledByStore[store.label] ?? [];
+    const validSched = sched.filter((s) => s > 0);
+    const scheduledHoursPerWk = validSched.length > 0
+      ? validSched.reduce((a, b) => a + b, 0) / validSched.length / 60
+      : 0;
+    const targetWithBuffer = scheduledHoursPerWk * HIRING_BUFFER;
+    // For employees with no explicit preference, use last 6 wk avg as the
+    // suggested baseline (matches Ben's "pre-seed with 6-wk avg" call).
+    const here = baristas.filter((b) => b.primaryStore === store.label);
+    const sumPreferredHours = here.reduce(
+      (sum, b) => sum + (b.preferredHours ?? b.last6WkAvg),
+      0,
+    );
+    const gapHours = targetWithBuffer - sumPreferredHours;
+    const hiresNeeded = gapHours > 0
+      ? Math.ceil(gapHours / HIRES_TARGET_HRS_PER_WK)
+      : 0;
+    return {
+      storeLabel: store.label,
+      scheduledHoursPerWk: Math.round(scheduledHoursPerWk * 10) / 10,
+      targetWithBuffer: Math.round(targetWithBuffer * 10) / 10,
+      sumPreferredHours: Math.round(sumPreferredHours * 10) / 10,
+      gapHours: Math.round(gapHours * 10) / 10,
+      hiresNeeded,
+      baristaCount: here.length,
+    };
+  });
+
+  return {
+    generatedAt: Date.now(),
+    buffer: HIRING_BUFFER,
+    hiresTargetHrsPerWk: HIRES_TARGET_HRS_PER_WK,
+    baristas,
+    byStore,
+  };
+}
+
+export function setEmployeePreference(
+  employeeId: number,
+  preferredHours: number | null,
+  notes: string | null = null,
+): void {
+  db.prepare(
+    `INSERT INTO employee_preferences (employee_id, preferred_hours_per_week, notes, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(employee_id) DO UPDATE SET
+       preferred_hours_per_week = excluded.preferred_hours_per_week,
+       notes = COALESCE(excluded.notes, employee_preferences.notes),
+       updated_at = excluded.updated_at`,
+  ).run(employeeId, preferredHours, notes, Date.now());
+}
+
 let prewarmInFlight: Promise<void> | null = null;
 export function prewarmEmployeeHours(): Promise<void> {
   if (prewarmInFlight) return prewarmInFlight;

@@ -17,6 +17,7 @@ import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Applicants from './pages/Applicants';
 import HoursWatch from './pages/HoursWatch';
+import Staffing from './pages/Staffing';
 
 export default function App() {
   const { user, loading, logout } = useAuth();
@@ -72,6 +73,8 @@ export default function App() {
         <Route path="/weather-closure" element={<WeatherClosure />} />
         <Route path="/cog" element={<CogManager />} />
         <Route path="/applicants" element={<Applicants />} />
+        <Route path="/staffing" element={<Staffing />} />
+        {/* Legacy alias so old /hours bookmarks still resolve. */}
         <Route path="/hours" element={<HoursWatch />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />

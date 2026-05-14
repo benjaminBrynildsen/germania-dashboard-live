@@ -8,6 +8,7 @@ import {
   AuthExpired,
   NoToken,
   buildEmployeeHoursReport,
+  buildHiringNeedsReport,
   buildReport,
   buildTicketTimeReport,
   clearToken,
@@ -18,6 +19,7 @@ import {
   loginInitiate,
   prewarmEmployeeHours,
   readToken,
+  setEmployeePreference,
   STORES,
   syncDailySales,
   writeToken,
@@ -94,6 +96,44 @@ router.get('/dripos/ticket-time', requireAuth, async (req: AuthRequest, res: Res
 router.post('/dripos/employee-hours/prewarm', requireAuth, (_req: AuthRequest, res: Response) => {
   prewarmEmployeeHours();
   res.status(202).json({ ok: true, message: 'Pre-warm started in background. Check server logs for [prewarm-hours] completion.' });
+});
+
+router.get('/dripos/hiring-needs', requireAuth, async (_req: AuthRequest, res: Response) => {
+  try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    const report = await buildHiringNeedsReport();
+    res.json({ ok: true, report });
+  } catch (err) {
+    if (err instanceof NoToken || err instanceof AuthExpired) {
+      res.status(401).json({ error: 'dripos_auth_required', message: err.message });
+      return;
+    }
+    console.error('[dripos-hiring-needs] failed:', err);
+    res.status(500).json({
+      error: 'hiring_needs_failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+router.put('/dripos/preferences/:employeeId', requireAuth, (req: AuthRequest, res: Response) => {
+  const employeeId = parseInt(String(req.params.employeeId), 10);
+  if (!Number.isFinite(employeeId) || employeeId <= 0) {
+    res.status(400).json({ error: 'invalid_employee_id' });
+    return;
+  }
+  const body = req.body ?? {};
+  const rawHrs = body.preferredHours;
+  const preferredHours = rawHrs === null || rawHrs === undefined || rawHrs === ''
+    ? null
+    : Number(rawHrs);
+  if (preferredHours !== null && (!Number.isFinite(preferredHours) || preferredHours < 0 || preferredHours > 80)) {
+    res.status(400).json({ error: 'invalid_preferred_hours', message: 'Must be between 0 and 80.' });
+    return;
+  }
+  const notes = typeof body.notes === 'string' ? body.notes : null;
+  setEmployeePreference(employeeId, preferredHours, notes);
+  res.json({ ok: true });
 });
 
 router.get('/dripos/employee-hours', requireAuth, async (req: AuthRequest, res: Response) => {

@@ -151,7 +151,7 @@ function projectAvg(
   return (keptHours + newHours) / newDenom;
 }
 
-export default function HoursWatch() {
+export default function HoursWatch({ embedded = false }: { embedded?: boolean } = {}) {
   const isMobile = useIsMobile();
   const [report, setReport] = useState<EmployeeHoursReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -242,16 +242,24 @@ export default function HoursWatch() {
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>Hours Watch</h1>
-        <p style={{ color: 'rgba(0,0,0,0.4)', fontSize: 14, marginTop: 4 }}>
-          Rolling average weekly hours per employee. Goal: keep under 30 hr/wk for QSEHRA eligibility.
-          Training and pure-management hours are excluded. For employees hired in the last 52 weeks
-          the average is divided by weeks-since-hire, not 52, so new hires aren't diluted by pre-hire
-          zero weeks. The <strong>13 wk avg</strong> column is the closer proxy for QSEHRA's
-          "customary weekly employment" test.
+      {!embedded && (
+        <div style={{ marginBottom: 20 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>Hours Watch</h1>
+          <p style={{ color: 'rgba(0,0,0,0.4)', fontSize: 14, marginTop: 4 }}>
+            Rolling average weekly hours per employee. Goal: keep under 30 hr/wk for QSEHRA eligibility.
+            Training and pure-management hours are excluded. For employees hired in the last 52 weeks
+            the average is divided by weeks-since-hire, not 52, so new hires aren't diluted by pre-hire
+            zero weeks. The <strong>13 wk avg</strong> column is the closer proxy for QSEHRA's
+            "customary weekly employment" test.
+          </p>
+        </div>
+      )}
+      {embedded && (
+        <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13, marginTop: -8, marginBottom: 18 }}>
+          Rolling weekly-hour avg per employee. Goal: keep under 30 hr/wk for QSEHRA eligibility.
+          Training + pure-management hours excluded. New-hire denominator capped at weeks-since-hire.
         </p>
-      </div>
+      )}
 
       {error && (
         <div style={{

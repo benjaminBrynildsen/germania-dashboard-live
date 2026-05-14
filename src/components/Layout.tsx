@@ -22,7 +22,7 @@ const NAV_ITEMS: Array<{ to: string; label: string; exact?: boolean }> = [
 /** Less-frequently-used pages tucked into a "More ▾" dropdown on
  *  desktop. On mobile they render flat at the bottom of the drawer. */
 const MORE_ITEMS: Array<{ to: string; label: string; exact?: boolean }> = [
-  { to: '/hours', label: 'Hours' },
+  { to: '/staffing', label: 'Staffing', exact: false },
   { to: '/launches', label: 'Launches', exact: false },
   { to: '/cog', label: 'COG Manager' },
   { to: '/anomalies', label: 'Anomalies' },

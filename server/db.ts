@@ -184,6 +184,17 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   INSERT OR IGNORE INTO dripos_settings (id) VALUES (1);
+
+  -- Manager-entered preferences for capacity planning. Keyed by the
+  -- Dripos EMPLOYEE_ID so we don't worry about employee renames. NULL
+  -- preferred_hours = "not set yet" (treated as 0 in gap calcs but
+  -- surfaced in the UI as missing).
+  CREATE TABLE IF NOT EXISTS employee_preferences (
+    employee_id INTEGER PRIMARY KEY,
+    preferred_hours_per_week REAL,
+    notes TEXT,
+    updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
+  );
 `);
 
 // Apply additional schema (sales_daily, weather_daily, closure_decisions)
