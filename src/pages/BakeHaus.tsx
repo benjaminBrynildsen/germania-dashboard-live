@@ -12,7 +12,7 @@ interface OrderRow {
 
 interface WeekReport {
   weekStartIso: string;
-  savedAt: number | null;
+  savedAtByStore: Record<string, number | null>;
   byStore: Record<string, OrderRow[]>;
   deliverySummary: {
     mon: Record<string, Record<string, number>>;
@@ -21,15 +21,23 @@ interface WeekReport {
   };
 }
 
-interface CatalogItem { name: string; sort: number }
+interface CatalogItem { name: string; sort: number; emoji?: string }
 
-interface SavedWeek {
+/** Per-store city labels shown next to the G1/G2/G3/G4 code. */
+const STORE_CITIES: Record<string, string> = {
+  G1: 'Alton',
+  G2: 'Godfrey',
+  G3: 'East Gate',
+  G4: 'Jerseyville',
+};
+
+interface SavedOrder {
   weekStartIso: string;
+  storeLabel: string;
   savedAt: number;
   savedBy: string | null;
   itemCount: number;
   totalQty: number;
-  storeCount: number;
 }
 
 type Tab = 'current' | 'saved';
@@ -66,10 +74,11 @@ export default function BakeHaus() {
   const [report, setReport] = useState<WeekReport | null>(null);
   const [stores, setStores] = useState<string[]>(['G1', 'G2', 'G3', 'G4']);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
-  const [savedWeeks, setSavedWeeks] = useState<SavedWeek[]>([]);
+  const [savedOrders, setSavedOrders] = useState<SavedOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  // Per-store saving state so multiple cards could save in parallel.
+  const [savingStores, setSavingStores] = useState<Set<string>>(new Set());
 
   const loadWeek = useCallback(async (iso: string) => {
     setLoading(true);
@@ -101,37 +110,41 @@ export default function BakeHaus() {
 
   useEffect(() => { loadWeek(weekIso); }, [weekIso, loadWeek]);
 
-  const loadSavedWeeks = useCallback(async () => {
+  const loadSavedOrders = useCallback(async () => {
     try {
       const r = await fetch('/api/bake-haus/saved', { cache: 'no-store' });
       const body = await r.json();
-      if (r.ok) setSavedWeeks(body.weeks ?? []);
+      if (r.ok) setSavedOrders(body.orders ?? []);
     } catch {/* non-fatal */}
   }, []);
 
   useEffect(() => {
-    if (tab === 'saved') loadSavedWeeks();
-  }, [tab, loadSavedWeeks]);
+    if (tab === 'saved') loadSavedOrders();
+  }, [tab, loadSavedOrders]);
 
-  const saveWeek = async () => {
-    setSaving(true);
+  const saveStore = async (store: string) => {
+    setSavingStores((prev) => new Set(prev).add(store));
     setError(null);
     try {
       const r = await fetch('/api/bake-haus/save', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ week: weekIso }),
+        body: JSON.stringify({ week: weekIso, store }),
       });
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
         throw new Error(body.message || body.error || 'Save failed');
       }
       await loadWeek(weekIso);
-      await loadSavedWeeks();
+      await loadSavedOrders();
     } catch (err: any) {
       setError(err.message || String(err));
     } finally {
-      setSaving(false);
+      setSavingStores((prev) => {
+        const next = new Set(prev);
+        next.delete(store);
+        return next;
+      });
     }
   };
 
@@ -215,7 +228,7 @@ export default function BakeHaus() {
 
       {tab === 'current' && (
         <>
-          {/* Week selector + Save button */}
+          {/* Week selector */}
           <div style={{
             display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 18,
           }}>
@@ -228,29 +241,6 @@ export default function BakeHaus() {
             <span style={{
               marginLeft: 12, fontSize: 13, color: 'rgba(0,0,0,0.7)', fontWeight: 600,
             }}>{fmtDateRange(weekIso)}</span>
-            {report?.savedAt && (
-              <span style={{
-                fontSize: 11, color: '#166534', fontWeight: 600,
-                padding: '3px 8px', borderRadius: 6,
-                background: 'rgba(22, 101, 52, 0.08)',
-                marginLeft: 4,
-              }}>
-                ✓ Saved {new Date(report.savedAt).toLocaleString([], {
-                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-                })}
-              </span>
-            )}
-            <button onClick={saveWeek} disabled={saving || loading}
-              style={{
-                ...primaryBtn,
-                marginLeft: 'auto',
-                padding: '8px 18px',
-                fontSize: 13,
-                opacity: saving ? 0.6 : 1,
-                cursor: saving ? 'wait' : 'pointer',
-              }}>
-              {saving ? 'Saving…' : report?.savedAt ? 'Update saved order' : 'Save order'}
-            </button>
           </div>
 
           {loading && !report && (
@@ -270,6 +260,9 @@ export default function BakeHaus() {
                     store={store}
                     rows={report.byStore[store] ?? []}
                     catalog={catalog}
+                    savedAt={report.savedAtByStore[store] ?? null}
+                    saving={savingStores.has(store)}
+                    onSaveOrder={() => saveStore(store)}
                     onSave={(item, qty) => saveItem(store, item, qty)}
                     onDelete={(item) => deleteItem(store, item)}
                   />
@@ -299,7 +292,7 @@ export default function BakeHaus() {
 
       {tab === 'saved' && (
         <SavedOrdersList
-          weeks={savedWeeks}
+          orders={savedOrders}
           onOpen={(iso) => { setWeekIso(iso); setTab('current'); }}
         />
       )}
@@ -308,12 +301,12 @@ export default function BakeHaus() {
 }
 
 function SavedOrdersList({
-  weeks, onOpen,
+  orders, onOpen,
 }: {
-  weeks: SavedWeek[];
+  orders: SavedOrder[];
   onOpen: (weekIso: string) => void;
 }) {
-  if (weeks.length === 0) {
+  if (orders.length === 0) {
     return (
       <div style={{
         background: '#fff', borderRadius: 14,
@@ -321,8 +314,8 @@ function SavedOrdersList({
         padding: '40px 24px', textAlign: 'center',
         color: 'rgba(0,0,0,0.45)', fontSize: 14,
       }}>
-        No saved orders yet. Fill out a week's order on the Current Order tab and hit Save —
-        it'll show up here for future reference.
+        No saved orders yet. Fill out a store's order on the Current Order tab and hit Save on
+        that store's card — it'll show up here for future reference.
       </div>
     );
   }
@@ -339,50 +332,59 @@ function SavedOrdersList({
       }}>
         <thead>
           <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
+            <Th>Store</Th>
             <Th>Week</Th>
             <Th align="right">Items</Th>
             <Th align="right">Total qty</Th>
-            <Th align="right">Stores</Th>
             <Th>Saved</Th>
             <Th />
           </tr>
         </thead>
         <tbody>
-          {weeks.map((w) => (
-            <tr key={w.weekStartIso}
-              onClick={() => onOpen(w.weekStartIso)}
-              style={{
-                borderTop: '1px solid rgba(0,0,0,0.05)',
-                cursor: 'pointer',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.02)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            >
-              <Td>
-                <strong>{fmtDateRange(w.weekStartIso)}</strong>
-                {w.savedBy && (
+          {orders.map((o) => {
+            const theme = getTheme(o.storeLabel);
+            return (
+              <tr key={`${o.weekStartIso}|${o.storeLabel}`}
+                onClick={() => onOpen(o.weekStartIso)}
+                style={{
+                  borderTop: '1px solid rgba(0,0,0,0.05)',
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.02)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <Td>
                   <span style={{
-                    marginLeft: 8, fontSize: 11, color: 'rgba(0,0,0,0.45)',
-                  }}>by {w.savedBy}</span>
-                )}
-              </Td>
-              <Td align="right" style={{
-                fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.6)',
-              }}>{w.itemCount}</Td>
-              <Td align="right" style={{
-                fontVariantNumeric: 'tabular-nums', fontWeight: 600,
-              }}>{Math.round(w.totalQty)}</Td>
-              <Td align="right" style={{
-                fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.6)',
-              }}>{w.storeCount}/4</Td>
-              <Td style={{ color: 'rgba(0,0,0,0.55)', fontSize: 12 }}>
-                {new Date(w.savedAt).toLocaleString([], {
-                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-                })}
-              </Td>
-              <Td align="right" style={{ color: 'rgba(0,0,0,0.3)' }}>›</Td>
-            </tr>
-          ))}
+                    display: 'inline-block', padding: '3px 10px', borderRadius: 6,
+                    background: theme.headerBg, color: theme.headerFg,
+                    fontSize: 12, fontWeight: 700, letterSpacing: 0.4,
+                  }}>{o.storeLabel}</span>
+                  {STORE_CITIES[o.storeLabel] && (
+                    <span style={{
+                      marginLeft: 8, fontSize: 12, color: 'rgba(0,0,0,0.55)',
+                      textTransform: 'uppercase', letterSpacing: 0.4,
+                    }}>{STORE_CITIES[o.storeLabel]}</span>
+                  )}
+                </Td>
+                <Td><strong>{fmtDateRange(o.weekStartIso)}</strong></Td>
+                <Td align="right" style={{
+                  fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.6)',
+                }}>{o.itemCount}</Td>
+                <Td align="right" style={{
+                  fontVariantNumeric: 'tabular-nums', fontWeight: 600,
+                }}>{Math.round(o.totalQty)}</Td>
+                <Td style={{ color: 'rgba(0,0,0,0.55)', fontSize: 12 }}>
+                  {new Date(o.savedAt).toLocaleString([], {
+                    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                  })}
+                  {o.savedBy && (
+                    <span style={{ marginLeft: 6, color: 'rgba(0,0,0,0.4)' }}>by {o.savedBy}</span>
+                  )}
+                </Td>
+                <Td align="right" style={{ color: 'rgba(0,0,0,0.3)' }}>›</Td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -417,11 +419,14 @@ function getTheme(store: string) {
 }
 
 function StoreOrderCard({
-  store, rows, catalog, onSave, onDelete,
+  store, rows, catalog, savedAt, saving, onSaveOrder, onSave, onDelete,
 }: {
   store: string;
   rows: OrderRow[];
   catalog: CatalogItem[];
+  savedAt: number | null;
+  saving: boolean;
+  onSaveOrder: () => void;
   onSave: (item: string, qty: number) => void;
   onDelete: (item: string) => void;
 }) {
@@ -436,11 +441,18 @@ function StoreOrderCard({
   }, [rows]);
   const renderItems = useMemo(() => {
     const catalogNames = new Set(catalog.map((c) => c.name));
-    const cart: Array<{ name: string; row: OrderRow | null; sort: number; custom: boolean }> = catalog.map((c) => ({
+    const cart: Array<{
+      name: string;
+      row: OrderRow | null;
+      sort: number;
+      custom: boolean;
+      emoji?: string;
+    }> = catalog.map((c) => ({
       name: c.name,
       row: rowByName.get(c.name) ?? null,
       sort: c.sort,
       custom: false,
+      emoji: c.emoji,
     }));
     // Append any rows whose item isn't in the catalog — these are ad-hoc
     // additions and live at the bottom so they don't break the catalog
@@ -471,9 +483,15 @@ function StoreOrderCard({
         background: theme.headerBg, color: theme.headerFg,
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
       }}>
-        <span style={{
-          fontSize: 16, fontWeight: 700, letterSpacing: -0.2,
-        }}>{store}</span>
+        <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>
+          {store}
+          {STORE_CITIES[store] && (
+            <span style={{
+              fontWeight: 500, letterSpacing: 0.5, marginLeft: 8, opacity: 0.85,
+              textTransform: 'uppercase', fontSize: 13,
+            }}>— {STORE_CITIES[store]}</span>
+          )}
+        </span>
         <span style={{ fontSize: 12, color: theme.accent }}>
           {orderedRows.length} items · {total} total
         </span>
@@ -496,6 +514,7 @@ function StoreOrderCard({
           {renderItems.map((it) => (
             <CartRowEditor key={it.name}
               itemName={it.name}
+              emoji={it.emoji}
               row={it.row}
               isCustom={it.custom}
               inactiveBg={theme.rowAlt}
@@ -508,46 +527,77 @@ function StoreOrderCard({
       <div style={{
         padding: '10px 18px',
         borderTop: `1px solid ${theme.border}`,
+        display: 'flex', flexWrap: 'wrap',
+        alignItems: 'center', justifyContent: 'space-between', gap: 8,
       }}>
-        {adding ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Custom item name"
-              autoFocus
-              style={{
-                flex: 1, minWidth: 140, padding: '6px 10px', borderRadius: 6,
-                border: '1px solid rgba(0,0,0,0.15)', fontSize: 13,
-                background: '#fff',
-              }}
-            />
-            <button onClick={() => {
-              const name = newName.trim();
-              if (!name) { setAdding(false); return; }
-              onSave(name, 1);
-              setNewName('');
-              setAdding(false);
-            }} style={primaryBtn}>Add</button>
-            <button onClick={() => { setNewName(''); setAdding(false); }}
-              style={pillBtn}>Cancel</button>
-          </div>
-        ) : (
-          <button onClick={() => setAdding(true)} style={{
-            ...pillBtn,
-            fontSize: 11, color: 'rgba(0,0,0,0.5)',
-            background: 'rgba(255,255,255,0.7)',
-          }}>+ Add custom item</button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+          {adding ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Custom item name"
+                autoFocus
+                style={{
+                  flex: 1, minWidth: 140, padding: '6px 10px', borderRadius: 6,
+                  border: '1px solid rgba(0,0,0,0.15)', fontSize: 13,
+                  background: '#fff',
+                }}
+              />
+              <button onClick={() => {
+                const name = newName.trim();
+                if (!name) { setAdding(false); return; }
+                onSave(name, 1);
+                setNewName('');
+                setAdding(false);
+              }} style={primaryBtn}>Add</button>
+              <button onClick={() => { setNewName(''); setAdding(false); }}
+                style={pillBtn}>Cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setAdding(true)} style={{
+              ...pillBtn,
+              fontSize: 11, color: 'rgba(0,0,0,0.5)',
+              background: 'rgba(255,255,255,0.7)',
+            }}>+ Add custom item</button>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {savedAt && (
+            <span style={{
+              fontSize: 10, color: '#166534', fontWeight: 700, letterSpacing: 0.5,
+              padding: '3px 8px', borderRadius: 6,
+              background: 'rgba(22, 101, 52, 0.1)',
+              textTransform: 'uppercase',
+              whiteSpace: 'nowrap',
+            }}>
+              ✓ Saved {new Date(savedAt).toLocaleString([], {
+                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+              })}
+            </span>
+          )}
+          <button onClick={onSaveOrder} disabled={saving}
+            style={{
+              padding: '7px 16px', borderRadius: 8, border: 0,
+              cursor: saving ? 'wait' : 'pointer', fontSize: 12, fontWeight: 700,
+              letterSpacing: 0.4, textTransform: 'uppercase',
+              background: theme.headerBg, color: theme.headerFg,
+              opacity: saving ? 0.6 : 1,
+              whiteSpace: 'nowrap',
+            }}>
+            {saving ? 'Saving…' : savedAt ? 'Update' : 'Save'}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 function CartRowEditor({
-  itemName, row, isCustom, inactiveBg, onSave, onDelete,
+  itemName, emoji, row, isCustom, inactiveBg, onSave, onDelete,
 }: {
   itemName: string;
+  emoji?: string;
   row: OrderRow | null;
   isCustom: boolean;
   inactiveBg: string;
@@ -585,19 +635,29 @@ function CartRowEditor({
     }}>
       <Td>
         <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 10,
           color: active ? '#1a1a1a' : 'rgba(0,0,0,0.45)',
           fontWeight: active ? 500 : 400,
           fontSize: 16,
           fontFamily: 'var(--font-body)',
         }}>
-          {itemName}
-          {isCustom && (
-            <span style={{
-              marginLeft: 6, fontSize: 9, fontWeight: 700,
-              color: 'rgba(0,0,0,0.35)', letterSpacing: 0.5,
-              textTransform: 'uppercase',
-            }}>custom</span>
+          {emoji && (
+            <span aria-hidden="true" style={{
+              fontSize: 20, lineHeight: 1, width: 24, textAlign: 'center',
+              opacity: active ? 1 : 0.55,
+              filter: active ? undefined : 'grayscale(0.5)',
+            }}>{emoji}</span>
           )}
+          <span>
+            {itemName}
+            {isCustom && (
+              <span style={{
+                marginLeft: 6, fontSize: 9, fontWeight: 700,
+                color: 'rgba(0,0,0,0.35)', letterSpacing: 0.5,
+                textTransform: 'uppercase',
+              }}>custom</span>
+            )}
+          </span>
         </span>
       </Td>
       <Td align="right">
@@ -722,9 +782,20 @@ function DeliveryCard({
           </tr>
         </thead>
         <tbody>
-          {itemNames.map((name) => (
+          {itemNames.map((name) => {
+            const emoji = catalog.find((c) => c.name === name)?.emoji;
+            return (
             <tr key={name} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
-              <Td style={{ fontSize: 14 }}>{name}</Td>
+              <Td style={{ fontSize: 14 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  {emoji && (
+                    <span aria-hidden="true" style={{
+                      fontSize: 16, lineHeight: 1, width: 18, textAlign: 'center',
+                    }}>{emoji}</span>
+                  )}
+                  <span>{name}</span>
+                </span>
+              </Td>
               {stores.map((s) => {
                 const q = items[name]?.[s];
                 return (
@@ -734,7 +805,8 @@ function DeliveryCard({
                 );
               })}
             </tr>
-          ))}
+            );
+          })}
           {itemNames.length === 0 && (
             <tr><Td colSpan={1 + stores.length} style={{
               textAlign: 'center', padding: 18, color: 'rgba(0,0,0,0.4)', fontSize: 12,

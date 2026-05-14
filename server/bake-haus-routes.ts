@@ -8,10 +8,10 @@ import {
   BAKE_HAUS_ITEMS,
   deleteOrderItem,
   getWeekReport,
-  listSavedWeeks,
-  markWeekSaved,
+  listSavedOrders,
+  markOrderSaved,
   mondayOfWeek,
-  unmarkWeekSaved,
+  unmarkOrderSaved,
   upsertOrderItem,
 } from './bake-haus.js';
 
@@ -20,7 +20,7 @@ const router = Router();
 router.get('/bake-haus/catalog', requireAuth, (_req: AuthRequest, res: Response) => {
   res.json({
     ok: true,
-    items: BAKE_HAUS_ITEMS.map(({ name, sort }) => ({ name, sort })),
+    items: BAKE_HAUS_ITEMS.map(({ name, sort, emoji }) => ({ name, sort, emoji })),
   });
 });
 
@@ -70,28 +70,38 @@ router.put('/bake-haus/item', requireAuth, (req: AuthRequest, res: Response) => 
 
 router.get('/bake-haus/saved', requireAuth, (_req: AuthRequest, res: Response) => {
   res.set('Cache-Control', 'no-store');
-  const weeks = listSavedWeeks();
-  res.json({ ok: true, weeks });
+  const orders = listSavedOrders();
+  res.json({ ok: true, orders });
 });
 
 router.post('/bake-haus/save', requireAuth, (req: AuthRequest, res: Response) => {
   const week = String(req.body?.week ?? '').trim();
+  const store = String(req.body?.store ?? '').trim().toUpperCase();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
     res.status(400).json({ error: 'invalid_week' });
     return;
   }
+  if (!STORES.some((s) => s.label === store)) {
+    res.status(400).json({ error: 'invalid_store' });
+    return;
+  }
   const savedBy = req.user?.name ?? null;
-  markWeekSaved(week, savedBy);
+  markOrderSaved(week, store, savedBy);
   res.json({ ok: true, savedAt: Date.now() });
 });
 
 router.delete('/bake-haus/save', requireAuth, (req: AuthRequest, res: Response) => {
   const week = String(req.body?.week ?? '').trim();
+  const store = String(req.body?.store ?? '').trim().toUpperCase();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
     res.status(400).json({ error: 'invalid_week' });
     return;
   }
-  unmarkWeekSaved(week);
+  if (!STORES.some((s) => s.label === store)) {
+    res.status(400).json({ error: 'invalid_store' });
+    return;
+  }
+  unmarkOrderSaved(week, store);
   res.json({ ok: true });
 });
 

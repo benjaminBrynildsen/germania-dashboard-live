@@ -20,19 +20,22 @@ export interface BakeHausItem {
   aliases: string[];
   /** Sort order on the entry form. */
   sort: number;
+  /** Emoji shown next to the name as a visual icon. Easy to swap for
+   *  real photo URLs later once we have product photography. */
+  emoji: string;
 }
 
 export const BAKE_HAUS_ITEMS: BakeHausItem[] = [
-  { name: 'Bacon, Egg & Cheese',           aliases: ['bec', 'b.e.c.', 'bacon egg & cheese', 'bacon egg cheese', 'bacon, egg and cheese'], sort: 10 },
-  { name: 'Jalapeno Sausage Biscuit',      aliases: ['jalapeno sausage biscuit', 'jalapeno biscuit', 'sausage biscuit'], sort: 20 },
-  { name: 'Biscuit',                       aliases: ['biscuit'], sort: 25 },
-  { name: 'Croffle - Ham & Cheese',        aliases: ['ham & cheese croffle', 'ham&cheese croffle', 'ham and cheese croffle', 'h&c croffle'], sort: 30 },
-  { name: 'Croffle - Buffalo Chicken',     aliases: ['buffalo croffle', 'buffalo chicken croffle'], sort: 40 },
-  { name: 'Croffle - Strawberry Nutella',  aliases: ['nutella croffle', 'strawberry nutella croffle', 'strawberry croffle'], sort: 50 },
-  { name: 'Energy Bites',                  aliases: ['energy bites', 'energy bite'], sort: 60 },
-  { name: 'Overnight Oats',                aliases: ['overnight oats', 'overnite oats'], sort: 70 },
-  { name: 'Maple Brown Sugar Scone',       aliases: ['mbs scone', 'maple brown sugar scone', 'maple scone', 'scones', 'scone'], sort: 80 },
-  { name: 'Waffles',                       aliases: ['waffles', 'waffle'], sort: 90 },
+  { name: 'Bacon, Egg & Cheese',           aliases: ['bec', 'b.e.c.', 'bacon egg & cheese', 'bacon egg cheese', 'bacon, egg and cheese'], sort: 10, emoji: '🥪' },
+  { name: 'Jalapeno Sausage Biscuit',      aliases: ['jalapeno sausage biscuit', 'jalapeno biscuit', 'sausage biscuit'], sort: 20, emoji: '🌶️' },
+  { name: 'Biscuit',                       aliases: ['biscuit'], sort: 25, emoji: '🥐' },
+  { name: 'Croffle - Ham & Cheese',        aliases: ['ham & cheese croffle', 'ham&cheese croffle', 'ham and cheese croffle', 'h&c croffle'], sort: 30, emoji: '🧀' },
+  { name: 'Croffle - Buffalo Chicken',     aliases: ['buffalo croffle', 'buffalo chicken croffle'], sort: 40, emoji: '🍗' },
+  { name: 'Croffle - Strawberry Nutella',  aliases: ['nutella croffle', 'strawberry nutella croffle', 'strawberry croffle'], sort: 50, emoji: '🍓' },
+  { name: 'Energy Bites',                  aliases: ['energy bites', 'energy bite'], sort: 60, emoji: '🍫' },
+  { name: 'Overnight Oats',                aliases: ['overnight oats', 'overnite oats'], sort: 70, emoji: '🥣' },
+  { name: 'Maple Brown Sugar Scone',       aliases: ['mbs scone', 'maple brown sugar scone', 'maple scone', 'scones', 'scone'], sort: 80, emoji: '🍞' },
+  { name: 'Waffles',                       aliases: ['waffles', 'waffle'], sort: 90, emoji: '🧇' },
 ];
 
 /** Normalize an incoming item name to its canonical form if we recognize
@@ -100,9 +103,9 @@ export interface BakeHausOrderRow {
 
 export interface BakeHausWeekReport {
   weekStartIso: string;
-  /** When this week was last saved (ms epoch). null = never explicitly
-   *  saved (only auto-saved per-item edits). */
-  savedAt: number | null;
+  /** When each store's order was last saved (ms epoch). null = never
+   *  explicitly saved (only auto-saved per-item edits). */
+  savedAtByStore: Record<string, number | null>;
   /** Per-store rows, sorted by the canonical item catalog order. */
   byStore: Record<string, BakeHausOrderRow[]>;
   /** Cross-store summary: for each delivery day (mon/wed/fri), a map of
@@ -172,13 +175,16 @@ export function getWeekReport(weekStartIso: string): BakeHausWeekReport {
     );
   }
 
-  const savedRow = db.prepare(
-    'SELECT saved_at FROM bake_haus_saved_weeks WHERE week_start_iso = ?',
-  ).get(weekStartIso) as { saved_at: number } | undefined;
+  const savedRows = db.prepare(
+    'SELECT store_label, saved_at FROM bake_haus_saved_orders WHERE week_start_iso = ?',
+  ).all(weekStartIso) as Array<{ store_label: string; saved_at: number }>;
+  const savedAtByStore: Record<string, number | null> = {};
+  for (const store of STORES) savedAtByStore[store.label] = null;
+  for (const r of savedRows) savedAtByStore[r.store_label] = r.saved_at;
 
   return {
     weekStartIso,
-    savedAt: savedRow?.saved_at ?? null,
+    savedAtByStore,
     byStore,
     deliverySummary,
   };
@@ -213,52 +219,57 @@ export function deleteOrderItem(
   ).run(weekStartIso, storeLabel, canonicalizeItemName(itemName));
 }
 
-export interface SavedWeekSummary {
+export interface SavedOrderSummary {
   weekStartIso: string;
+  storeLabel: string;
   savedAt: number;
   savedBy: string | null;
   itemCount: number;
   totalQty: number;
-  storeCount: number;
 }
 
-export function markWeekSaved(weekStartIso: string, savedBy: string | null = null): void {
+export function markOrderSaved(
+  weekStartIso: string,
+  storeLabel: string,
+  savedBy: string | null = null,
+): void {
   db.prepare(
-    `INSERT INTO bake_haus_saved_weeks (week_start_iso, saved_at, saved_by)
-     VALUES (?, ?, ?)
-     ON CONFLICT(week_start_iso) DO UPDATE SET
+    `INSERT INTO bake_haus_saved_orders (week_start_iso, store_label, saved_at, saved_by)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(week_start_iso, store_label) DO UPDATE SET
        saved_at = excluded.saved_at,
-       saved_by = COALESCE(excluded.saved_by, bake_haus_saved_weeks.saved_by)`,
-  ).run(weekStartIso, Date.now(), savedBy);
+       saved_by = COALESCE(excluded.saved_by, bake_haus_saved_orders.saved_by)`,
+  ).run(weekStartIso, storeLabel, Date.now(), savedBy);
 }
 
-export function unmarkWeekSaved(weekStartIso: string): void {
-  db.prepare('DELETE FROM bake_haus_saved_weeks WHERE week_start_iso = ?').run(weekStartIso);
+export function unmarkOrderSaved(weekStartIso: string, storeLabel: string): void {
+  db.prepare(
+    'DELETE FROM bake_haus_saved_orders WHERE week_start_iso = ? AND store_label = ?',
+  ).run(weekStartIso, storeLabel);
 }
 
-export function listSavedWeeks(): SavedWeekSummary[] {
-  // Join saved_weeks with aggregated order totals so the UI doesn't have
-  // to make N follow-up requests for the per-week summary.
+export function listSavedOrders(): SavedOrderSummary[] {
+  // Join saved_orders with aggregated order totals per (week, store)
+  // so the UI doesn't have to make follow-up requests for each summary.
   const rows = db.prepare(
     `SELECT
         s.week_start_iso AS weekStartIso,
+        s.store_label    AS storeLabel,
         s.saved_at       AS savedAt,
         s.saved_by       AS savedBy,
         COALESCE(o.itemCount, 0)  AS itemCount,
-        COALESCE(o.totalQty, 0)   AS totalQty,
-        COALESCE(o.storeCount, 0) AS storeCount
-     FROM bake_haus_saved_weeks s
+        COALESCE(o.totalQty, 0)   AS totalQty
+     FROM bake_haus_saved_orders s
      LEFT JOIN (
-       SELECT week_start_iso,
+       SELECT week_start_iso, store_label,
               COUNT(*) AS itemCount,
-              SUM(weekly_qty) AS totalQty,
-              COUNT(DISTINCT store_label) AS storeCount
+              SUM(weekly_qty) AS totalQty
          FROM bake_haus_orders
          WHERE weekly_qty > 0
-        GROUP BY week_start_iso
-     ) o ON o.week_start_iso = s.week_start_iso
+        GROUP BY week_start_iso, store_label
+     ) o ON o.week_start_iso = s.week_start_iso AND o.store_label = s.store_label
      ORDER BY s.saved_at DESC`,
-  ).all() as SavedWeekSummary[];
+  ).all() as SavedOrderSummary[];
   return rows;
 }
 

@@ -211,15 +211,23 @@ db.exec(`
     PRIMARY KEY (week_start_iso, store_label, item_name)
   );
 
-  -- "This week's order is finalized / sent to chef." Joe/Tristan auto-
-  -- save edits on blur, but explicit Save adds a row here so the
-  -- Saved Orders tab has a list of submitted weeks. Re-saving the
-  -- same week just bumps the timestamp.
-  CREATE TABLE IF NOT EXISTS bake_haus_saved_weeks (
-    week_start_iso TEXT PRIMARY KEY,
+  -- "This store's order for this week is finalized / sent to chef."
+  -- Joe/Tristan auto-save edits on blur, but explicit Save adds a row
+  -- here so the Saved Orders tab has a list of submitted (week, store)
+  -- entries. Re-saving the same (week, store) just bumps the timestamp.
+  CREATE TABLE IF NOT EXISTS bake_haus_saved_orders (
+    week_start_iso TEXT NOT NULL,
+    store_label TEXT NOT NULL,
     saved_at INTEGER NOT NULL,
-    saved_by TEXT
+    saved_by TEXT,
+    PRIMARY KEY (week_start_iso, store_label)
   );
+
+  -- Predecessor table that briefly tracked save state per-week. Dropped
+  -- in favor of bake_haus_saved_orders (per-week-per-store). Safe to
+  -- drop because the feature was only live for a few hours and never
+  -- had production rows worth migrating.
+  DROP TABLE IF EXISTS bake_haus_saved_weeks;
 `);
 
 // Apply additional schema (sales_daily, weather_daily, closure_decisions)
