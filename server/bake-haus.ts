@@ -20,22 +20,19 @@ export interface BakeHausItem {
   aliases: string[];
   /** Sort order on the entry form. */
   sort: number;
-  /** Emoji shown next to the name as a visual icon. Easy to swap for
-   *  real photo URLs later once we have product photography. */
-  emoji: string;
 }
 
 export const BAKE_HAUS_ITEMS: BakeHausItem[] = [
-  { name: 'Bacon, Egg & Cheese',           aliases: ['bec', 'b.e.c.', 'bacon egg & cheese', 'bacon egg cheese', 'bacon, egg and cheese'], sort: 10, emoji: '🥪' },
-  { name: 'Jalapeno Sausage Biscuit',      aliases: ['jalapeno sausage biscuit', 'jalapeno biscuit', 'sausage biscuit'], sort: 20, emoji: '🌶️' },
-  { name: 'Biscuit',                       aliases: ['biscuit'], sort: 25, emoji: '🥐' },
-  { name: 'Croffle - Ham & Cheese',        aliases: ['ham & cheese croffle', 'ham&cheese croffle', 'ham and cheese croffle', 'h&c croffle'], sort: 30, emoji: '🧀' },
-  { name: 'Croffle - Buffalo Chicken',     aliases: ['buffalo croffle', 'buffalo chicken croffle'], sort: 40, emoji: '🍗' },
-  { name: 'Croffle - Strawberry Nutella',  aliases: ['nutella croffle', 'strawberry nutella croffle', 'strawberry croffle'], sort: 50, emoji: '🍓' },
-  { name: 'Energy Bites',                  aliases: ['energy bites', 'energy bite'], sort: 60, emoji: '🍫' },
-  { name: 'Overnight Oats',                aliases: ['overnight oats', 'overnite oats'], sort: 70, emoji: '🥣' },
-  { name: 'Maple Brown Sugar Scone',       aliases: ['mbs scone', 'maple brown sugar scone', 'maple scone', 'scones', 'scone'], sort: 80, emoji: '🍞' },
-  { name: 'Waffles',                       aliases: ['waffles', 'waffle'], sort: 90, emoji: '🧇' },
+  { name: 'Bacon, Egg & Cheese',           aliases: ['bec', 'b.e.c.', 'bacon egg & cheese', 'bacon egg cheese', 'bacon, egg and cheese'], sort: 10 },
+  { name: 'Jalapeno Sausage Biscuit',      aliases: ['jalapeno sausage biscuit', 'jalapeno biscuit', 'sausage biscuit'], sort: 20 },
+  { name: 'Biscuit',                       aliases: ['biscuit'], sort: 25 },
+  { name: 'Croffle - Ham & Cheese',        aliases: ['ham & cheese croffle', 'ham&cheese croffle', 'ham and cheese croffle', 'h&c croffle'], sort: 30 },
+  { name: 'Croffle - Buffalo Chicken',     aliases: ['buffalo croffle', 'buffalo chicken croffle'], sort: 40 },
+  { name: 'Croffle - Strawberry Nutella',  aliases: ['nutella croffle', 'strawberry nutella croffle', 'strawberry croffle'], sort: 50 },
+  { name: 'Energy Bites',                  aliases: ['energy bites', 'energy bite'], sort: 60 },
+  { name: 'Overnight Oats',                aliases: ['overnight oats', 'overnite oats'], sort: 70 },
+  { name: 'Maple Brown Sugar Scone',       aliases: ['mbs scone', 'maple brown sugar scone', 'maple scone', 'scones', 'scone'], sort: 80 },
+  { name: 'Waffles',                       aliases: ['waffles', 'waffle'], sort: 90 },
 ];
 
 /** Normalize an incoming item name to its canonical form if we recognize

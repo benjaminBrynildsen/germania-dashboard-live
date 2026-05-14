@@ -20,7 +20,7 @@ const router = Router();
 router.get('/bake-haus/catalog', requireAuth, (_req: AuthRequest, res: Response) => {
   res.json({
     ok: true,
-    items: BAKE_HAUS_ITEMS.map(({ name, sort, emoji }) => ({ name, sort, emoji })),
+    items: BAKE_HAUS_ITEMS.map(({ name, sort }) => ({ name, sort })),
   });
 });
 

@@ -21,7 +21,7 @@ interface WeekReport {
   };
 }
 
-interface CatalogItem { name: string; sort: number; emoji?: string }
+interface CatalogItem { name: string; sort: number }
 
 /** Per-store city labels shown next to the G1/G2/G3/G4 code. */
 const STORE_CITIES: Record<string, string> = {
@@ -446,13 +446,11 @@ function StoreOrderCard({
       row: OrderRow | null;
       sort: number;
       custom: boolean;
-      emoji?: string;
     }> = catalog.map((c) => ({
       name: c.name,
       row: rowByName.get(c.name) ?? null,
       sort: c.sort,
       custom: false,
-      emoji: c.emoji,
     }));
     // Append any rows whose item isn't in the catalog — these are ad-hoc
     // additions and live at the bottom so they don't break the catalog
@@ -514,7 +512,6 @@ function StoreOrderCard({
           {renderItems.map((it) => (
             <CartRowEditor key={it.name}
               itemName={it.name}
-              emoji={it.emoji}
               row={it.row}
               isCustom={it.custom}
               inactiveBg={theme.rowAlt}
@@ -594,10 +591,9 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, emoji, row, isCustom, inactiveBg, onSave, onDelete,
+  itemName, row, isCustom, inactiveBg, onSave, onDelete,
 }: {
   itemName: string;
-  emoji?: string;
   row: OrderRow | null;
   isCustom: boolean;
   inactiveBg: string;
@@ -635,29 +631,19 @@ function CartRowEditor({
     }}>
       <Td>
         <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 10,
           color: active ? '#1a1a1a' : 'rgba(0,0,0,0.45)',
           fontWeight: active ? 500 : 400,
           fontSize: 16,
           fontFamily: 'var(--font-body)',
         }}>
-          {emoji && (
-            <span aria-hidden="true" style={{
-              fontSize: 20, lineHeight: 1, width: 24, textAlign: 'center',
-              opacity: active ? 1 : 0.55,
-              filter: active ? undefined : 'grayscale(0.5)',
-            }}>{emoji}</span>
+          {itemName}
+          {isCustom && (
+            <span style={{
+              marginLeft: 6, fontSize: 9, fontWeight: 700,
+              color: 'rgba(0,0,0,0.35)', letterSpacing: 0.5,
+              textTransform: 'uppercase',
+            }}>custom</span>
           )}
-          <span>
-            {itemName}
-            {isCustom && (
-              <span style={{
-                marginLeft: 6, fontSize: 9, fontWeight: 700,
-                color: 'rgba(0,0,0,0.35)', letterSpacing: 0.5,
-                textTransform: 'uppercase',
-              }}>custom</span>
-            )}
-          </span>
         </span>
       </Td>
       <Td align="right">
@@ -782,20 +768,9 @@ function DeliveryCard({
           </tr>
         </thead>
         <tbody>
-          {itemNames.map((name) => {
-            const emoji = catalog.find((c) => c.name === name)?.emoji;
-            return (
+          {itemNames.map((name) => (
             <tr key={name} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
-              <Td style={{ fontSize: 14 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  {emoji && (
-                    <span aria-hidden="true" style={{
-                      fontSize: 16, lineHeight: 1, width: 18, textAlign: 'center',
-                    }}>{emoji}</span>
-                  )}
-                  <span>{name}</span>
-                </span>
-              </Td>
+              <Td style={{ fontSize: 14 }}>{name}</Td>
               {stores.map((s) => {
                 const q = items[name]?.[s];
                 return (
@@ -805,8 +780,7 @@ function DeliveryCard({
                 );
               })}
             </tr>
-            );
-          })}
+          ))}
           {itemNames.length === 0 && (
             <tr><Td colSpan={1 + stores.length} style={{
               textAlign: 'center', padding: 18, color: 'rgba(0,0,0,0.4)', fontSize: 12,
