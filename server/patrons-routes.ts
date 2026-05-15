@@ -5,6 +5,7 @@ import { Router, Response } from 'express';
 import { AuthExpired, NoToken } from './dripos.js';
 import { requireAuth, AuthRequest } from './auth.js';
 import {
+  buildBleedReport,
   buildFunnelReport,
   buildOverview,
   syncAllPatrons,
@@ -29,6 +30,16 @@ router.get('/patrons/funnel', requireAuth, (_req: AuthRequest, res: Response) =>
   } catch (err) {
     console.error('[patrons-funnel]', err);
     res.status(500).json({ error: 'funnel_failed', message: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+router.get('/patrons/bleed', requireAuth, (_req: AuthRequest, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    res.json({ ok: true, report: buildBleedReport() });
+  } catch (err) {
+    console.error('[patrons-bleed]', err);
+    res.status(500).json({ error: 'bleed_failed', message: err instanceof Error ? err.message : String(err) });
   }
 });
 

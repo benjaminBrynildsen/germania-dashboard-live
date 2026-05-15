@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-type Tab = 'overview' | 'funnel' | 'by-location';
+type Tab = 'overview' | 'funnel' | 'bleed' | 'by-location';
 
 interface SyncMeta {
   lastSyncedAt: number | null;
@@ -94,6 +94,36 @@ interface FunnelReport {
   monthly: FunnelMonth[];
 }
 
+interface BleedMonth {
+  yearMonth: string;
+  label: string;
+  lapsed: number;
+  immature: boolean;
+}
+
+interface BleedPatron {
+  driposId: number;
+  fullName: string | null;
+  primaryStore: string | null;
+  lifetime: number;
+  totalSpendCents: number;
+  lastSeenMs: number | null;
+  dateCreatedMs: number | null;
+  daysSinceLastSeen: number | null;
+}
+
+interface BleedReport {
+  sync: SyncMeta;
+  currentRegulars: number;
+  atRisk: number;
+  lapsedThisMonth: number;
+  lapsedLastMonth: number;
+  totalLapsed: number;
+  monthly: BleedMonth[];
+  recentLapsed: BleedPatron[];
+  atRiskList: BleedPatron[];
+}
+
 const TAFFER = { pct2Plus: 40, pct3Plus: 42, pct4Plus: 70 };
 const STORE_THEMES: Record<string, { bg: string; fg: string }> = {
   G1: { bg: '#7f1d1d', fg: '#fde68a' },
@@ -123,6 +153,7 @@ export default function Patrons() {
   const [tab, setTab] = useState<Tab>('overview');
   const [overview, setOverview] = useState<OverviewReport | null>(null);
   const [funnel, setFunnel] = useState<FunnelReport | null>(null);
+  const [bleed, setBleed] = useState<BleedReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,12 +162,14 @@ export default function Patrons() {
     setLoading(true);
     setError(null);
     try {
-      const [oRes, fRes] = await Promise.all([
+      const [oRes, fRes, bRes] = await Promise.all([
         fetch('/api/patrons/overview', { cache: 'no-store' }).then((r) => r.json()),
         fetch('/api/patrons/funnel', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/patrons/bleed', { cache: 'no-store' }).then((r) => r.json()),
       ]);
       if (oRes.ok) setOverview(oRes.report);
       if (fRes.ok) setFunnel(fRes.report);
+      if (bRes.ok) setBleed(bRes.report);
       if (!oRes.ok) throw new Error(oRes.message || oRes.error || 'Overview failed');
     } catch (err: any) {
       setError(err.message || String(err));
@@ -190,6 +223,7 @@ export default function Patrons() {
         {([
           { id: 'overview', label: 'Overview' },
           { id: 'funnel', label: 'Retention funnel' },
+          { id: 'bleed', label: 'Bleed' },
           { id: 'by-location', label: 'By location' },
         ] as Array<{ id: Tab; label: string }>).map((t) => {
           const active = tab === t.id;
@@ -228,6 +262,7 @@ export default function Patrons() {
         <>
           {tab === 'overview' && <OverviewView report={overview} isMobile={isMobile} />}
           {tab === 'funnel' && funnel && <FunnelView report={funnel} isMobile={isMobile} />}
+          {tab === 'bleed' && bleed && <BleedView report={bleed} isMobile={isMobile} />}
           {tab === 'by-location' && <ByLocationView report={overview} isMobile={isMobile} />}
         </>
       )}
@@ -720,6 +755,264 @@ function PctChip({ pct, tone }: { pct: number | null; tone: { bg: string; fg: st
       background: tone.bg, color: tone.fg,
       fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
     }}>{fmtPct(pct)}</span>
+  );
+}
+
+// ─── Bleed Tab ──────────────────────────────────────────────────────
+
+function BleedView({ report, isMobile }: { report: BleedReport; isMobile: boolean }) {
+  return (
+    <>
+      <p style={{ color: 'rgba(0,0,0,0.5)', fontSize: 13, marginTop: -8, marginBottom: 18 }}>
+        A regular is anyone with <strong>8+ visits and ≥8 weeks of tenure</strong>. We count them
+        as <strong>lapsed</strong> once it's been more than 60 days since their last visit.
+        Patrons whose last visit was 30–60 days ago are <strong>at risk</strong> — still
+        regulars, but on the clock.
+      </p>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+        gap: 12, marginBottom: 22,
+      }}>
+        <BleedStat
+          label="Current regulars"
+          value={report.currentRegulars.toLocaleString()}
+          tone="good"
+        />
+        <BleedStat
+          label="At risk (30–60d)"
+          value={report.atRisk.toLocaleString()}
+          tone="warn"
+          sub={report.currentRegulars > 0
+            ? `${((report.atRisk / report.currentRegulars) * 100).toFixed(1)}% of current`
+            : null}
+        />
+        <BleedStat
+          label="Lapsed this month"
+          value={report.lapsedThisMonth.toLocaleString()}
+          tone="bad"
+          sub={`Last month: ${report.lapsedLastMonth.toLocaleString()}`}
+        />
+        <BleedStat
+          label="Lapsed all time"
+          value={report.totalLapsed.toLocaleString()}
+          tone="neutral"
+          sub="Regulars who stopped coming"
+        />
+      </div>
+
+      <MonthlyBleedTable months={report.monthly} />
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
+        gap: 14, marginTop: 14,
+      }}>
+        <BleedPatronList
+          title="Biggest at-risk customers"
+          subtitle="30–60 days since last visit · sorted by lifetime spend"
+          patrons={report.atRiskList}
+          tone="warn"
+          emptyMsg="No regulars currently at risk. Nice."
+        />
+        <BleedPatronList
+          title="Recently lapsed"
+          subtitle="Most recent former regulars · win-back targets"
+          patrons={report.recentLapsed}
+          tone="bad"
+          emptyMsg="No lapsed regulars yet."
+        />
+      </div>
+    </>
+  );
+}
+
+function BleedStat({ label, value, sub, tone }: {
+  label: string;
+  value: string;
+  sub?: string | null;
+  tone: 'good' | 'warn' | 'bad' | 'neutral';
+}) {
+  const palette = {
+    good:    { bg: 'rgba(22, 101, 52, 0.07)', border: 'rgba(22,101,52,0.15)', fg: '#15803d' },
+    warn:    { bg: 'rgba(202, 138, 4, 0.08)', border: 'rgba(202,138,4,0.18)', fg: '#a16207' },
+    bad:     { bg: 'rgba(220, 38, 38, 0.07)', border: 'rgba(220,38,38,0.18)', fg: '#b91c1c' },
+    neutral: { bg: '#fff',                    border: 'rgba(0,0,0,0.07)',    fg: '#1a1a1a' },
+  }[tone];
+  return (
+    <div style={{
+      background: palette.bg, borderRadius: 14, padding: '14px 18px',
+      border: `1px solid ${palette.border}`,
+      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+    }}>
+      <div style={{
+        fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.55)',
+        textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6,
+      }}>{label}</div>
+      <div style={{
+        fontSize: 28, fontWeight: 700, color: palette.fg,
+        fontVariantNumeric: 'tabular-nums', lineHeight: 1.05,
+      }}>{value}</div>
+      {sub && (
+        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', marginTop: 4 }}>{sub}</div>
+      )}
+    </div>
+  );
+}
+
+function MonthlyBleedTable({ months }: { months: BleedMonth[] }) {
+  const maxLapsed = months.reduce((m, b) => Math.max(m, b.lapsed), 0);
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14,
+      border: '1px solid rgba(0,0,0,0.06)',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '14px 22px',
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+        borderBottom: '1px solid rgba(0,0,0,0.05)',
+      }}>
+        <span style={{ fontSize: 14, fontWeight: 700 }}>Lapses by month</span>
+        <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
+          By last-visit month · most recent first
+        </span>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{
+          width: '100%', borderCollapse: 'collapse',
+          fontSize: 13, fontFamily: 'var(--font-body)',
+        }}>
+          <thead>
+            <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
+              <Th>Last-visit month</Th>
+              <Th align="right">Regulars lapsed</Th>
+              <Th>Trend</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {months.map((m) => {
+              const pct = maxLapsed > 0 ? (m.lapsed / maxLapsed) * 100 : 0;
+              return (
+                <tr key={m.yearMonth} style={{
+                  borderTop: '1px solid rgba(0,0,0,0.05)',
+                  opacity: m.immature ? 0.55 : 1,
+                }}>
+                  <Td>
+                    <strong>{m.label}</strong>
+                    {m.immature && (
+                      <span title="Patrons whose last visit was this recent haven't had 60 days to lapse yet" style={{
+                        marginLeft: 8, fontSize: 9, fontWeight: 700,
+                        color: 'rgba(0,0,0,0.45)', letterSpacing: 0.6,
+                        textTransform: 'uppercase',
+                        padding: '2px 6px', borderRadius: 4,
+                        background: 'rgba(0,0,0,0.05)',
+                      }}>incomplete</span>
+                    )}
+                  </Td>
+                  <Td align="right" style={{
+                    fontVariantNumeric: 'tabular-nums', fontWeight: 700,
+                  }}>{m.lapsed.toLocaleString()}</Td>
+                  <Td>
+                    <div style={{
+                      width: '100%', height: 8, borderRadius: 4,
+                      background: 'rgba(0,0,0,0.04)', overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        width: `${pct}%`, height: '100%',
+                        background: '#b91c1c', opacity: 0.7,
+                      }} />
+                    </div>
+                  </Td>
+                </tr>
+              );
+            })}
+            {months.length === 0 && (
+              <tr><td colSpan={3} style={{ padding: 18, textAlign: 'center', color: 'rgba(0,0,0,0.4)', fontSize: 12 }}>
+                No lapses yet.
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function BleedPatronList({
+  title, subtitle, patrons, tone, emptyMsg,
+}: {
+  title: string;
+  subtitle: string;
+  patrons: BleedPatron[];
+  tone: 'warn' | 'bad';
+  emptyMsg: string;
+}) {
+  const headerBg = tone === 'warn' ? 'rgba(202, 138, 4, 0.06)' : 'rgba(220, 38, 38, 0.06)';
+  const headerFg = tone === 'warn' ? '#a16207' : '#b91c1c';
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14,
+      border: '1px solid rgba(0,0,0,0.07)',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '14px 18px', background: headerBg,
+        borderBottom: '1px solid rgba(0,0,0,0.05)',
+      }}>
+        <div style={{
+          fontSize: 12, fontWeight: 700, color: headerFg,
+          textTransform: 'uppercase', letterSpacing: 0.6,
+        }}>{title}</div>
+        <div style={{
+          fontSize: 11, color: 'rgba(0,0,0,0.5)', marginTop: 2,
+        }}>{subtitle}</div>
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, fontFamily: 'var(--font-body)' }}>
+        <tbody>
+          {patrons.map((p) => {
+            const theme = p.primaryStore ? STORE_THEMES[p.primaryStore] : null;
+            return (
+              <tr key={p.driposId} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                <td style={{ padding: '8px 14px' }}>
+                  <div style={{ fontWeight: 500 }}>{p.fullName || 'Unnamed customer'}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
+                    {p.primaryStore && theme && (
+                      <span style={{
+                        display: 'inline-block', padding: '1px 6px', borderRadius: 4,
+                        background: theme.bg, color: theme.fg,
+                        fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
+                        marginRight: 6, verticalAlign: 'middle',
+                      }}>{p.primaryStore}</span>
+                    )}
+                    {p.lifetime} visits · {fmtMoney(p.totalSpendCents)} lifetime
+                  </div>
+                </td>
+                <td style={{
+                  padding: '8px 14px', textAlign: 'right', whiteSpace: 'nowrap',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  <div style={{ fontWeight: 700, color: headerFg }}>
+                    {p.daysSinceLastSeen}d ago
+                  </div>
+                  <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)' }}>
+                    {p.lastSeenMs ? new Date(p.lastSeenMs).toLocaleDateString() : ''}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+          {patrons.length === 0 && (
+            <tr><td colSpan={2} style={{ padding: 18, textAlign: 'center', color: 'rgba(0,0,0,0.4)', fontSize: 12 }}>
+              {emptyMsg}
+            </td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

@@ -669,6 +669,177 @@ export function buildFunnelReport(): PatronFunnelReport {
   return { sync: getSyncMeta(), chain, monthly };
 }
 
+// ─── Bleed (lapsed regulars) ───────────────────────────────────────
+
+export interface BleedMonth {
+  yearMonth: string;
+  label: string;
+  /** Regulars whose last visit was in this month and who have since
+   *  crossed the 60-day lapse threshold. */
+  lapsed: number;
+  /** Recent months can't yet have lapses (the 60-day clock hasn't
+   *  finished). We dim/annotate these in the UI. */
+  immature: boolean;
+}
+
+export interface BleedPatron {
+  driposId: number;
+  fullName: string | null;
+  primaryStore: string | null;
+  lifetime: number;
+  totalSpendCents: number;
+  lastSeenMs: number | null;
+  dateCreatedMs: number | null;
+  daysSinceLastSeen: number | null;
+}
+
+export interface BleedReport {
+  sync: SyncMeta;
+  /** Currently a regular under the live 8/8/60 bar. */
+  currentRegulars: number;
+  /** Was a regular at last visit, last seen 30–60 days ago. Hasn't
+   *  lapsed yet but will if they don't come back. */
+  atRisk: number;
+  /** Lapsed in the past 30 days (last-visit month is recent enough
+   *  that the 60d clock just crossed). */
+  lapsedThisMonth: number;
+  lapsedLastMonth: number;
+  /** All-time count of regulars who lapsed. */
+  totalLapsed: number;
+  /** Time series of lapses bucketed by the month of last visit. */
+  monthly: BleedMonth[];
+  /** Sample of the most-recently-lapsed regulars, sorted by lifetime
+   *  spend (the biggest losses first). */
+  recentLapsed: BleedPatron[];
+  /** Regulars about to lapse — 30-60d since last seen, sorted by
+   *  lifetime spend so the most valuable at-risk customers float up. */
+  atRiskList: BleedPatron[];
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MS_PER_WEEK = 7 * MS_PER_DAY;
+
+/** Did this patron meet the regular bar at the time of their last
+ *  visit? Same thresholds as isRegular() but the tenure clock stops
+ *  at last_seen instead of "now", so a former regular who left a
+ *  year ago still counts as having been a regular. */
+function wasRegularAtLastSeen(
+  lifetime: number,
+  dateCreatedMs: number | null,
+  lastSeenMs: number | null,
+): boolean {
+  if (lifetime < REGULAR_THRESHOLDS.minVisits) return false;
+  if (dateCreatedMs == null || lastSeenMs == null) return false;
+  const tenureMs = lastSeenMs - dateCreatedMs;
+  if (tenureMs < REGULAR_THRESHOLDS.minTenureWeeks * MS_PER_WEEK) return false;
+  return true;
+}
+
+export function buildBleedReport(): BleedReport {
+  const rows = db.prepare(
+    `SELECT dripos_id, full_name, location_id, date_created_ms,
+            last_seen_ms, lifetime, total_spend_cents
+       FROM patrons
+      WHERE date_archived_ms IS NULL
+        AND lifetime >= ?`,
+  ).all(REGULAR_THRESHOLDS.minVisits) as Array<{
+    dripos_id: number;
+    full_name: string | null;
+    location_id: number | null;
+    date_created_ms: number | null;
+    last_seen_ms: number | null;
+    lifetime: number;
+    total_spend_cents: number | null;
+  }>;
+
+  const nowMs = Date.now();
+  const lapseCutoffMs = REGULAR_THRESHOLDS.recentWithinDays * MS_PER_DAY;
+  const atRiskMinMs = 30 * MS_PER_DAY;
+
+  let currentRegulars = 0;
+  let atRiskCount = 0;
+  let totalLapsed = 0;
+  const monthly = new Map<string, BleedMonth>();
+  const lapsedPatrons: BleedPatron[] = [];
+  const atRiskPatrons: BleedPatron[] = [];
+
+  for (const r of rows) {
+    if (!wasRegularAtLastSeen(r.lifetime, r.date_created_ms, r.last_seen_ms)) continue;
+    const lastSeen = r.last_seen_ms!;
+    const sinceLast = nowMs - lastSeen;
+
+    const patron: BleedPatron = {
+      driposId: r.dripos_id,
+      fullName: r.full_name,
+      primaryStore: r.location_id != null ? STORE_LABEL_BY_ID[r.location_id] ?? null : null,
+      lifetime: r.lifetime,
+      totalSpendCents: r.total_spend_cents ?? 0,
+      lastSeenMs: lastSeen,
+      dateCreatedMs: r.date_created_ms,
+      daysSinceLastSeen: Math.floor(sinceLast / MS_PER_DAY),
+    };
+
+    if (sinceLast <= lapseCutoffMs) {
+      currentRegulars++;
+      if (sinceLast >= atRiskMinMs) {
+        atRiskCount++;
+        atRiskPatrons.push(patron);
+      }
+    } else {
+      totalLapsed++;
+      lapsedPatrons.push(patron);
+      const d = new Date(lastSeen);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      let b = monthly.get(ym);
+      if (!b) {
+        b = { yearMonth: ym, label: monthLabel(ym), lapsed: 0, immature: false };
+        monthly.set(ym, b);
+      }
+      b.lapsed++;
+    }
+  }
+
+  // The two most recent calendar months can't fully reflect lapses
+  // yet — somebody who last visited 50 days ago is still inside the
+  // 60-day window. Flag them so the UI dims them.
+  const now = new Date();
+  const oneAgo = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const oneAgoYm = `${oneAgo.getFullYear()}-${String(oneAgo.getMonth() + 1).padStart(2, '0')}`;
+  const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  for (const m of monthly.values()) {
+    m.immature = m.yearMonth >= oneAgoYm;
+  }
+
+  const monthlySorted = Array.from(monthly.values())
+    .sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
+
+  // Count lapses where the last visit was inside this calendar month
+  // (already in monthly buckets) — these are the patrons whose
+  // 60-day clock JUST ran out.
+  const lapsedThisMonth = monthly.get(currentYm)?.lapsed ?? 0;
+  const lapsedLastMonth = monthly.get(oneAgoYm)?.lapsed ?? 0;
+
+  // Sort sample lists. Lapsed: most recently lapsed first (so we
+  // see fresh churn), then by spend on ties. At-risk: by spend
+  // descending — biggest dollars are the most urgent saves.
+  lapsedPatrons.sort((a, b) =>
+    (b.lastSeenMs ?? 0) - (a.lastSeenMs ?? 0) || b.totalSpendCents - a.totalSpendCents,
+  );
+  atRiskPatrons.sort((a, b) => b.totalSpendCents - a.totalSpendCents);
+
+  return {
+    sync: getSyncMeta(),
+    currentRegulars,
+    atRisk: atRiskCount,
+    lapsedThisMonth,
+    lapsedLastMonth,
+    totalLapsed,
+    monthly: monthlySorted,
+    recentLapsed: lapsedPatrons.slice(0, 25),
+    atRiskList: atRiskPatrons.slice(0, 25),
+  };
+}
+
 /** Background-friendly entry point used by the boot hook + the 6h cron. */
 export function prewarmPatronsSync(): Promise<void> {
   return syncAllPatrons()
