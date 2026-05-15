@@ -50,6 +50,11 @@ interface PatronPageResponse {
 }
 
 const PAGE_SIZE = 1000; // limit per Dripos call; tested up to 2000 safely
+/** Top-N patrons (by lifetime visits) we enrich with full /patron/{id}
+ *  fetches to get real TOTAL_SPEND + AVERAGE_TICKET + LAST_SEEN. The
+ *  v2 paginated list strips these fields, so we only resolve them for
+ *  the candidates most likely to appear in top-by-spend rankings. */
+const ENRICH_TOP_N = 200;
 
 async function fetchPatronPage(page: number): Promise<PatronPageResponse> {
   const body = await callApi<PatronPageResponse>(
@@ -57,6 +62,53 @@ async function fetchPatronPage(page: number): Promise<PatronPageResponse> {
     { locationId: STORES[0].locationId },
   );
   return body.data ?? {};
+}
+
+interface PatronOrder {
+  AMOUNT_PAYED?: number | null;
+  AMOUNT_TIP?: number | null;
+  TOTAL?: number | null;
+  AMOUNT?: number | null;
+  DATE_CREATED?: number | null;
+  DELETED?: number | boolean | null;
+}
+
+interface PatronDetailResponse {
+  ORDERS?: PatronOrder[];
+}
+
+interface EnrichmentResult {
+  totalSpendCents: number;
+  totalTipsCents: number;
+  averageTicketCents: number | null;
+  lastSeenMs: number | null;
+}
+
+async function fetchPatronDetail(id: number): Promise<EnrichmentResult | null> {
+  try {
+    const body = await callApi<PatronDetailResponse>(`/patron/${id}`, {
+      locationId: STORES[0].locationId,
+    });
+    const orders = (body.data?.ORDERS ?? []).filter((o) => !o.DELETED);
+    let totalSpend = 0;
+    let totalTips = 0;
+    let lastSeen = 0;
+    for (const o of orders) {
+      const amount = o.AMOUNT_PAYED ?? o.TOTAL ?? o.AMOUNT ?? 0;
+      totalSpend += amount;
+      totalTips += o.AMOUNT_TIP ?? 0;
+      const d = o.DATE_CREATED ?? 0;
+      if (d > lastSeen) lastSeen = d;
+    }
+    return {
+      totalSpendCents: totalSpend,
+      totalTipsCents: totalTips,
+      averageTicketCents: orders.length > 0 ? Math.round(totalSpend / orders.length) : null,
+      lastSeenMs: lastSeen > 0 ? lastSeen : null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export interface SyncResult {
@@ -154,6 +206,39 @@ export async function syncAllPatrons(): Promise<SyncResult> {
         ).run(Date.now(), rows.length, totalInDripos);
       });
       replaceAll(all);
+
+      // Enrichment pass: top-N patrons by lifetime get their full
+      // /patron/{id} pulled to populate real spend/tips/avg-ticket/
+      // last-seen. The v2 list endpoint omits those fields, so this
+      // is how the Top-by-spend list gets accurate data.
+      const enrichCandidates = db.prepare(
+        `SELECT dripos_id FROM patrons
+          WHERE date_archived_ms IS NULL AND lifetime > 0
+          ORDER BY lifetime DESC
+          LIMIT ?`,
+      ).all(ENRICH_TOP_N) as Array<{ dripos_id: number }>;
+      const update = db.prepare(
+        `UPDATE patrons SET
+           total_spend_cents = ?,
+           total_tips_cents = ?,
+           average_ticket_cents = ?,
+           last_seen_ms = COALESCE(?, last_seen_ms)
+         WHERE dripos_id = ?`,
+      );
+      let enriched = 0;
+      await Promise.all(enrichCandidates.map(async (c) => {
+        const detail = await fetchPatronDetail(c.dripos_id);
+        if (!detail) return;
+        update.run(
+          detail.totalSpendCents,
+          detail.totalTipsCents,
+          detail.averageTicketCents,
+          detail.lastSeenMs,
+          c.dripos_id,
+        );
+        enriched++;
+      }));
+      console.log(`[patrons-sync] enriched ${enriched}/${enrichCandidates.length} top patrons with spend data`);
 
       return {
         ok: true,
