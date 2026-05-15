@@ -817,7 +817,7 @@ const SEASONAL_DRINKS: Array<{ canonical: string; aliases: string[] }> = [
   { canonical: 'Sunshine Latte',         aliases: ['sunshine latte'] },
   { canonical: 'Cinnamon Honey Latte',   aliases: ['cinnamon honey latte', 'cinnamon honey'] },
   { canonical: 'Lemon White Mocha',      aliases: ['lemon white mocha'] },
-  { canonical: 'Haus White Mocha',       aliases: ['haus white mocha', 'white mocha'] },
+  { canonical: 'Haus White Mocha',       aliases: ['haus white mocha'] },
   { canonical: 'Lavender Haze',          aliases: ['lavender haze'] },
   { canonical: 'Matcha Peachu',          aliases: ['matcha peachu', 'matcha peach'] },
   { canonical: 'Horchata Cortado',       aliases: ['horchata cortado'] },
