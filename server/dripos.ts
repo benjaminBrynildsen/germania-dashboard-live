@@ -199,7 +199,7 @@ function releaseDriposSlot(): void {
   if (next) next();
 }
 
-async function callApi<T = unknown>(path: string, opts: ApiOptions = {}): Promise<DriposResponse<T>> {
+export async function callApi<T = unknown>(path: string, opts: ApiOptions = {}): Promise<DriposResponse<T>> {
   const headers: Record<string, string> = {
     accept: 'application/json',
     origin: 'https://dashboard.dripos.com',

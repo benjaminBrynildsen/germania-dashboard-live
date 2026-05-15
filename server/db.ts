@@ -223,39 +223,54 @@ db.exec(`
     PRIMARY KEY (week_start_iso, store_label)
   );
 
-  -- Patron funnel — snapshots of the dashboard.dripos.com All Patrons
-  -- export. Replaced wholesale on every upload (no incremental diff;
-  -- Dripos doesn't give us stable patron IDs in the CSV anyway, just
-  -- name/phone/email). The first_seen_iso field is what the funnel
-  -- aggregator groups by.
+  -- Patron snapshots from Dripos's /patrons/dumb/v2 endpoint. Pulled
+  -- automatically on boot + every 6h (refresh button also available in
+  -- the UI). dripos_id is the upstream PK; the table is replaced
+  -- wholesale on every sync — patron-level upstream changes (name/email
+  -- edits, archives) follow the latest Dripos state.
   CREATE TABLE IF NOT EXISTS patrons (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    phone TEXT,
+    dripos_id INTEGER PRIMARY KEY,
+    unique_id TEXT,
+    full_name TEXT,
     email TEXT,
-    total_tickets INTEGER NOT NULL DEFAULT 0,
-    first_seen_iso TEXT,           -- YYYY-MM-DD
-    last_seen_iso TEXT,            -- YYYY-MM-DD
+    phone TEXT,
+    location_id INTEGER,                 -- first-seen-at store
+    date_created_ms INTEGER,             -- ≈ first seen
+    last_seen_ms INTEGER,
+    lifetime INTEGER NOT NULL DEFAULT 0, -- total visits
+    tickets INTEGER NOT NULL DEFAULT 0,  -- total tickets (incl. deleted)
     total_spend_cents INTEGER,
     total_tips_cents INTEGER,
     average_ticket_cents INTEGER,
-    current_points REAL,
+    average_tip_cents INTEGER,
+    points REAL,
     text_subscribed INTEGER DEFAULT 0,
-    email_subscribed INTEGER DEFAULT 0
+    email_subscribed INTEGER DEFAULT 0,
+    birth_month INTEGER,
+    birth_day INTEGER,
+    birth_year INTEGER,
+    date_archived_ms INTEGER
   );
-  CREATE INDEX IF NOT EXISTS idx_patrons_first_seen ON patrons (first_seen_iso);
-  CREATE INDEX IF NOT EXISTS idx_patrons_tickets ON patrons (total_tickets);
+  CREATE INDEX IF NOT EXISTS idx_patrons_date_created ON patrons (date_created_ms);
+  CREATE INDEX IF NOT EXISTS idx_patrons_location ON patrons (location_id);
+  CREATE INDEX IF NOT EXISTS idx_patrons_lifetime ON patrons (lifetime);
+  CREATE INDEX IF NOT EXISTS idx_patrons_spend ON patrons (total_spend_cents);
+  CREATE INDEX IF NOT EXISTS idx_patrons_last_seen ON patrons (last_seen_ms);
 
-  -- Single-row metadata about the most recent patron upload so the UI
-  -- can show "Last upload: 12:38 PM today by Ben · 5,841 patrons".
-  CREATE TABLE IF NOT EXISTS patrons_upload_meta (
+  CREATE TABLE IF NOT EXISTS patrons_sync_meta (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    uploaded_at INTEGER,
-    uploaded_by TEXT,
-    row_count INTEGER,
-    filename TEXT
+    last_synced_at INTEGER,
+    last_sync_count INTEGER,
+    last_sync_total_in_dripos INTEGER,
+    last_sync_status TEXT,
+    last_sync_error TEXT
   );
-  INSERT OR IGNORE INTO patrons_upload_meta (id) VALUES (1);
+  INSERT OR IGNORE INTO patrons_sync_meta (id) VALUES (1);
+
+  -- Migration: the v0 schema used a different patrons shape + a
+  -- patrons_upload_meta table for CSV-upload era. Drop both — the
+  -- auto-sync replaces them. New rows below will recreate clean.
+  DROP TABLE IF EXISTS patrons_upload_meta;
 
   -- Predecessor table that briefly tracked save state per-week. Dropped
   -- in favor of bake_haus_saved_orders (per-week-per-store). Safe to
@@ -270,6 +285,50 @@ db.exec(`
 const extPath = path.join(__dirname, 'db-schema-extension.sql');
 if (fs.existsSync(extPath)) {
   db.exec(fs.readFileSync(extPath, 'utf8'));
+}
+
+// Patron schema migration: the v0 schema (CSV-upload era, shipped briefly)
+// used a different shape — autoincrement id, first_seen_iso TEXT, etc.
+// We've since switched to a Dripos-shaped schema keyed on dripos_id. If
+// the existing patrons table has the v0 'first_seen_iso' column, drop +
+// recreate. Data is re-pullable from Dripos so the wipe is safe.
+{
+  const cols = db.prepare("PRAGMA table_info(patrons)").all() as Array<{ name: string }>;
+  const hasV0Column = cols.some((c) => c.name === 'first_seen_iso');
+  if (hasV0Column) {
+    console.log('[migration] dropping v0 patrons table for Dripos-shaped schema');
+    db.exec(`
+      DROP TABLE patrons;
+      CREATE TABLE patrons (
+        dripos_id INTEGER PRIMARY KEY,
+        unique_id TEXT,
+        full_name TEXT,
+        email TEXT,
+        phone TEXT,
+        location_id INTEGER,
+        date_created_ms INTEGER,
+        last_seen_ms INTEGER,
+        lifetime INTEGER NOT NULL DEFAULT 0,
+        tickets INTEGER NOT NULL DEFAULT 0,
+        total_spend_cents INTEGER,
+        total_tips_cents INTEGER,
+        average_ticket_cents INTEGER,
+        average_tip_cents INTEGER,
+        points REAL,
+        text_subscribed INTEGER DEFAULT 0,
+        email_subscribed INTEGER DEFAULT 0,
+        birth_month INTEGER,
+        birth_day INTEGER,
+        birth_year INTEGER,
+        date_archived_ms INTEGER
+      );
+      CREATE INDEX idx_patrons_date_created ON patrons (date_created_ms);
+      CREATE INDEX idx_patrons_location ON patrons (location_id);
+      CREATE INDEX idx_patrons_lifetime ON patrons (lifetime);
+      CREATE INDEX idx_patrons_spend ON patrons (total_spend_cents);
+      CREATE INDEX idx_patrons_last_seen ON patrons (last_seen_ms);
+    `);
+  }
 }
 
 // Seed locations if empty

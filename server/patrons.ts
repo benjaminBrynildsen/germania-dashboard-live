@@ -1,189 +1,405 @@
 /**
- * Patron funnel — parse Dripos's "All Patrons" CSV export and aggregate
- * by First Seen month into a Jon Taffer-style retention funnel.
+ * Patron data — pulled from Dripos's /patrons/dumb/v2 endpoint on a
+ * schedule + on demand. Drives the Patrons dashboard:
  *
- * Conversion-rate columns (matching Ben's spreadsheet):
- *   % 2+ Visits  = (≥2 visits) / total      → 1→2 conversion  (Taffer: 40–42%)
- *   % 3+ Visits  = (≥3 visits) / (≥2 visits) → 2→3 conversion  (Taffer: 42–47%)
- *   % 4+ Visits  = (≥4 visits) / (≥3 visits) → 3→4 conversion  (Taffer: ≥70%)
+ *   - Overview: new-patron counts, top customers by spend / visits,
+ *     top customer of the week
+ *   - Funnel:   Jon Taffer-style retention funnel (1→2, 2→3, 3→4)
+ *   - By Location: same metrics split G1/G2/G3/G4
+ *
+ * Sync replaces the local table wholesale on each run — the Dripos
+ * patron list is the source of truth, and Dripos provides stable IDs.
  */
 import db from './db.js';
+import { callApi, STORES, AuthExpired, NoToken } from './dripos.js';
 
-/** Minimal CSV parser — handles quoted fields with embedded commas/quotes.
- *  Not RFC-compliant in every edge case but solid enough for Dripos exports. */
-export function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = '';
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
-      else if (c === '"') { inQuotes = false; }
-      else { cell += c; }
-    } else {
-      if (c === ',') { row.push(cell); cell = ''; }
-      else if (c === '\r') { /* skip */ }
-      else if (c === '\n') {
-        row.push(cell); cell = '';
-        if (row.length > 1 || row[0] !== '') rows.push(row);
-        row = [];
+interface RawPatron {
+  ID: number;
+  UNIQUE_ID?: string | null;
+  FULL_NAME?: string | null;
+  EMAIL?: string | null;
+  PHONE?: string | null;
+  LOCATION_ID?: number | null;
+  DATE_CREATED?: number | null;
+  LAST_SEEN?: number | null;
+  LIFETIME?: number | null;
+  TICKETS?: number | null;
+  TOTAL_SPEND?: number | null;        // cents
+  TOTAL_TIPS?: number | null;         // cents
+  AVERAGE_TICKET?: number | null;     // cents
+  AVERAGE_TIP?: number | null;        // cents
+  POINTS?: number | null;
+  TEXT_SUBSCRIBED?: number | boolean | null;
+  EMAIL_SUBSCRIBED?: number | boolean | null;
+  BIRTH_MONTH?: number | null;
+  BIRTH_DAY?: number | null;
+  BIRTH_YEAR?: number | null;
+  DATE_ARCHIVED?: number | null;
+}
+
+interface PatronPageResponse {
+  data?: RawPatron[];
+  page?: number;
+  limit?: number;
+  totalCount?: number;
+  hasMore?: boolean;
+}
+
+const PAGE_SIZE = 1000; // limit per Dripos call; tested up to 2000 safely
+
+async function fetchPatronPage(page: number): Promise<PatronPageResponse> {
+  const body = await callApi<PatronPageResponse>(
+    `/patrons/dumb/v2?search=&page=${page}&limit=${PAGE_SIZE}&includeTotalCount=true`,
+    { locationId: STORES[0].locationId },
+  );
+  return body.data ?? {};
+}
+
+export interface SyncResult {
+  ok: boolean;
+  count: number;
+  totalInDripos: number;
+  elapsedMs: number;
+  error?: string;
+}
+
+let syncInFlight: Promise<SyncResult> | null = null;
+
+/**
+ * Pull every patron from Dripos and replace the local table. Cached
+ * in-flight so concurrent calls share a single sync. ~50k patrons at
+ * 1000/page = ~50 sequential calls. With Dripos's per-call overhead
+ * (~1-2s) it's a one-shot operation taking ~60-90s on cold sync;
+ * subsequent calls just refresh.
+ */
+export async function syncAllPatrons(): Promise<SyncResult> {
+  if (syncInFlight) return syncInFlight;
+  syncInFlight = (async (): Promise<SyncResult> => {
+    const startedAt = Date.now();
+    let totalInDripos = 0;
+    const all: RawPatron[] = [];
+    try {
+      // First page tells us the total, then we sequence the rest. We
+      // could parallelize but Dripos's per-call overhead seems linear
+      // with size — better to keep pages large + sequential than fan
+      // out 50 small requests.
+      let page = 1;
+      const first = await fetchPatronPage(page);
+      totalInDripos = first.totalCount ?? 0;
+      if (first.data) all.push(...first.data);
+      while (first.hasMore && all.length < totalInDripos) {
+        page += 1;
+        const next = await fetchPatronPage(page);
+        if (!next.data || next.data.length === 0) break;
+        all.push(...next.data);
+        if (!next.hasMore) break;
+        if (page > 500) break; // safety stop
       }
-      else if (c === '"' && cell === '') { inQuotes = true; }
-      else { cell += c; }
-    }
-  }
-  if (cell !== '' || row.length > 0) { row.push(cell); rows.push(row); }
-  return rows;
-}
 
-/** Parse "$24.73" / "24.73" / "" → cents. NaN-safe (returns null). */
-function dollarToCents(input: string | undefined): number | null {
-  if (!input) return null;
-  const cleaned = input.replace(/[$,\s]/g, '');
-  if (cleaned === '' || cleaned === '-') return null;
-  const n = Number(cleaned);
-  if (!Number.isFinite(n)) return null;
-  return Math.round(n * 100);
-}
-
-/** Parse "MM/DD/YY" → "YYYY-MM-DD". Dripos uses 2-digit years. We assume
- *  years 00-79 → 2000s and 80-99 → 1900s (matching Dripos's behavior). */
-function mmddyyToIso(input: string | undefined): string | null {
-  if (!input) return null;
-  const m = input.trim().match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
-  if (!m) return null;
-  const mo = parseInt(m[1], 10);
-  const dy = parseInt(m[2], 10);
-  let yr = parseInt(m[3], 10);
-  if (yr < 100) yr += yr <= 79 ? 2000 : 1900;
-  if (mo < 1 || mo > 12 || dy < 1 || dy > 31) return null;
-  return `${yr}-${String(mo).padStart(2, '0')}-${String(dy).padStart(2, '0')}`;
-}
-
-/** Header normalization so column order changes in the export don't
- *  break us. Each canonical key maps to one or more header aliases. */
-const HEADER_ALIASES: Record<string, string[]> = {
-  name: ['name', 'full name'],
-  phone: ['phone', 'phone number'],
-  email: ['email', 'email address'],
-  total_tickets: ['total tickets', 'tickets', 'total visits', 'visits'],
-  first_seen: ['first seen', 'first visit', 'first ticket'],
-  last_seen: ['last seen', 'last visit', 'last ticket'],
-  total_spend: ['total spend', 'lifetime spend'],
-  total_tips: ['total tips'],
-  average_ticket: ['average ticket', 'avg ticket'],
-  current_points: ['current points', 'points'],
-  text_subscribed: ['text subscribed', 'sms subscribed'],
-  email_subscribed: ['email subscribed'],
-};
-
-function indexHeaders(header: string[]): Record<string, number> {
-  const map: Record<string, number> = {};
-  header.forEach((h, i) => {
-    const lower = h.trim().toLowerCase();
-    for (const [canonical, aliases] of Object.entries(HEADER_ALIASES)) {
-      if (aliases.includes(lower) && map[canonical] === undefined) {
-        map[canonical] = i;
-      }
-    }
-  });
-  return map;
-}
-
-export interface ParsedPatron {
-  name: string | null;
-  phone: string | null;
-  email: string | null;
-  totalTickets: number;
-  firstSeenIso: string | null;
-  lastSeenIso: string | null;
-  totalSpendCents: number | null;
-  totalTipsCents: number | null;
-  averageTicketCents: number | null;
-  currentPoints: number | null;
-  textSubscribed: boolean;
-  emailSubscribed: boolean;
-}
-
-export function parsePatronsCsv(text: string): ParsedPatron[] {
-  const rows = parseCsv(text);
-  if (rows.length < 2) return [];
-  const headerIdx = indexHeaders(rows[0]);
-  const out: ParsedPatron[] = [];
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i];
-    const get = (k: string): string | undefined => {
-      const idx = headerIdx[k];
-      return idx === undefined ? undefined : (r[idx] ?? '').trim();
-    };
-    const tickets = parseInt(get('total_tickets') ?? '0', 10);
-    const firstSeen = mmddyyToIso(get('first_seen'));
-    if (!firstSeen) continue; // Patron with no first-seen is useless for the funnel
-    out.push({
-      name: get('name') || null,
-      phone: get('phone') || null,
-      email: get('email') || null,
-      totalTickets: Number.isFinite(tickets) ? tickets : 0,
-      firstSeenIso: firstSeen,
-      lastSeenIso: mmddyyToIso(get('last_seen')),
-      totalSpendCents: dollarToCents(get('total_spend')),
-      totalTipsCents: dollarToCents(get('total_tips')),
-      averageTicketCents: dollarToCents(get('average_ticket')),
-      currentPoints: Number.parseFloat((get('current_points') || '').replace(/[$,]/g, '')) || null,
-      textSubscribed: /^y(es)?$|^true$|^1$/i.test(get('text_subscribed') || ''),
-      emailSubscribed: /^y(es)?$|^true$|^1$/i.test(get('email_subscribed') || ''),
-    });
-  }
-  return out;
-}
-
-export function replacePatrons(parsed: ParsedPatron[], opts: { uploadedBy: string | null; filename: string | null }): { rowCount: number } {
-  const ins = db.transaction((rows: ParsedPatron[]) => {
-    db.prepare('DELETE FROM patrons').run();
-    const stmt = db.prepare(
-      `INSERT INTO patrons (
-         name, phone, email, total_tickets,
-         first_seen_iso, last_seen_iso,
-         total_spend_cents, total_tips_cents, average_ticket_cents,
-         current_points, text_subscribed, email_subscribed
-       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-    );
-    for (const p of rows) {
-      stmt.run(
-        p.name, p.phone, p.email, p.totalTickets,
-        p.firstSeenIso, p.lastSeenIso,
-        p.totalSpendCents, p.totalTipsCents, p.averageTicketCents,
-        p.currentPoints, p.textSubscribed ? 1 : 0, p.emailSubscribed ? 1 : 0,
+      // Replace the table in a single transaction.
+      const insert = db.prepare(
+        `INSERT INTO patrons (
+           dripos_id, unique_id, full_name, email, phone,
+           location_id, date_created_ms, last_seen_ms,
+           lifetime, tickets,
+           total_spend_cents, total_tips_cents,
+           average_ticket_cents, average_tip_cents,
+           points, text_subscribed, email_subscribed,
+           birth_month, birth_day, birth_year, date_archived_ms
+         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       );
+      const replaceAll = db.transaction((rows: RawPatron[]) => {
+        db.prepare('DELETE FROM patrons').run();
+        for (const r of rows) {
+          if (r.ID == null) continue;
+          insert.run(
+            r.ID,
+            r.UNIQUE_ID ?? null,
+            r.FULL_NAME ?? null,
+            r.EMAIL ?? null,
+            r.PHONE ?? null,
+            r.LOCATION_ID ?? null,
+            r.DATE_CREATED ?? null,
+            r.LAST_SEEN ?? null,
+            r.LIFETIME ?? 0,
+            r.TICKETS ?? 0,
+            r.TOTAL_SPEND ?? null,
+            r.TOTAL_TIPS ?? null,
+            r.AVERAGE_TICKET ?? null,
+            r.AVERAGE_TIP ?? null,
+            r.POINTS ?? null,
+            toBool01(r.TEXT_SUBSCRIBED),
+            toBool01(r.EMAIL_SUBSCRIBED),
+            r.BIRTH_MONTH ?? null,
+            r.BIRTH_DAY ?? null,
+            r.BIRTH_YEAR ?? null,
+            r.DATE_ARCHIVED ?? null,
+          );
+        }
+        db.prepare(
+          `UPDATE patrons_sync_meta SET
+             last_synced_at = ?,
+             last_sync_count = ?,
+             last_sync_total_in_dripos = ?,
+             last_sync_status = 'ok',
+             last_sync_error = NULL
+           WHERE id = 1`,
+        ).run(Date.now(), rows.length, totalInDripos);
+      });
+      replaceAll(all);
+
+      return {
+        ok: true,
+        count: all.length,
+        totalInDripos,
+        elapsedMs: Date.now() - startedAt,
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isAuth = err instanceof AuthExpired || err instanceof NoToken;
+      db.prepare(
+        `UPDATE patrons_sync_meta SET
+           last_sync_status = ?,
+           last_sync_error = ?
+         WHERE id = 1`,
+      ).run(isAuth ? 'auth' : 'error', msg);
+      return {
+        ok: false,
+        count: 0,
+        totalInDripos,
+        elapsedMs: Date.now() - startedAt,
+        error: msg,
+      };
+    } finally {
+      syncInFlight = null;
     }
-    db.prepare(
-      `UPDATE patrons_upload_meta SET
-         uploaded_at = ?, uploaded_by = ?, row_count = ?, filename = ?
-       WHERE id = 1`,
-    ).run(Date.now(), opts.uploadedBy, rows.length, opts.filename);
-  });
-  ins(parsed);
-  return { rowCount: parsed.length };
+  })();
+  return syncInFlight;
 }
+
+function toBool01(v: unknown): number {
+  if (v === true || v === 1 || v === '1') return 1;
+  return 0;
+}
+
+// ─── Reports ────────────────────────────────────────────────────────
+
+const STORE_LABEL_BY_ID: Record<number, string> = Object.fromEntries(
+  STORES.map((s) => [s.locationId, s.label]),
+);
+
+export interface SyncMeta {
+  lastSyncedAt: number | null;
+  lastSyncCount: number | null;
+  lastSyncTotalInDripos: number | null;
+  lastSyncStatus: string | null;
+  lastSyncError: string | null;
+}
+
+export function getSyncMeta(): SyncMeta {
+  const row = db.prepare(
+    `SELECT last_synced_at, last_sync_count, last_sync_total_in_dripos,
+            last_sync_status, last_sync_error
+       FROM patrons_sync_meta WHERE id = 1`,
+  ).get() as any;
+  return {
+    lastSyncedAt: row?.last_synced_at ?? null,
+    lastSyncCount: row?.last_sync_count ?? null,
+    lastSyncTotalInDripos: row?.last_sync_total_in_dripos ?? null,
+    lastSyncStatus: row?.last_sync_status ?? null,
+    lastSyncError: row?.last_sync_error ?? null,
+  };
+}
+
+export interface TopPatron {
+  driposId: number;
+  uniqueId: string | null;
+  fullName: string | null;
+  email: string | null;
+  phone: string | null;
+  primaryStore: string | null;
+  lifetime: number;
+  totalSpendCents: number;
+  averageTicketCents: number | null;
+  lastSeenMs: number | null;
+  dateCreatedMs: number | null;
+}
+
+export interface OverviewReport {
+  sync: SyncMeta;
+  totalPatrons: number;
+  totalArchived: number;
+  totalActive: number;            // not archived
+  textSubscribed: number;
+  emailSubscribed: number;
+
+  // New patron counts
+  newThisWeek: number;
+  newThisMonth: number;
+  newThisYear: number;
+  newLifetime: number;            // = totalActive
+
+  // Per-store first-seen breakdown
+  byLocation: Array<{
+    storeLabel: string;
+    totalPatrons: number;
+    newThisWeek: number;
+    newThisMonth: number;
+    activeThisWeek: number;       // last_seen within past 7 days
+    topByVisits: TopPatron | null;
+    topBySpend: TopPatron | null;
+  }>;
+
+  // Top tens (chain-wide)
+  topByVisits: TopPatron[];
+  topBySpend: TopPatron[];
+
+  // Top customer this week (highest lifetime spend among those seen this week)
+  topThisWeek: TopPatron | null;
+  seenThisWeek: number;
+}
+
+interface PatronRow {
+  dripos_id: number;
+  unique_id: string | null;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  location_id: number | null;
+  date_created_ms: number | null;
+  last_seen_ms: number | null;
+  lifetime: number;
+  tickets: number;
+  total_spend_cents: number | null;
+  average_ticket_cents: number | null;
+  text_subscribed: number;
+  email_subscribed: number;
+  date_archived_ms: number | null;
+}
+
+function rowToTop(r: PatronRow): TopPatron {
+  return {
+    driposId: r.dripos_id,
+    uniqueId: r.unique_id,
+    fullName: r.full_name,
+    email: r.email,
+    phone: r.phone,
+    primaryStore: r.location_id != null ? STORE_LABEL_BY_ID[r.location_id] ?? null : null,
+    lifetime: r.lifetime,
+    totalSpendCents: r.total_spend_cents ?? 0,
+    averageTicketCents: r.average_ticket_cents,
+    lastSeenMs: r.last_seen_ms,
+    dateCreatedMs: r.date_created_ms,
+  };
+}
+
+function startOfWeek(d: Date): Date {
+  const local = new Date(d);
+  local.setHours(0, 0, 0, 0);
+  const day = local.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // shift to Monday
+  local.setDate(local.getDate() + diff);
+  return local;
+}
+
+export function buildOverview(): OverviewReport {
+  const now = new Date();
+  const weekStart = startOfWeek(now).getTime();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const yearStart = new Date(now.getFullYear(), 0, 1).getTime();
+
+  const all = db.prepare(
+    `SELECT dripos_id, unique_id, full_name, email, phone,
+            location_id, date_created_ms, last_seen_ms,
+            lifetime, tickets, total_spend_cents, average_ticket_cents,
+            text_subscribed, email_subscribed, date_archived_ms
+       FROM patrons`,
+  ).all() as PatronRow[];
+
+  const active = all.filter((r) => r.date_archived_ms == null);
+
+  const newThisWeek = active.filter((r) => (r.date_created_ms ?? 0) >= weekStart).length;
+  const newThisMonth = active.filter((r) => (r.date_created_ms ?? 0) >= monthStart).length;
+  const newThisYear = active.filter((r) => (r.date_created_ms ?? 0) >= yearStart).length;
+
+  // Top tens — by lifetime visits + by total spend (active only).
+  const byVisits = [...active]
+    .sort((a, b) => b.lifetime - a.lifetime)
+    .slice(0, 10)
+    .map(rowToTop);
+  const bySpend = [...active]
+    .sort((a, b) => (b.total_spend_cents ?? 0) - (a.total_spend_cents ?? 0))
+    .slice(0, 10)
+    .map(rowToTop);
+
+  // Top customer of the week: highest lifetime spend among patrons
+  // seen this week. "Top" here is whoever's still our most valuable
+  // customer that visited this week, not just whoever spent most this
+  // week (we don't have per-week per-patron spend from this endpoint).
+  const seenThisWeekRows = active.filter((r) => (r.last_seen_ms ?? 0) >= weekStart);
+  const topThisWeek = seenThisWeekRows.length > 0
+    ? rowToTop(seenThisWeekRows.reduce((best, cur) =>
+        (cur.total_spend_cents ?? 0) > (best.total_spend_cents ?? 0) ? cur : best,
+      ))
+    : null;
+
+  // Per-store breakdown.
+  const byLocation = STORES.map((store) => {
+    const here = active.filter((r) => r.location_id === store.locationId);
+    const newWk = here.filter((r) => (r.date_created_ms ?? 0) >= weekStart).length;
+    const newMo = here.filter((r) => (r.date_created_ms ?? 0) >= monthStart).length;
+    const activeWk = here.filter((r) => (r.last_seen_ms ?? 0) >= weekStart).length;
+    const topV = here.length > 0
+      ? rowToTop(here.reduce((b, c) => c.lifetime > b.lifetime ? c : b))
+      : null;
+    const topS = here.length > 0
+      ? rowToTop(here.reduce((b, c) => (c.total_spend_cents ?? 0) > (b.total_spend_cents ?? 0) ? c : b))
+      : null;
+    return {
+      storeLabel: store.label,
+      totalPatrons: here.length,
+      newThisWeek: newWk,
+      newThisMonth: newMo,
+      activeThisWeek: activeWk,
+      topByVisits: topV,
+      topBySpend: topS,
+    };
+  });
+
+  return {
+    sync: getSyncMeta(),
+    totalPatrons: all.length,
+    totalArchived: all.length - active.length,
+    totalActive: active.length,
+    textSubscribed: active.filter((r) => r.text_subscribed === 1).length,
+    emailSubscribed: active.filter((r) => r.email_subscribed === 1).length,
+    newThisWeek,
+    newThisMonth,
+    newThisYear,
+    newLifetime: active.length,
+    byLocation,
+    topByVisits: byVisits,
+    topBySpend: bySpend,
+    topThisWeek,
+    seenThisWeek: seenThisWeekRows.length,
+  };
+}
+
+// ─── Funnel (Taffer retention) ────────────────────────────────────
 
 export interface FunnelMonth {
-  yearMonth: string;       // 'YYYY-MM'
-  label: string;           // 'Apr 2026'
-  total: number;           // 1st-time customers
-  oneOnly: number;         // total_tickets === 1
-  twoPlus: number;         // total_tickets >= 2 (the 1→2 cohort)
+  yearMonth: string;
+  label: string;
+  total: number;
+  oneOnly: number;
+  twoPlus: number;
   exactlyTwo: number;
-  threePlus: number;       // total_tickets >= 3 (the 2→3 cohort)
+  threePlus: number;
   exactlyThree: number;
-  fourPlus: number;        // total_tickets >= 4 (the 3→4 cohort)
-  pct2Plus: number | null; // 1→2 conversion
-  pct3Plus: number | null; // 2→3 conversion (relative to ≥2)
-  pct4Plus: number | null; // 3→4 conversion (relative to ≥3)
-  /** True when this month is too recent for the funnel to be mature
-   *  (a patron whose first visit was last week can't be a 4-visit
-   *  regular yet). Set when month is within the last ~3 months. */
+  fourPlus: number;
+  pct2Plus: number | null;
+  pct3Plus: number | null;
+  pct4Plus: number | null;
   immature: boolean;
 }
 
@@ -198,54 +414,46 @@ export interface FunnelChainSummary {
 }
 
 export interface PatronFunnelReport {
-  uploadedAt: number | null;
-  uploadedBy: string | null;
-  rowCount: number;
-  filename: string | null;
+  sync: SyncMeta;
   chain: FunnelChainSummary;
   monthly: FunnelMonth[];
 }
 
-const TAFFER = { pct2Plus: 40, pct3Plus: 42, pct4Plus: 70 };
-export const TAFFER_BENCHMARKS = TAFFER;
-
-function monthLabel(yearMonth: string): string {
-  // 'YYYY-MM' → 'Apr 2026'
-  const [y, m] = yearMonth.split('-');
-  const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
-  return date.toLocaleString('en-US', { month: 'short', year: 'numeric' });
-}
+export const TAFFER_BENCHMARKS = { pct2Plus: 40, pct3Plus: 42, pct4Plus: 70 };
 
 function pct(num: number, denom: number): number | null {
   if (denom <= 0) return null;
   return Math.round((num / denom) * 1000) / 10;
 }
 
+function monthLabel(ym: string): string {
+  const [y, m] = ym.split('-');
+  return new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1)
+    .toLocaleString('en-US', { month: 'short', year: 'numeric' });
+}
+
 export function buildFunnelReport(): PatronFunnelReport {
-  const meta = db.prepare(
-    'SELECT uploaded_at, uploaded_by, row_count, filename FROM patrons_upload_meta WHERE id = 1',
-  ).get() as { uploaded_at: number | null; uploaded_by: string | null; row_count: number | null; filename: string | null } | undefined;
-
   const rows = db.prepare(
-    'SELECT first_seen_iso, total_tickets FROM patrons WHERE first_seen_iso IS NOT NULL',
-  ).all() as Array<{ first_seen_iso: string; total_tickets: number }>;
+    `SELECT date_created_ms, lifetime FROM patrons
+      WHERE date_created_ms IS NOT NULL
+        AND date_archived_ms IS NULL`,
+  ).all() as Array<{ date_created_ms: number; lifetime: number }>;
 
-  // Chain summary (across all patrons regardless of month).
   const chain: FunnelChainSummary = {
     total: rows.length,
-    twoPlus: rows.filter((r) => r.total_tickets >= 2).length,
-    threePlus: rows.filter((r) => r.total_tickets >= 3).length,
-    fourPlus: rows.filter((r) => r.total_tickets >= 4).length,
+    twoPlus: rows.filter((r) => r.lifetime >= 2).length,
+    threePlus: rows.filter((r) => r.lifetime >= 3).length,
+    fourPlus: rows.filter((r) => r.lifetime >= 4).length,
     pct2Plus: null, pct3Plus: null, pct4Plus: null,
   };
   chain.pct2Plus = pct(chain.twoPlus, chain.total);
   chain.pct3Plus = pct(chain.threePlus, chain.twoPlus);
   chain.pct4Plus = pct(chain.fourPlus, chain.threePlus);
 
-  // Monthly buckets.
   const buckets = new Map<string, FunnelMonth>();
   for (const r of rows) {
-    const ym = r.first_seen_iso.slice(0, 7);
+    const d = new Date(r.date_created_ms);
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     let b = buckets.get(ym);
     if (!b) {
       b = {
@@ -259,34 +467,40 @@ export function buildFunnelReport(): PatronFunnelReport {
       buckets.set(ym, b);
     }
     b.total++;
-    if (r.total_tickets === 1) b.oneOnly++;
-    if (r.total_tickets >= 2) b.twoPlus++;
-    if (r.total_tickets === 2) b.exactlyTwo++;
-    if (r.total_tickets >= 3) b.threePlus++;
-    if (r.total_tickets === 3) b.exactlyThree++;
-    if (r.total_tickets >= 4) b.fourPlus++;
+    if (r.lifetime === 1) b.oneOnly++;
+    if (r.lifetime >= 2) b.twoPlus++;
+    if (r.lifetime === 2) b.exactlyTwo++;
+    if (r.lifetime >= 3) b.threePlus++;
+    if (r.lifetime === 3) b.exactlyThree++;
+    if (r.lifetime >= 4) b.fourPlus++;
   }
 
-  // Maturity threshold: anything within the last 3 calendar months is
-  // flagged as "patrons haven't had time to make a 4th visit yet."
   const now = new Date();
-  const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-  const immatureCutoff = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+  const threeAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+  const cutoff = `${threeAgo.getFullYear()}-${String(threeAgo.getMonth() + 1).padStart(2, '0')}`;
 
-  const monthly: FunnelMonth[] = Array.from(buckets.values()).map((b) => ({
+  const monthly = Array.from(buckets.values()).map((b) => ({
     ...b,
     pct2Plus: pct(b.twoPlus, b.total),
     pct3Plus: pct(b.threePlus, b.twoPlus),
     pct4Plus: pct(b.fourPlus, b.threePlus),
-    immature: b.yearMonth >= immatureCutoff,
+    immature: b.yearMonth >= cutoff,
   })).sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
 
-  return {
-    uploadedAt: meta?.uploaded_at ?? null,
-    uploadedBy: meta?.uploaded_by ?? null,
-    rowCount: meta?.row_count ?? rows.length,
-    filename: meta?.filename ?? null,
-    chain,
-    monthly,
-  };
+  return { sync: getSyncMeta(), chain, monthly };
+}
+
+/** Background-friendly entry point used by the boot hook + the 6h cron. */
+export function prewarmPatronsSync(): Promise<void> {
+  return syncAllPatrons()
+    .then((r) => {
+      if (r.ok) {
+        console.log(`[patrons-sync] ${r.count}/${r.totalInDripos} patrons in ${(r.elapsedMs / 1000).toFixed(1)}s`);
+      } else {
+        console.warn(`[patrons-sync] failed (${r.elapsedMs}ms): ${r.error}`);
+      }
+    })
+    .catch((err) => {
+      console.warn('[patrons-sync] exception:', err instanceof Error ? err.message : err);
+    });
 }

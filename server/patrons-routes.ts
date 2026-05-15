@@ -1,49 +1,57 @@
 /**
- * Patron CSV upload + funnel endpoints. Mounted under /api/patrons.
+ * Patron dashboard endpoints. Mounted under /api/patrons.
  */
 import { Router, Response } from 'express';
+import { AuthExpired, NoToken } from './dripos.js';
 import { requireAuth, AuthRequest } from './auth.js';
-import { buildFunnelReport, parsePatronsCsv, replacePatrons } from './patrons.js';
+import {
+  buildFunnelReport,
+  buildOverview,
+  syncAllPatrons,
+} from './patrons.js';
 
 const router = Router();
 
-router.get('/patrons/funnel', requireAuth, (_req: AuthRequest, res: Response) => {
+router.get('/patrons/overview', requireAuth, (_req: AuthRequest, res: Response) => {
   res.set('Cache-Control', 'no-store');
-  res.json({ ok: true, report: buildFunnelReport() });
+  try {
+    res.json({ ok: true, report: buildOverview() });
+  } catch (err) {
+    console.error('[patrons-overview]', err);
+    res.status(500).json({ error: 'overview_failed', message: err instanceof Error ? err.message : String(err) });
+  }
 });
 
-router.post('/patrons/upload', requireAuth, (req: AuthRequest, res: Response) => {
-  const body = req.body;
-  const csv = typeof body === 'string' ? body : (body?.csv ?? '');
-  if (!csv || typeof csv !== 'string' || csv.length < 20) {
-    res.status(400).json({ error: 'empty_or_invalid_csv' });
-    return;
-  }
-  if (csv.length > 20 * 1024 * 1024) {
-    res.status(413).json({ error: 'csv_too_large', message: 'Max 20MB.' });
-    return;
-  }
+router.get('/patrons/funnel', requireAuth, (_req: AuthRequest, res: Response) => {
+  res.set('Cache-Control', 'no-store');
   try {
-    const parsed = parsePatronsCsv(csv);
-    if (parsed.length === 0) {
-      res.status(400).json({
-        error: 'no_rows_parsed',
-        message: 'No rows parsed. Make sure the file is the Dripos All Patrons CSV export.',
-      });
+    res.json({ ok: true, report: buildFunnelReport() });
+  } catch (err) {
+    console.error('[patrons-funnel]', err);
+    res.status(500).json({ error: 'funnel_failed', message: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+/**
+ * Force a sync from Dripos. Returns when the sync completes so the
+ * client can show the fresh report immediately. ~60-90s on cold sync
+ * for ~50k patrons.
+ */
+router.post('/patrons/sync', requireAuth, async (_req: AuthRequest, res: Response) => {
+  try {
+    const result = await syncAllPatrons();
+    if (!result.ok) {
+      res.status(500).json({ error: 'sync_failed', message: result.error, result });
       return;
     }
-    const filename = typeof req.query.filename === 'string' ? req.query.filename : null;
-    const { rowCount } = replacePatrons(parsed, {
-      uploadedBy: req.user?.name ?? null,
-      filename,
-    });
-    res.json({ ok: true, rowCount, report: buildFunnelReport() });
+    res.json({ ok: true, result });
   } catch (err) {
-    console.error('[patrons-upload] failed:', err);
-    res.status(500).json({
-      error: 'parse_failed',
-      message: err instanceof Error ? err.message : String(err),
-    });
+    if (err instanceof NoToken || err instanceof AuthExpired) {
+      res.status(401).json({ error: 'dripos_auth_required', message: err.message });
+      return;
+    }
+    console.error('[patrons-sync]', err);
+    res.status(500).json({ error: 'sync_failed', message: err instanceof Error ? err.message : String(err) });
   }
 });
 

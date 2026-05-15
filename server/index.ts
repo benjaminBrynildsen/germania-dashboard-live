@@ -17,9 +17,6 @@ const app = express();
 const PORT = process.env.PORT || 1930;
 
 app.use(express.json());
-// text/csv body for Patron uploads — kept narrow so it doesn't swallow
-// other content types. 20MB cap matches the per-route check.
-app.use(express.text({ type: 'text/csv', limit: '20mb' }));
 app.use(cookieParser());
 
 app.use('/api/auth', authRouter);
@@ -78,4 +75,18 @@ app.listen(PORT, () => {
       console.warn('[boot] hours prewarm import failed:', err);
     }
   }, 30_000);
+
+  // Patron sync — pulls ~50k patrons from /patrons/dumb/v2 on boot,
+  // then every 6 hours. Boot delay matches the hours prewarm so we're
+  // not slamming Dripos with parallel cold pulls.
+  const patronSyncOnce = async () => {
+    try {
+      const { prewarmPatronsSync } = await import('./patrons.js');
+      await prewarmPatronsSync();
+    } catch (err) {
+      console.warn('[patrons-sync] import or run failed:', err);
+    }
+  };
+  setTimeout(patronSyncOnce, 60_000);
+  setInterval(patronSyncOnce, 6 * 60 * 60 * 1000);
 });
