@@ -784,6 +784,7 @@ function CartRowEditor({
               fontFamily: 'var(--font-body)',
             }}>−</button>
           <input type="text" inputMode="numeric" pattern="[0-9]*"
+            data-qty-input
             value={qtyText}
             placeholder="0"
             onChange={(e) => {
@@ -796,8 +797,23 @@ function CartRowEditor({
               commit(Number.isFinite(next) ? next : 0);
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-              else if (e.key === 'ArrowUp') { e.preventDefault(); step(1); }
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                // Jump focus to the next quantity input in the order
+                // card so you can tab through the whole list with just
+                // the keyboard. Resolves before blur so the save fires
+                // for the row we just left.
+                const inputs = Array.from(
+                  document.querySelectorAll<HTMLInputElement>('[data-qty-input]'),
+                );
+                const idx = inputs.indexOf(e.currentTarget);
+                e.currentTarget.blur();
+                if (idx >= 0 && idx + 1 < inputs.length) {
+                  const next = inputs[idx + 1];
+                  next.focus();
+                  next.select();
+                }
+              } else if (e.key === 'ArrowUp') { e.preventDefault(); step(1); }
               else if (e.key === 'ArrowDown') { e.preventDefault(); step(-1); }
             }}
             style={{
