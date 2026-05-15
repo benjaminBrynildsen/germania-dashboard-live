@@ -538,8 +538,8 @@ function StoreOrderCard({
           labels above the rows. */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 110px 130px 64px',
-        gap: 12, padding: '10px 20px',
+        gridTemplateColumns: '1fr 150px 200px 56px',
+        gap: 28, padding: '10px 24px',
         background: theme.rowAlt,
         fontSize: 10, fontWeight: 700,
         textTransform: 'uppercase', letterSpacing: 1,
@@ -547,7 +547,7 @@ function StoreOrderCard({
         fontFamily: 'var(--font-body)',
       }}>
         <span>Item</span>
-        <span style={{ textAlign: 'right' }}>Order</span>
+        <span style={{ textAlign: 'center' }}>Order</span>
         <span style={{ textAlign: 'center' }}>Delivery · Mon / Wed / Fri</span>
         <span />
       </div>
@@ -697,9 +697,9 @@ function CartRowEditor({
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: '1fr 110px 130px 64px',
-      alignItems: 'center', gap: 12,
-      padding: '14px 20px',
+      gridTemplateColumns: '1fr 150px 200px 56px',
+      alignItems: 'center', gap: 28,
+      padding: '14px 24px',
       borderBottom: isLast ? 'none' : '1px solid rgba(0,0,0,0.04)',
       background: active ? 'transparent' : theme.rowAlt,
       opacity: active ? 1 : 0.92,
@@ -766,7 +766,7 @@ function CartRowEditor({
       </div>
 
       {/* Order qty stepper */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
         <div style={{
           display: 'inline-flex', alignItems: 'stretch',
           border: `1px solid ${active ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.1)'}`,
@@ -822,7 +822,7 @@ function CartRowEditor({
       </div>
 
       {/* Delivery slots — Mon / Wed / Fri */}
-      <div style={{ display: 'flex', gap: 4 }}>
+      <div style={{ display: 'flex', gap: 10 }}>
         {dayCell('Mon', row?.delivery.mon ?? 0)}
         {dayCell('Wed', row?.delivery.wed ?? 0)}
         {dayCell('Fri', row?.delivery.fri ?? 0)}
