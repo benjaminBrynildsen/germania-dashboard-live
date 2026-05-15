@@ -9,6 +9,7 @@ import anomalyRouter from './anomaly-routes.js';
 import driposRouter from './dripos-routes.js';
 import applicantsRouter from './applicants-routes.js';
 import bakeHausRouter from './bake-haus-routes.js';
+import patronsRouter from './patrons-routes.js';
 import { startReviewSync } from './places.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,6 +17,9 @@ const app = express();
 const PORT = process.env.PORT || 1930;
 
 app.use(express.json());
+// text/csv body for Patron uploads — kept narrow so it doesn't swallow
+// other content types. 20MB cap matches the per-route check.
+app.use(express.text({ type: 'text/csv', limit: '20mb' }));
 app.use(cookieParser());
 
 app.use('/api/auth', authRouter);
@@ -24,6 +28,7 @@ app.use('/api', anomalyRouter);
 app.use('/api', driposRouter);
 app.use('/api', applicantsRouter);
 app.use('/api', bakeHausRouter);
+app.use('/api', patronsRouter);
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '..', 'dist');

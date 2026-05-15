@@ -23,6 +23,7 @@ const NAV_ITEMS: Array<{ to: string; label: string; exact?: boolean }> = [
  *  desktop. On mobile they render flat at the bottom of the drawer. */
 const MORE_ITEMS: Array<{ to: string; label: string; exact?: boolean }> = [
   { to: '/staffing', label: 'Staffing', exact: false },
+  { to: '/patrons', label: 'Patrons' },
   { to: '/launches', label: 'Launches', exact: false },
   { to: '/cog', label: 'COG Manager' },
   { to: '/weather-closure', label: 'Weather' },

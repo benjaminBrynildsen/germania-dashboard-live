@@ -223,6 +223,40 @@ db.exec(`
     PRIMARY KEY (week_start_iso, store_label)
   );
 
+  -- Patron funnel — snapshots of the dashboard.dripos.com All Patrons
+  -- export. Replaced wholesale on every upload (no incremental diff;
+  -- Dripos doesn't give us stable patron IDs in the CSV anyway, just
+  -- name/phone/email). The first_seen_iso field is what the funnel
+  -- aggregator groups by.
+  CREATE TABLE IF NOT EXISTS patrons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    phone TEXT,
+    email TEXT,
+    total_tickets INTEGER NOT NULL DEFAULT 0,
+    first_seen_iso TEXT,           -- YYYY-MM-DD
+    last_seen_iso TEXT,            -- YYYY-MM-DD
+    total_spend_cents INTEGER,
+    total_tips_cents INTEGER,
+    average_ticket_cents INTEGER,
+    current_points REAL,
+    text_subscribed INTEGER DEFAULT 0,
+    email_subscribed INTEGER DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_patrons_first_seen ON patrons (first_seen_iso);
+  CREATE INDEX IF NOT EXISTS idx_patrons_tickets ON patrons (total_tickets);
+
+  -- Single-row metadata about the most recent patron upload so the UI
+  -- can show "Last upload: 12:38 PM today by Ben · 5,841 patrons".
+  CREATE TABLE IF NOT EXISTS patrons_upload_meta (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    uploaded_at INTEGER,
+    uploaded_by TEXT,
+    row_count INTEGER,
+    filename TEXT
+  );
+  INSERT OR IGNORE INTO patrons_upload_meta (id) VALUES (1);
+
   -- Predecessor table that briefly tracked save state per-week. Dropped
   -- in favor of bake_haus_saved_orders (per-week-per-store). Safe to
   -- drop because the feature was only live for a few hours and never
