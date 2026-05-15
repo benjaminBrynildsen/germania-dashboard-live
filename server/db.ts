@@ -12,6 +12,21 @@ const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// Patron schema migration: the v0 schema (CSV-upload era) used a
+// different shape for `patrons`. The new schema below is keyed on
+// dripos_id and has date_created_ms/last_seen_ms columns; if the v0
+// shape exists, drop it BEFORE the main exec so the IF NOT EXISTS
+// below sees a clean slate and the indexes can attach to the new
+// columns. Patron data is sourced from Dripos so a wipe is safe.
+{
+  const cols = db.prepare("PRAGMA table_info(patrons)").all() as Array<{ name: string }>;
+  const hasV0Column = cols.some((c) => c.name === 'first_seen_iso');
+  if (hasV0Column) {
+    console.log('[migration] dropping v0 patrons table for Dripos-shaped schema');
+    db.exec('DROP TABLE patrons');
+  }
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -285,50 +300,6 @@ db.exec(`
 const extPath = path.join(__dirname, 'db-schema-extension.sql');
 if (fs.existsSync(extPath)) {
   db.exec(fs.readFileSync(extPath, 'utf8'));
-}
-
-// Patron schema migration: the v0 schema (CSV-upload era, shipped briefly)
-// used a different shape — autoincrement id, first_seen_iso TEXT, etc.
-// We've since switched to a Dripos-shaped schema keyed on dripos_id. If
-// the existing patrons table has the v0 'first_seen_iso' column, drop +
-// recreate. Data is re-pullable from Dripos so the wipe is safe.
-{
-  const cols = db.prepare("PRAGMA table_info(patrons)").all() as Array<{ name: string }>;
-  const hasV0Column = cols.some((c) => c.name === 'first_seen_iso');
-  if (hasV0Column) {
-    console.log('[migration] dropping v0 patrons table for Dripos-shaped schema');
-    db.exec(`
-      DROP TABLE patrons;
-      CREATE TABLE patrons (
-        dripos_id INTEGER PRIMARY KEY,
-        unique_id TEXT,
-        full_name TEXT,
-        email TEXT,
-        phone TEXT,
-        location_id INTEGER,
-        date_created_ms INTEGER,
-        last_seen_ms INTEGER,
-        lifetime INTEGER NOT NULL DEFAULT 0,
-        tickets INTEGER NOT NULL DEFAULT 0,
-        total_spend_cents INTEGER,
-        total_tips_cents INTEGER,
-        average_ticket_cents INTEGER,
-        average_tip_cents INTEGER,
-        points REAL,
-        text_subscribed INTEGER DEFAULT 0,
-        email_subscribed INTEGER DEFAULT 0,
-        birth_month INTEGER,
-        birth_day INTEGER,
-        birth_year INTEGER,
-        date_archived_ms INTEGER
-      );
-      CREATE INDEX idx_patrons_date_created ON patrons (date_created_ms);
-      CREATE INDEX idx_patrons_location ON patrons (location_id);
-      CREATE INDEX idx_patrons_lifetime ON patrons (lifetime);
-      CREATE INDEX idx_patrons_spend ON patrons (total_spend_cents);
-      CREATE INDEX idx_patrons_last_seen ON patrons (last_seen_ms);
-    `);
-  }
 }
 
 // Seed locations if empty
