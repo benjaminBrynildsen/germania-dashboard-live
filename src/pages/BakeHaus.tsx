@@ -534,36 +534,38 @@ function StoreOrderCard({
           Inventory @ {new Date(inventoryFetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
         </span>
       </div>
-      <table style={{
-        width: '100%', borderCollapse: 'collapse',
-        fontSize: 14, fontFamily: 'var(--font-body)',
+      {/* Subtle column-header strip — no harsh table chrome, just light
+          labels above the rows. */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 110px 130px 110px',
+        gap: 12, padding: '10px 20px',
+        background: theme.rowAlt,
+        fontSize: 10, fontWeight: 700,
+        textTransform: 'uppercase', letterSpacing: 1,
+        color: 'rgba(0,0,0,0.42)',
+        fontFamily: 'var(--font-body)',
       }}>
-        <thead>
-          <tr style={{ background: theme.rowAlt }}>
-            <Th>Item</Th>
-            <Th align="right">On hand</Th>
-            <Th align="right">Week</Th>
-            <Th align="right">Mon</Th>
-            <Th align="right">Wed</Th>
-            <Th align="right">Fri</Th>
-            <Th />
-          </tr>
-        </thead>
-        <tbody>
-          {renderItems.map((it) => (
-            <CartRowEditor key={it.name}
-              itemName={it.name}
-              imageUrl={it.imageUrl}
-              row={it.row}
-              onHand={inventory[it.name] ?? 0}
-              isCustom={it.custom}
-              inactiveBg={theme.rowAlt}
-              onSave={(qty) => onSave(it.name, qty)}
-              onDelete={() => onDelete(it.name)}
-            />
-          ))}
-        </tbody>
-      </table>
+        <span>Item</span>
+        <span style={{ textAlign: 'right' }}>Order</span>
+        <span style={{ textAlign: 'center' }}>Delivery · Mon / Wed / Fri</span>
+        <span />
+      </div>
+      <div>
+        {renderItems.map((it, i) => (
+          <CartRowEditor key={it.name}
+            itemName={it.name}
+            imageUrl={it.imageUrl}
+            row={it.row}
+            onHand={inventory[it.name] ?? 0}
+            isCustom={it.custom}
+            theme={theme}
+            isLast={i === renderItems.length - 1}
+            onSave={(qty) => onSave(it.name, qty)}
+            onDelete={() => onDelete(it.name)}
+          />
+        ))}
+      </div>
       <div style={{
         padding: '10px 18px',
         borderTop: `1px solid ${theme.border}`,
@@ -634,14 +636,15 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, imageUrl, row, onHand, isCustom, inactiveBg, onSave, onDelete,
+  itemName, imageUrl, row, onHand, isCustom, theme, isLast, onSave, onDelete,
 }: {
   itemName: string;
   imageUrl?: string | null;
   row: OrderRow | null;
   onHand: number;
   isCustom: boolean;
-  inactiveBg: string;
+  theme: ReturnType<typeof getTheme>;
+  isLast: boolean;
   onSave: (qty: number) => void;
   onDelete: () => void;
 }) {
@@ -669,70 +672,121 @@ function CartRowEditor({
     commit(next);
   };
 
-  return (
-    <tr style={{
-      borderTop: '1px solid rgba(0,0,0,0.05)',
-      background: active ? 'transparent' : inactiveBg,
+  const dayCell = (label: string, qty: number) => (
+    <div style={{
+      flex: 1, textAlign: 'center',
+      padding: '6px 4px', borderRadius: 8,
+      background: active && qty > 0 ? 'rgba(255,255,255,0.75)' : 'transparent',
+      border: active && qty > 0 ? '1px solid rgba(0,0,0,0.06)' : '1px solid transparent',
+      transition: 'background 0.15s',
     }}>
-      <Td>
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 14,
-          color: active ? '#1a1a1a' : 'rgba(0,0,0,0.45)',
-          fontWeight: active ? 500 : 400,
-          fontSize: 19,
-          fontFamily: 'var(--font-body)',
-        }}>
-          {imageUrl ? (
-            <img src={imageUrl} alt="" loading="lazy"
-              style={{
-                width: 128, height: 128, borderRadius: 14,
-                objectFit: 'cover', flexShrink: 0,
-                opacity: active ? 1 : 0.55,
-                background: 'rgba(0,0,0,0.04)',
-              }}
-            />
-          ) : (
-            <span style={{
-              display: 'inline-block', width: 96, height: 96,
-              borderRadius: 12, flexShrink: 0,
+      <div style={{
+        fontSize: 9, fontWeight: 700, letterSpacing: 1,
+        textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)',
+        marginBottom: 2, fontFamily: 'var(--font-body)',
+      }}>{label}</div>
+      <div style={{
+        fontSize: 20, fontWeight: 600,
+        fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+        color: active && qty > 0 ? '#1a1a1a' : 'rgba(0,0,0,0.2)',
+        fontFamily: 'var(--font-body)',
+      }}>{active && qty > 0 ? qty : '—'}</div>
+    </div>
+  );
+
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr 110px 130px 110px',
+      alignItems: 'center', gap: 12,
+      padding: '14px 20px',
+      borderBottom: isLast ? 'none' : '1px solid rgba(0,0,0,0.04)',
+      background: active ? 'transparent' : theme.rowAlt,
+      opacity: active ? 1 : 0.92,
+      transition: 'background 0.15s',
+    }}>
+      {/* Item: photo + name (display font) + on-hand subtitle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+        {imageUrl ? (
+          <img src={imageUrl} alt="" loading="lazy"
+            style={{
+              width: 96, height: 96, borderRadius: 14,
+              objectFit: 'cover', flexShrink: 0,
+              opacity: active ? 1 : 0.55,
               background: 'rgba(0,0,0,0.04)',
-            }} />
-          )}
-          <span>
+              boxShadow: active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+            }}
+          />
+        ) : (
+          <span style={{
+            display: 'inline-block', width: 96, height: 96,
+            borderRadius: 14, flexShrink: 0,
+            background: 'rgba(0,0,0,0.04)',
+          }} />
+        )}
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 22, fontWeight: 500,
+            color: active ? '#1a1a1a' : 'rgba(0,0,0,0.5)',
+            letterSpacing: -0.2, lineHeight: 1.15,
+            overflowWrap: 'anywhere',
+          }}>
             {itemName}
             {isCustom && (
               <span style={{
-                marginLeft: 6, fontSize: 9, fontWeight: 700,
-                color: 'rgba(0,0,0,0.35)', letterSpacing: 0.5,
+                marginLeft: 8, fontSize: 9, fontWeight: 700,
+                color: 'rgba(0,0,0,0.4)', letterSpacing: 0.6,
                 textTransform: 'uppercase',
+                fontFamily: 'var(--font-body)',
+                verticalAlign: 'middle',
+                padding: '2px 6px', borderRadius: 4,
+                background: 'rgba(0,0,0,0.05)',
               }}>custom</span>
             )}
-          </span>
-        </span>
-      </Td>
-      <Td align="right" style={{
-        fontVariantNumeric: 'tabular-nums',
-        color: onHand > 0 ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.25)',
-      }}>{onHand}</Td>
-      <Td align="right">
+          </div>
+          <div style={{
+            marginTop: 6, display: 'flex', alignItems: 'center', gap: 10,
+            fontSize: 11, color: 'rgba(0,0,0,0.45)',
+            fontFamily: 'var(--font-body)',
+            textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600,
+          }}>
+            <span style={{
+              padding: '2px 8px', borderRadius: 999,
+              background: onHand > 0 ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0.02)',
+              color: onHand > 0 ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)',
+            }}>{onHand} on hand</span>
+            {active && row && row.netQty !== row.weeklyQty && (
+              <span style={{ color: 'rgba(0,0,0,0.4)' }}>
+                Net {row.netQty}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Order qty stepper */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <div style={{
           display: 'inline-flex', alignItems: 'stretch',
-          border: '1px solid rgba(0,0,0,0.15)', borderRadius: 8,
-          background: active ? '#fff' : 'rgba(255,255,255,0.65)',
+          border: `1px solid ${active ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.1)'}`,
+          borderRadius: 10,
+          background: '#fff',
           overflow: 'hidden',
+          boxShadow: active ? '0 1px 2px rgba(0,0,0,0.04)' : 'none',
         }}>
           <button onClick={() => step(-1)} aria-label="Decrease"
             style={{
-              width: 28, padding: 0, border: 0, cursor: 'pointer',
+              width: 34, padding: 0, border: 0, cursor: 'pointer',
               background: 'transparent', color: 'rgba(0,0,0,0.55)',
-              fontSize: 16, fontWeight: 600, lineHeight: 1,
-              borderRight: '1px solid rgba(0,0,0,0.08)',
+              fontSize: 18, fontWeight: 500, lineHeight: 1,
+              borderRight: '1px solid rgba(0,0,0,0.06)',
+              fontFamily: 'var(--font-body)',
             }}>−</button>
           <input type="text" inputMode="numeric" pattern="[0-9]*"
             value={qtyText}
             placeholder="0"
             onChange={(e) => {
-              // Allow only digits (no decimals, no negatives).
               const cleaned = e.target.value.replace(/[^0-9]/g, '');
               setQtyText(cleaned);
             }}
@@ -747,42 +801,42 @@ function CartRowEditor({
               else if (e.key === 'ArrowDown') { e.preventDefault(); step(-1); }
             }}
             style={{
-              width: 48, padding: '6px 4px', border: 0,
-              fontSize: 14, fontVariantNumeric: 'tabular-nums',
+              width: 50, padding: '8px 4px', border: 0,
+              fontSize: 16, fontWeight: 600,
+              fontVariantNumeric: 'tabular-nums',
               textAlign: 'center', background: 'transparent',
-              color: active ? '#1a1a1a' : 'rgba(0,0,0,0.5)',
+              color: active ? '#1a1a1a' : 'rgba(0,0,0,0.4)',
               outline: 'none',
+              fontFamily: 'var(--font-body)',
             }}
           />
           <button onClick={() => step(1)} aria-label="Increase"
             style={{
-              width: 28, padding: 0, border: 0, cursor: 'pointer',
+              width: 34, padding: 0, border: 0, cursor: 'pointer',
               background: 'transparent', color: 'rgba(0,0,0,0.55)',
-              fontSize: 16, fontWeight: 600, lineHeight: 1,
-              borderLeft: '1px solid rgba(0,0,0,0.08)',
+              fontSize: 18, fontWeight: 500, lineHeight: 1,
+              borderLeft: '1px solid rgba(0,0,0,0.06)',
+              fontFamily: 'var(--font-body)',
             }}>+</button>
         </div>
-      </Td>
-      <Td align="right" style={{
-        ...delivCell,
-        color: active ? delivCell.color : 'rgba(0,0,0,0.18)',
-      }}>{active ? fmtNum(row!.delivery.mon) : '—'}</Td>
-      <Td align="right" style={{
-        ...delivCell,
-        color: active ? delivCell.color : 'rgba(0,0,0,0.18)',
-      }}>{active ? fmtNum(row!.delivery.wed) : '—'}</Td>
-      <Td align="right" style={{
-        ...delivCell,
-        color: active ? delivCell.color : 'rgba(0,0,0,0.18)',
-      }}>{active ? fmtNum(row!.delivery.fri) : '—'}</Td>
-      <Td align="right">
+      </div>
+
+      {/* Delivery slots — Mon / Wed / Fri */}
+      <div style={{ display: 'flex', gap: 4 }}>
+        {dayCell('Mon', row?.delivery.mon ?? 0)}
+        {dayCell('Wed', row?.delivery.wed ?? 0)}
+        {dayCell('Fri', row?.delivery.fri ?? 0)}
+      </div>
+
+      {/* Trailing action (delete custom item) */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         {isCustom && active && (
           <button onClick={() => {
             if (confirm(`Remove ${itemName} from this order?`)) onDelete();
           }} style={iconBtn} title="Remove">×</button>
         )}
-      </Td>
-    </tr>
+      </div>
+    </div>
   );
 }
 
