@@ -21,6 +21,10 @@ interface RawPatron {
   PHONE?: string | null;
   LOCATION_ID?: number | null;
   DATE_CREATED?: number | null;
+  DATE_UPDATED?: number | null;
+  /** Real last-visit timestamp. /patrons/dumb/v2 (the paginated list)
+   *  omits this field; only the per-patron POST returns it. We fall
+   *  back to DATE_UPDATED for the recency proxy. */
   LAST_SEEN?: number | null;
   LIFETIME?: number | null;
   TICKETS?: number | null;
@@ -120,9 +124,12 @@ export async function syncAllPatrons(): Promise<SyncResult> {
             r.PHONE ?? null,
             r.LOCATION_ID ?? null,
             r.DATE_CREATED ?? null,
-            r.LAST_SEEN ?? null,
+            // v2 list endpoint returns LAST_SEEN=null for every patron;
+            // fall back to DATE_UPDATED as the recency proxy (changes
+            // on point-earning events = visits).
+            r.LAST_SEEN ?? r.DATE_UPDATED ?? null,
             r.LIFETIME ?? 0,
-            r.TICKETS ?? 0,
+            r.TICKETS ?? r.LIFETIME ?? 0,
             r.TOTAL_SPEND ?? null,
             r.TOTAL_TIPS ?? null,
             r.AVERAGE_TICKET ?? null,
@@ -239,6 +246,14 @@ export interface OverviewReport {
   newThisYear: number;
   newLifetime: number;            // = totalActive
 
+  // Regular share of recent traffic
+  totalRegulars: number;          // all-time count meeting the 8/8/60 bar
+  seenThisMonth: number;
+  regularsSeenThisWeek: number;
+  regularsSeenThisMonth: number;
+  pctRegularsThisWeek: number | null;
+  pctRegularsThisMonth: number | null;
+
   // Per-store first-seen breakdown
   byLocation: Array<{
     storeLabel: string;
@@ -304,6 +319,7 @@ function startOfWeek(d: Date): Date {
 
 export function buildOverview(): OverviewReport {
   const now = new Date();
+  const nowMs = now.getTime();
   const weekStart = startOfWeek(now).getTime();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const yearStart = new Date(now.getFullYear(), 0, 1).getTime();
@@ -321,6 +337,15 @@ export function buildOverview(): OverviewReport {
   const newThisWeek = active.filter((r) => (r.date_created_ms ?? 0) >= weekStart).length;
   const newThisMonth = active.filter((r) => (r.date_created_ms ?? 0) >= monthStart).length;
   const newThisYear = active.filter((r) => (r.date_created_ms ?? 0) >= yearStart).length;
+
+  // Regular tagging — applied once across the active set so per-store
+  // and per-window aggregations can reuse the result.
+  const regularFlag = new Map<number, boolean>();
+  for (const r of active) {
+    regularFlag.set(r.dripos_id, isRegular(r.lifetime, r.date_created_ms, r.last_seen_ms, nowMs));
+  }
+  const totalRegulars = active.filter((r) => regularFlag.get(r.dripos_id)).length;
+  const seenThisMonthRows = active.filter((r) => (r.last_seen_ms ?? 0) >= monthStart);
 
   // Top tens — by lifetime visits + by total spend (active only).
   const byVisits = [...active]
@@ -366,6 +391,9 @@ export function buildOverview(): OverviewReport {
     };
   });
 
+  const regularsSeenThisWeek = seenThisWeekRows.filter((r) => regularFlag.get(r.dripos_id)).length;
+  const regularsSeenThisMonth = seenThisMonthRows.filter((r) => regularFlag.get(r.dripos_id)).length;
+
   return {
     sync: getSyncMeta(),
     totalPatrons: all.length,
@@ -377,6 +405,12 @@ export function buildOverview(): OverviewReport {
     newThisMonth,
     newThisYear,
     newLifetime: active.length,
+    totalRegulars,
+    seenThisMonth: seenThisMonthRows.length,
+    regularsSeenThisWeek,
+    regularsSeenThisMonth,
+    pctRegularsThisWeek: pct(regularsSeenThisWeek, seenThisWeekRows.length),
+    pctRegularsThisMonth: pct(regularsSeenThisMonth, seenThisMonthRows.length),
     byLocation,
     topByVisits: byVisits,
     topBySpend: bySpend,

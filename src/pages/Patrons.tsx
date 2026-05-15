@@ -36,6 +36,12 @@ interface OverviewReport {
   newThisMonth: number;
   newThisYear: number;
   newLifetime: number;
+  totalRegulars: number;
+  seenThisMonth: number;
+  regularsSeenThisWeek: number;
+  regularsSeenThisMonth: number;
+  pctRegularsThisWeek: number | null;
+  pctRegularsThisMonth: number | null;
   byLocation: Array<{
     storeLabel: string;
     totalPatrons: number;
@@ -293,6 +299,9 @@ function OverviewView({ report, isMobile }: { report: OverviewReport; isMobile: 
         <TopOfWeekCard patron={report.topThisWeek} seenThisWeek={report.seenThisWeek} />
       )}
 
+      <RegularShareCard report={report} />
+
+
       <div style={{
         display: 'grid',
         gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
@@ -331,6 +340,87 @@ function StatCard({ label, value, dim }: { label: string; value: string; dim?: b
         fontSize: dim ? 20 : 28, fontWeight: 700, color: '#1a1a1a',
         fontVariantNumeric: 'tabular-nums', lineHeight: 1.05,
       }}>{value}</div>
+    </div>
+  );
+}
+
+function RegularShareCard({ report }: { report: OverviewReport }) {
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 24,
+      border: '1px solid rgba(0,0,0,0.07)',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.5)',
+        textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12,
+      }}>
+        Visits from regulars · share of patrons seen
+      </div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14,
+      }}>
+        <RegularBlock
+          label="This week"
+          regulars={report.regularsSeenThisWeek}
+          total={report.seenThisWeek}
+          pct={report.pctRegularsThisWeek}
+        />
+        <RegularBlock
+          label="This month"
+          regulars={report.regularsSeenThisMonth}
+          total={report.seenThisMonth}
+          pct={report.pctRegularsThisMonth}
+        />
+        <RegularBlock
+          label="True regulars (all-time)"
+          regulars={report.totalRegulars}
+          total={report.totalActive}
+          pct={report.totalActive > 0 ? Math.round((report.totalRegulars / report.totalActive) * 1000) / 10 : null}
+          showTotal
+        />
+      </div>
+      <div style={{
+        marginTop: 10, fontSize: 11, color: 'rgba(0,0,0,0.4)',
+      }}>
+        Counts patrons who meet the bar (8+ visits · ≥8-wk tenure · last seen ≤60 days) and were seen in the window. Doesn't capture absolute visit volume (we don't have per-ticket patron data) but shows the share of recent traffic coming from durable customers.
+      </div>
+    </div>
+  );
+}
+
+function RegularBlock({
+  label, regulars, total, pct, showTotal,
+}: {
+  label: string;
+  regulars: number;
+  total: number;
+  pct: number | null;
+  showTotal?: boolean;
+}) {
+  return (
+    <div style={{
+      padding: '10px 14px', borderRadius: 10,
+      background: 'rgba(0,0,0,0.025)',
+      border: '1px solid rgba(0,0,0,0.05)',
+    }}>
+      <div style={{
+        fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.5)',
+        textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4,
+      }}>{label}</div>
+      <div style={{
+        fontSize: 22, fontWeight: 700, color: '#1a1a1a',
+        fontVariantNumeric: 'tabular-nums', lineHeight: 1.1,
+      }}>{regulars.toLocaleString()}</div>
+      <div style={{
+        fontSize: 12, color: 'rgba(0,0,0,0.55)', marginTop: 2,
+        fontVariantNumeric: 'tabular-nums',
+      }}>
+        of {total.toLocaleString()} {showTotal ? 'active patrons' : 'seen'}
+        {pct != null && (
+          <span style={{ marginLeft: 6, fontWeight: 700, color: '#a16207' }}>{fmtPct(pct)}</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -576,7 +666,7 @@ function MonthlyFunnelTable({ months, isMobile }: { months: FunnelMonth[]; isMob
                   <Td align="right"><PctChip pct={m.pct4Plus} tone={t4} /></Td>
                   {!isMobile && <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>{m.fourPlus}</Td>}
                   <Td align="right"><PctChip pct={m.pctRegulars} tone={tReg} /></Td>
-                  {!isMobile && <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>{m.regulars}</Td>}
+                  {!isMobile && <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>{m.regulars ?? 0}</Td>}
                 </tr>
               );
             })}
