@@ -520,12 +520,12 @@ function StoreOrderCard({
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
         flexWrap: 'wrap', gap: 8,
       }}>
-        <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>
+        <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.3 }}>
           {store}
           {STORE_CITIES[store] && (
             <span style={{
-              fontWeight: 500, letterSpacing: 0.5, marginLeft: 8, opacity: 0.85,
-              textTransform: 'uppercase', fontSize: 13,
+              fontWeight: 500, letterSpacing: 0.6, marginLeft: 10, opacity: 0.85,
+              textTransform: 'uppercase', fontSize: 17,
             }}>— {STORE_CITIES[store]}</span>
           )}
         </span>
