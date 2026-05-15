@@ -538,7 +538,7 @@ function StoreOrderCard({
           labels above the rows. */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 76px 110px 130px 64px',
+        gridTemplateColumns: '1fr 110px 130px 64px',
         gap: 12, padding: '10px 20px',
         background: theme.rowAlt,
         fontSize: 10, fontWeight: 700,
@@ -547,7 +547,6 @@ function StoreOrderCard({
         fontFamily: 'var(--font-body)',
       }}>
         <span>Item</span>
-        <span style={{ textAlign: 'right' }}>On hand</span>
         <span style={{ textAlign: 'right' }}>Order</span>
         <span style={{ textAlign: 'center' }}>Delivery · Mon / Wed / Fri</span>
         <span />
@@ -698,7 +697,7 @@ function CartRowEditor({
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: '1fr 76px 110px 130px 64px',
+      gridTemplateColumns: '1fr 110px 130px 64px',
       alignItems: 'center', gap: 12,
       padding: '14px 20px',
       borderBottom: isLast ? 'none' : '1px solid rgba(0,0,0,0.04)',
@@ -746,27 +745,24 @@ function CartRowEditor({
               }}>custom</span>
             )}
           </div>
-          {active && row && row.netQty !== row.weeklyQty && (
-            <div style={{
-              marginTop: 6, fontSize: 11, fontWeight: 600,
-              color: 'rgba(0,0,0,0.45)', letterSpacing: 0.6,
-              textTransform: 'uppercase',
-              fontFamily: 'var(--font-body)',
-            }}>
-              Net {row.netQty}
-            </div>
-          )}
+          <div style={{
+            marginTop: 6, display: 'flex', alignItems: 'center', gap: 10,
+            fontSize: 11, color: 'rgba(0,0,0,0.45)',
+            fontFamily: 'var(--font-body)',
+            textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600,
+          }}>
+            <span style={{
+              padding: '2px 8px', borderRadius: 999,
+              background: onHand > 0 ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0.02)',
+              color: onHand > 0 ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)',
+            }}>{onHand} on hand</span>
+            {active && row && row.netQty !== row.weeklyQty && (
+              <span style={{ color: 'rgba(0,0,0,0.4)' }}>
+                Net {row.netQty}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-
-      {/* On hand */}
-      <div style={{ textAlign: 'right' }}>
-        <div style={{
-          fontSize: 22, fontWeight: 600, lineHeight: 1,
-          fontVariantNumeric: 'tabular-nums',
-          color: onHand > 0 ? '#1a1a1a' : 'rgba(0,0,0,0.2)',
-          fontFamily: 'var(--font-body)',
-        }}>{onHand}</div>
       </div>
 
       {/* Order qty stepper */}
