@@ -19,6 +19,7 @@ interface ItemSalesRow {
   totalUnits: number;
   avgPerStore: number;
   totalRevenueCents: number;
+  isSeasonal?: boolean;
 }
 interface LaborRow {
   label: string;
@@ -35,6 +36,8 @@ interface TrendPoint {
   year: number;
   total: number;
   perStore: Record<string, number>;
+  priorYearTotal?: number | null;
+  priorYearLabel?: string | null;
 }
 interface ReportData {
   generatedAt: string;
@@ -303,8 +306,14 @@ function TrendChart({ trend, isMobile }: { trend: TrendPoint[]; isMobile?: boole
   const innerH = H - PAD.top - PAD.bottom;
 
   const totals = trend.map((t) => t.total);
-  const yMax = Math.max(...totals, 1) * 1.10;
-  const yMin = Math.min(...totals) * 0.88;
+  // Include prior-year values in the y-axis bounds so the overlay line
+  // doesn't get clipped off-chart when last year was very different.
+  const pyTotals = trend
+    .map((t) => t.priorYearTotal)
+    .filter((v): v is number => v != null && v > 0);
+  const hasPriorYear = pyTotals.length > 0;
+  const yMax = Math.max(...totals, ...pyTotals, 1) * 1.10;
+  const yMin = Math.min(...totals, ...(pyTotals.length ? pyTotals : [Infinity])) * 0.88;
   const xStep = trend.length > 1 ? innerW / (trend.length - 1) : innerW;
 
   const x = (i: number) => PAD.left + i * xStep;
@@ -313,6 +322,22 @@ function TrendChart({ trend, isMobile }: { trend: TrendPoint[]; isMobile?: boole
   const totalPath = trend.map((t, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(t.total)}`).join(' ');
   // Filled area path under the total line — gradient fill
   const areaPath = `${totalPath} L ${x(trend.length - 1)} ${PAD.top + innerH} L ${x(0)} ${PAD.top + innerH} Z`;
+
+  // Prior-year overlay path — drawn in segments so gaps in the data
+  // (e.g. a store that didn't exist 52 weeks ago) don't connect across
+  // null points with a misleading line.
+  const priorYearSegments: string[] = [];
+  let curSegment = '';
+  trend.forEach((t, i) => {
+    if (t.priorYearTotal != null && t.priorYearTotal > 0) {
+      const cmd = curSegment === '' ? 'M' : 'L';
+      curSegment += ` ${cmd} ${x(i)} ${y(t.priorYearTotal)}`;
+    } else if (curSegment) {
+      priorYearSegments.push(curSegment.trim());
+      curSegment = '';
+    }
+  });
+  if (curSegment) priorYearSegments.push(curSegment.trim());
 
   // Per-store dashed lines
   const storeLines = ['G1', 'G2', 'G3', 'G4'].map((label) => {
@@ -363,6 +388,21 @@ function TrendChart({ trend, isMobile }: { trend: TrendPoint[]; isMobile?: boole
           <path key={s.label} d={s.path} fill="none" stroke={s.color} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.55" />
         ))}
 
+        {/* Prior-year overlay line — drawn below the current-year line so
+            the year-over-year comparison reads at a glance. */}
+        {priorYearSegments.map((d, i) => (
+          <path key={`py-${i}`} d={d} fill="none"
+            stroke="#b08d57" strokeWidth="2" strokeDasharray="6 4"
+            strokeLinejoin="round" strokeLinecap="round" opacity="0.85"
+          />
+        ))}
+        {hasPriorYear && trend.map((t, i) => (
+          t.priorYearTotal != null && t.priorYearTotal > 0 ? (
+            <circle key={`py-pt-${i}`} cx={x(i)} cy={y(t.priorYearTotal)} r="3"
+              fill="#b08d57" stroke="#fff" strokeWidth="1.5" />
+          ) : null
+        ))}
+
         {/* Total line */}
         <path d={totalPath} fill="none" stroke="#1a1a1a" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
         {/* Total points + value labels */}
@@ -379,6 +419,9 @@ function TrendChart({ trend, isMobile }: { trend: TrendPoint[]; isMobile?: boole
 
       <div style={{ display: 'flex', gap: 18, justifyContent: 'center', marginTop: 6, flexWrap: 'wrap' }}>
         <Legend label="TOTAL" color="#1a1a1a" />
+        {hasPriorYear && (
+          <Legend label={`PRIOR YEAR · ${trend[0]?.year ? trend[0].year - 1 : ''}`} color="#b08d57" dashed />
+        )}
         {Object.entries(STORE_COLORS).map(([k, c]) => (
           <Legend key={k} label={k} color={c} dashed />
         ))}
@@ -988,12 +1031,15 @@ export default function WeeklySales() {
             )}
           </Card>
 
-          <Card title="Top 10 drinks · this week (by revenue)">
+          <Card
+            title="Top 10 drinks · this week (by revenue)"
+            subtitle="Seasonal/watch-list drinks are always included, even when they're outside the top 10."
+          >
             {data.topDrinks.length === 0 ? (
               <Stub>No drink sales recorded this week.</Stub>
             ) : (
               <>
-              <TopItemsPieChart items={data.topDrinks} />
+              <TopItemsPieChart items={data.topDrinks.slice(0, 10)} />
               <div className="dripos-scroll"><table className="dripos-table">
                 <thead>
                   <tr>
@@ -1005,24 +1051,42 @@ export default function WeeklySales() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.topDrinks.map((row, i) => (
-                    <tr key={row.name}>
-                      <td style={{ textAlign: 'left', color: '#888' }}>{i + 1}</td>
-                      <td style={{ textAlign: 'left' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <ProductImage logo={row.logo} name={row.name} size={36} />
-                          <span>{row.name}</span>
-                        </div>
-                      </td>
-                      {!isMobile && data.stores.map((s) => (
-                        <td key={s.label} style={{ textAlign: 'center' }}>
-                          {row.unitsByStore[s.label] ?? '–'}
+                  {data.topDrinks.map((row, i) => {
+                    const isBelowTop10 = i >= 10;
+                    return (
+                      <tr key={row.name} style={{
+                        background: isBelowTop10 ? 'rgba(245, 158, 11, 0.06)' : undefined,
+                      }}>
+                        <td style={{ textAlign: 'left', color: '#888' }}>
+                          {isBelowTop10 ? '★' : i + 1}
                         </td>
-                      ))}
-                      <td><strong>{row.totalUnits}</strong></td>
-                      <td>{fmtMoney(row.totalRevenueCents)}</td>
-                    </tr>
-                  ))}
+                        <td style={{ textAlign: 'left' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <ProductImage logo={row.logo} name={row.name} size={36} />
+                            <span>
+                              {row.name}
+                              {row.isSeasonal && (
+                                <span style={{
+                                  marginLeft: 8, fontSize: 9, fontWeight: 700,
+                                  letterSpacing: 0.5, textTransform: 'uppercase',
+                                  color: '#92400e',
+                                  padding: '2px 6px', borderRadius: 4,
+                                  background: 'rgba(245, 158, 11, 0.15)',
+                                }}>Seasonal</span>
+                              )}
+                            </span>
+                          </div>
+                        </td>
+                        {!isMobile && data.stores.map((s) => (
+                          <td key={s.label} style={{ textAlign: 'center' }}>
+                            {row.unitsByStore[s.label] ?? '–'}
+                          </td>
+                        ))}
+                        <td><strong>{row.totalUnits}</strong></td>
+                        <td>{fmtMoney(row.totalRevenueCents)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table></div>
               </>

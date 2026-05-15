@@ -801,6 +801,37 @@ export interface ItemSalesRow {
   totalUnits: number;
   avgPerStore: number;
   totalRevenueCents: number;
+  /** True when the item's name matches the SEASONAL_DRINK_NAMES list.
+   *  The Top Drinks card always includes seasonal items even if they
+   *  aren't in the top 10 by units, so the watch-list stays visible. */
+  isSeasonal?: boolean;
+}
+
+/**
+ * Drinks the manager wants to keep an eye on regardless of how they
+ * rank in raw unit sales — limited-time / promo / artisanal items that
+ * deserve attention even at low volume. Aliases on each entry let
+ * names drift slightly across Dripos's menu without losing the flag.
+ */
+const SEASONAL_DRINKS: Array<{ canonical: string; aliases: string[] }> = [
+  { canonical: 'Sunshine Latte',         aliases: ['sunshine latte'] },
+  { canonical: 'Cinnamon Honey Latte',   aliases: ['cinnamon honey latte', 'cinnamon honey'] },
+  { canonical: 'Lemon White Mocha',      aliases: ['lemon white mocha'] },
+  { canonical: 'Haus White Mocha',       aliases: ['haus white mocha', 'white mocha'] },
+  { canonical: 'Lavender Haze',          aliases: ['lavender haze'] },
+  { canonical: 'Matcha Peachu',          aliases: ['matcha peachu', 'matcha peach'] },
+  { canonical: 'Horchata Cortado',       aliases: ['horchata cortado'] },
+  { canonical: 'Key Lime Milkshake',     aliases: ['key lime milkshake'] },
+];
+
+export function isSeasonalDrinkName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  const lower = name.toLowerCase();
+  for (const s of SEASONAL_DRINKS) {
+    if (lower === s.canonical.toLowerCase()) return true;
+    if (s.aliases.some((a) => lower.includes(a))) return true;
+  }
+  return false;
 }
 
 export interface LaborRow {
@@ -1166,6 +1197,11 @@ export interface TrendPoint {
   year: number;
   total: number;
   perStore: Record<string, number>;
+  /** Same week of the prior year (52 weeks earlier), chain gross,
+   *  for the YoY overlay line. null when prior-year data wasn't
+   *  available (e.g. store didn't exist yet). */
+  priorYearTotal: number | null;
+  priorYearLabel: string | null;
 }
 
 export interface ReportData {
@@ -1309,8 +1345,14 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
     console.error('[buildReport] chain salessummary failed:', err);
   }
 
-  // 6-week trend (oldest-first)
+  // 6-week trend (oldest-first). For each week we also fetch the same
+  // Sun-Sat 52 weeks earlier so we can overlay 2025 on the chart.
   const trendJobs: Array<Promise<{ w: number; sun: Date; sat: Date; label: string; data: DashboardSalesData }>> = [];
+  // Prior-year jobs: chain-level fetch per week (one call per week, not
+  // per-store, since we only show the chain total for the overlay line).
+  type PyJob = { w: number; sun: Date; sat: Date; data: DashboardSalesData };
+  const priorYearJobs: Array<Promise<PyJob>> = [];
+  const locationIdsForPy = STORES.map((s) => s.locationId);
   for (let w = TREND_WEEKS - 1; w >= 0; w--) {
     const [sun, sat] = weekBounds(referenceDate, w);
     for (const s of STORES) {
@@ -1324,28 +1366,51 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
         })),
       );
     }
+    // 52 weeks prior — same calendar week shape, last year. fetchChainSales
+    // is the same chain-level call used for the headline number; reusing
+    // it means the overlay line shares the headline's denominator instead
+    // of summing per-store (which would diverge on cash-rounding).
+    const pySun = new Date(sun);
+    pySun.setDate(pySun.getDate() - 7 * 52);
+    const pySat = new Date(sat);
+    pySat.setDate(pySat.getDate() - 7 * 52);
+    priorYearJobs.push(
+      fetchChainSales(locationIdsForPy, pySun, pySat)
+        .then((data) => ({ w, sun: pySun, sat: pySat, data }))
+        .catch(() => ({ w, sun: pySun, sat: pySat, data: {} as DashboardSalesData })),
+    );
   }
-  const trendResults = await Promise.all(trendJobs);
+  const [trendResults, priorYearResults] = await Promise.all([
+    Promise.all(trendJobs),
+    Promise.all(priorYearJobs),
+  ]);
   const byWeek: Record<number, { sun: Date; sat: Date; perStore: Record<string, number> }> = {};
   for (const { w, sun, sat, label, data } of trendResults) {
     const stats = data.STATS ?? {};
     byWeek[w] = byWeek[w] ?? { sun, sat, perStore: {} };
     byWeek[w].perStore[label] = stats.GROSS_SALES ?? 0;
   }
+  const priorYearByWeek: Record<number, { sun: Date; sat: Date; total: number }> = {};
+  for (const py of priorYearResults) {
+    const total = py.data.STATS?.GROSS_SALES ?? 0;
+    priorYearByWeek[py.w] = { sun: py.sun, sat: py.sat, total };
+  }
   const trend: TrendPoint[] = [];
   for (let w = TREND_WEEKS - 1; w >= 0; w--) {
     const entry = byWeek[w];
     const sumTotal = Object.values(entry.perStore).reduce((a, b) => a + b, 0);
-    // Apply per-week override so the trend chart agrees with the headline.
     const trendOverride = overrideForWeek(entry.sun);
     const total = trendOverride ? trendOverride.forcedGrossCents : sumTotal;
     const m = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
+    const py = priorYearByWeek[w];
     trend.push({
       label: `${m(entry.sun)}-${m(entry.sat)}`,
       year: entry.sun.getFullYear(),
       weekNum: sundayWeekNumber(entry.sun),
       total,
       perStore: entry.perStore,
+      priorYearTotal: py && py.total > 0 ? py.total : null,
+      priorYearLabel: py ? `${m(py.sun)}-${m(py.sat)}` : null,
     });
   }
 
@@ -1459,13 +1524,21 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
       storeByLocId,
       (r) => r.CATEGORY_NAME === 'BAKE HAUS FOOD',
     ).sort((a, b) => b.totalRevenueCents - a.totalRevenueCents);
-    topDrinks = aggregateItems(
+    // All drinks (un-truncated) so we can splice seasonal watch-list
+    // items back in even when they're outside the top 10 by revenue.
+    const allDrinks = aggregateItems(
       productRows,
       storeByLocId,
       (r) => !DRINK_EXCLUDE_CATEGORIES.has(r.CATEGORY_NAME),
     )
-      .sort((a, b) => b.totalRevenueCents - a.totalRevenueCents)
-      .slice(0, 10);
+      .map((row) => ({ ...row, isSeasonal: isSeasonalDrinkName(row.name) }))
+      .sort((a, b) => b.totalRevenueCents - a.totalRevenueCents);
+    const top10 = allDrinks.slice(0, 10);
+    const top10Names = new Set(top10.map((d) => d.name));
+    const seasonalsBelowTop10 = allDrinks.filter(
+      (d) => d.isSeasonal && !top10Names.has(d.name),
+    );
+    topDrinks = [...top10, ...seasonalsBelowTop10];
     ({ platformSalesByStore, platformSalesTotals } = aggregatePlatformSales(productRows, storeByLocId));
   } catch (err) {
     console.error('[buildReport] productsales failed:', err);
