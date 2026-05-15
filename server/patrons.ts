@@ -397,9 +397,12 @@ export interface FunnelMonth {
   threePlus: number;
   exactlyThree: number;
   fourPlus: number;
+  exactlyFour: number;
+  fivePlus: number;
   pct2Plus: number | null;
   pct3Plus: number | null;
   pct4Plus: number | null;
+  pct5Plus: number | null;
   immature: boolean;
 }
 
@@ -408,9 +411,11 @@ export interface FunnelChainSummary {
   twoPlus: number;
   threePlus: number;
   fourPlus: number;
+  fivePlus: number;
   pct2Plus: number | null;
   pct3Plus: number | null;
   pct4Plus: number | null;
+  pct5Plus: number | null;
 }
 
 export interface PatronFunnelReport {
@@ -444,11 +449,13 @@ export function buildFunnelReport(): PatronFunnelReport {
     twoPlus: rows.filter((r) => r.lifetime >= 2).length,
     threePlus: rows.filter((r) => r.lifetime >= 3).length,
     fourPlus: rows.filter((r) => r.lifetime >= 4).length,
-    pct2Plus: null, pct3Plus: null, pct4Plus: null,
+    fivePlus: rows.filter((r) => r.lifetime >= 5).length,
+    pct2Plus: null, pct3Plus: null, pct4Plus: null, pct5Plus: null,
   };
   chain.pct2Plus = pct(chain.twoPlus, chain.total);
   chain.pct3Plus = pct(chain.threePlus, chain.twoPlus);
   chain.pct4Plus = pct(chain.fourPlus, chain.threePlus);
+  chain.pct5Plus = pct(chain.fivePlus, chain.fourPlus);
 
   const buckets = new Map<string, FunnelMonth>();
   for (const r of rows) {
@@ -461,7 +468,8 @@ export function buildFunnelReport(): PatronFunnelReport {
         label: monthLabel(ym),
         total: 0, oneOnly: 0, twoPlus: 0, exactlyTwo: 0,
         threePlus: 0, exactlyThree: 0, fourPlus: 0,
-        pct2Plus: null, pct3Plus: null, pct4Plus: null,
+        exactlyFour: 0, fivePlus: 0,
+        pct2Plus: null, pct3Plus: null, pct4Plus: null, pct5Plus: null,
         immature: false,
       };
       buckets.set(ym, b);
@@ -473,6 +481,8 @@ export function buildFunnelReport(): PatronFunnelReport {
     if (r.lifetime >= 3) b.threePlus++;
     if (r.lifetime === 3) b.exactlyThree++;
     if (r.lifetime >= 4) b.fourPlus++;
+    if (r.lifetime === 4) b.exactlyFour++;
+    if (r.lifetime >= 5) b.fivePlus++;
   }
 
   const now = new Date();
@@ -484,6 +494,7 @@ export function buildFunnelReport(): PatronFunnelReport {
     pct2Plus: pct(b.twoPlus, b.total),
     pct3Plus: pct(b.threePlus, b.twoPlus),
     pct4Plus: pct(b.fourPlus, b.threePlus),
+    pct5Plus: pct(b.fivePlus, b.fourPlus),
     immature: b.yearMonth >= cutoff,
   })).sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
 

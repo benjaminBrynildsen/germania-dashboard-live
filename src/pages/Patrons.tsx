@@ -61,9 +61,12 @@ interface FunnelMonth {
   threePlus: number;
   exactlyThree: number;
   fourPlus: number;
+  exactlyFour: number;
+  fivePlus: number;
   pct2Plus: number | null;
   pct3Plus: number | null;
   pct4Plus: number | null;
+  pct5Plus: number | null;
   immature: boolean;
 }
 
@@ -72,9 +75,11 @@ interface FunnelChain {
   twoPlus: number;
   threePlus: number;
   fourPlus: number;
+  fivePlus: number;
   pct2Plus: number | null;
   pct3Plus: number | null;
   pct4Plus: number | null;
+  pct5Plus: number | null;
 }
 
 interface FunnelReport {
@@ -436,6 +441,7 @@ function ChainSummaryCard({ chain }: { chain: FunnelChain }) {
     { label: 'Came back (2+)', value: chain.twoPlus, pct: chain.pct2Plus, target: TAFFER.pct2Plus },
     { label: '3rd visit (3+)', value: chain.threePlus, pct: chain.pct3Plus, target: TAFFER.pct3Plus },
     { label: 'Regular (4+)',   value: chain.fourPlus, pct: chain.pct4Plus, target: TAFFER.pct4Plus },
+    { label: 'Loyal (5+)',     value: chain.fivePlus, pct: chain.pct5Plus, target: null as number | null },
   ];
 
   return (
@@ -449,14 +455,20 @@ function ChainSummaryCard({ chain }: { chain: FunnelChain }) {
         fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.5)',
         textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 14,
       }}>Chain funnel · all time</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14 }}>
         {stages.map((s, i) => {
-          const tone = s.target != null ? bandColor(s.pct, s.target) : { bg: 'transparent', fg: '#1a1a1a' };
+          // First stage has its own neutral look; subsequent stages with
+          // a Taffer target are tinted against it; the 5+ stage has no
+          // benchmark so it stays neutral too.
+          const hasTarget = s.target != null;
+          const tone = hasTarget ? bandColor(s.pct, s.target!) : { bg: 'rgba(0,0,0,0.03)', fg: '#1a1a1a' };
           return (
             <div key={s.label} style={{
               padding: '12px 14px', borderRadius: 10,
-              background: i === 0 ? 'rgba(0,0,0,0.03)' : tone.bg,
-              border: i === 0 ? '1px solid rgba(0,0,0,0.06)' : `1px solid ${tone.bg}`,
+              background: i === 0 || !hasTarget ? 'rgba(0,0,0,0.03)' : tone.bg,
+              border: i === 0 || !hasTarget
+                ? '1px solid rgba(0,0,0,0.06)'
+                : `1px solid ${tone.bg}`,
             }}>
               <div style={{
                 fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.5)',
@@ -471,12 +483,12 @@ function ChainSummaryCard({ chain }: { chain: FunnelChain }) {
                 fontVariantNumeric: 'tabular-nums',
                 color: tone.fg, marginTop: 2,
               }}>{i === 0 ? '100%' : fmtPct(s.pct)}</div>
-              {s.target != null && s.pct != null && (
+              {hasTarget && s.pct != null && (
                 <div style={{
                   fontSize: 10, marginTop: 4, color: 'rgba(0,0,0,0.4)',
                   letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600,
                 }}>
-                  Taffer {s.target}% ({s.pct >= s.target ? '+' : ''}{(s.pct - s.target).toFixed(1)}pp)
+                  Taffer {s.target}% ({s.pct >= s.target! ? '+' : ''}{(s.pct - s.target!).toFixed(1)}pp)
                 </div>
               )}
             </div>
@@ -520,7 +532,9 @@ function MonthlyFunnelTable({ months, isMobile }: { months: FunnelMonth[]; isMob
               <Th align="right">% 3+</Th>
               {!isMobile && <Th align="right">3</Th>}
               <Th align="right">% 4+</Th>
-              {!isMobile && <Th align="right">4+</Th>}
+              {!isMobile && <Th align="right">4</Th>}
+              <Th align="right">% 5+</Th>
+              {!isMobile && <Th align="right">5+</Th>}
             </tr>
           </thead>
           <tbody>
@@ -528,6 +542,9 @@ function MonthlyFunnelTable({ months, isMobile }: { months: FunnelMonth[]; isMob
               const t2 = bandColor(m.pct2Plus, TAFFER.pct2Plus);
               const t3 = bandColor(m.pct3Plus, TAFFER.pct3Plus);
               const t4 = bandColor(m.pct4Plus, TAFFER.pct4Plus);
+              // 5+ has no Taffer benchmark, so use a neutral tone
+              // (light grey background, plain dark text).
+              const t5 = { bg: 'rgba(0,0,0,0.04)', fg: 'rgba(0,0,0,0.7)' };
               return (
                 <tr key={m.yearMonth} style={{
                   borderTop: '1px solid rgba(0,0,0,0.05)',
@@ -552,7 +569,9 @@ function MonthlyFunnelTable({ months, isMobile }: { months: FunnelMonth[]; isMob
                   <Td align="right"><PctChip pct={m.pct3Plus} tone={t3} /></Td>
                   {!isMobile && <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>{m.exactlyThree}</Td>}
                   <Td align="right"><PctChip pct={m.pct4Plus} tone={t4} /></Td>
-                  {!isMobile && <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>{m.fourPlus}</Td>}
+                  {!isMobile && <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>{m.exactlyFour}</Td>}
+                  <Td align="right"><PctChip pct={m.pct5Plus} tone={t5} /></Td>
+                  {!isMobile && <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>{m.fivePlus}</Td>}
                 </tr>
               );
             })}
