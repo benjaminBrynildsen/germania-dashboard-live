@@ -505,10 +505,19 @@ function monthLabel(ym: string): string {
 }
 
 export function buildFunnelReport(): PatronFunnelReport {
+  // Filter:
+  //   date_created_ms IS NOT NULL → need a first-visit month to bucket
+  //   date_archived_ms IS NULL    → skip archived/deleted records
+  //   lifetime >= 1               → some Dripos patron rows carry
+  //     lifetime=0 (record created but no ticket attached); those
+  //     would inflate the cohort total without landing in any "exactly
+  //     N" sub-bucket, breaking the 1-only + 2 + 3 + 4+ = total
+  //     invariant.
   const rows = db.prepare(
     `SELECT date_created_ms, last_seen_ms, lifetime FROM patrons
       WHERE date_created_ms IS NOT NULL
-        AND date_archived_ms IS NULL`,
+        AND date_archived_ms IS NULL
+        AND lifetime >= 1`,
   ).all() as Array<{ date_created_ms: number; last_seen_ms: number | null; lifetime: number }>;
 
   const nowMs = Date.now();

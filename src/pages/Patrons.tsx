@@ -520,8 +520,44 @@ function FunnelView({ report, isMobile }: { report: FunnelReport; isMobile: bool
       </p>
 
       <ChainSummaryCard chain={report.chain} />
+      <HowToReadCard />
       <MonthlyFunnelTable months={report.monthly} isMobile={isMobile} />
     </>
+  );
+}
+
+function HowToReadCard() {
+  return (
+    <div style={{
+      background: 'rgba(0,0,0,0.025)', borderRadius: 12,
+      border: '1px solid rgba(0,0,0,0.06)',
+      padding: '14px 18px', marginBottom: 22,
+      fontSize: 13, color: 'rgba(0,0,0,0.7)', lineHeight: 1.55,
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.55)',
+        textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8,
+      }}>How to read this funnel</div>
+      <p style={{ margin: '0 0 8px' }}>
+        The five blocks above each represent a <strong>stage in the customer journey</strong>.
+        Patrons enter at "1st-time visit" — anyone who signed up for the rewards program — and drop off at each step.
+        The percentage under each block is the <strong>conversion rate from the previous stage</strong>:
+      </p>
+      <ul style={{ margin: '0 0 8px 18px', padding: 0 }}>
+        <li><strong>Came back (2+) %</strong> = of all 1st-time visitors, what fraction returned at all.</li>
+        <li><strong>3rd visit (3+) %</strong> = of patrons who came twice, what fraction came a third time.</li>
+        <li><strong>Regular (4+) %</strong> = of patrons who came three times, what fraction came a fourth ("you own them" per Taffer).</li>
+        <li><strong>True regular %</strong> = of "you own them" 4+ patrons, what fraction became durable regulars (8+ visits, 8-week tenure, seen ≤60 days).</li>
+      </ul>
+      <p style={{ margin: 0, fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>
+        Cohorts in the table below are scoped by <strong>first-visit month</strong>:
+        every patron is bucketed once, in the month they first showed up. The "1-only / 2 / 3 / 4+"
+        columns are mutually exclusive — they always sum to that month's 1st-time total.
+        "% Regular" is computed against the whole cohort total (not the prior stage), so it
+        reads as "what fraction of this month's new patrons became real long-term regulars by today."
+        Recent months get a <strong>too recent</strong> tag because patrons need ≥8 weeks of tenure to ever qualify.
+      </p>
+    </div>
   );
 }
 
