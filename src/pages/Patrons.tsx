@@ -61,12 +61,11 @@ interface FunnelMonth {
   threePlus: number;
   exactlyThree: number;
   fourPlus: number;
-  exactlyFour: number;
-  fivePlus: number;
+  regulars: number;
   pct2Plus: number | null;
   pct3Plus: number | null;
   pct4Plus: number | null;
-  pct5Plus: number | null;
+  pctRegulars: number | null;
   immature: boolean;
 }
 
@@ -75,11 +74,12 @@ interface FunnelChain {
   twoPlus: number;
   threePlus: number;
   fourPlus: number;
-  fivePlus: number;
+  regulars: number;
   pct2Plus: number | null;
   pct3Plus: number | null;
   pct4Plus: number | null;
-  pct5Plus: number | null;
+  pctRegularsOfFourPlus: number | null;
+  pctRegularsOfTotal: number | null;
 }
 
 interface FunnelReport {
@@ -437,11 +437,11 @@ function FunnelView({ report, isMobile }: { report: FunnelReport; isMobile: bool
 
 function ChainSummaryCard({ chain }: { chain: FunnelChain }) {
   const stages = [
-    { label: '1st-time visit', value: chain.total, pct: 100, target: null as number | null },
-    { label: 'Came back (2+)', value: chain.twoPlus, pct: chain.pct2Plus, target: TAFFER.pct2Plus },
-    { label: '3rd visit (3+)', value: chain.threePlus, pct: chain.pct3Plus, target: TAFFER.pct3Plus },
-    { label: 'Regular (4+)',   value: chain.fourPlus, pct: chain.pct4Plus, target: TAFFER.pct4Plus },
-    { label: 'Loyal (5+)',     value: chain.fivePlus, pct: chain.pct5Plus, target: null as number | null },
+    { label: '1st-time visit',  value: chain.total,    pct: 100,                target: null as number | null, caption: null as string | null },
+    { label: 'Came back (2+)',  value: chain.twoPlus,  pct: chain.pct2Plus,     target: TAFFER.pct2Plus,        caption: null as string | null },
+    { label: '3rd visit (3+)',  value: chain.threePlus, pct: chain.pct3Plus,    target: TAFFER.pct3Plus,        caption: null as string | null },
+    { label: 'Regular (4+)',    value: chain.fourPlus, pct: chain.pct4Plus,     target: TAFFER.pct4Plus,        caption: null as string | null },
+    { label: 'True regular',    value: chain.regulars, pct: chain.pctRegularsOfFourPlus, target: null as number | null, caption: '8+ visits · ≥8wk tenure · seen ≤60d' },
   ];
 
   return (
@@ -491,6 +491,12 @@ function ChainSummaryCard({ chain }: { chain: FunnelChain }) {
                   Taffer {s.target}% ({s.pct >= s.target! ? '+' : ''}{(s.pct - s.target!).toFixed(1)}pp)
                 </div>
               )}
+              {!hasTarget && s.caption && (
+                <div style={{
+                  fontSize: 9, marginTop: 4, color: 'rgba(0,0,0,0.42)',
+                  letterSpacing: 0.4, fontWeight: 600,
+                }}>{s.caption}</div>
+              )}
             </div>
           );
         })}
@@ -532,9 +538,9 @@ function MonthlyFunnelTable({ months, isMobile }: { months: FunnelMonth[]; isMob
               <Th align="right">% 3+</Th>
               {!isMobile && <Th align="right">3</Th>}
               <Th align="right">% 4+</Th>
-              {!isMobile && <Th align="right">4</Th>}
-              <Th align="right">% 5+</Th>
-              {!isMobile && <Th align="right">5+</Th>}
+              {!isMobile && <Th align="right">4+</Th>}
+              <Th align="right">% Regular</Th>
+              {!isMobile && <Th align="right">Regulars</Th>}
             </tr>
           </thead>
           <tbody>
@@ -542,9 +548,8 @@ function MonthlyFunnelTable({ months, isMobile }: { months: FunnelMonth[]; isMob
               const t2 = bandColor(m.pct2Plus, TAFFER.pct2Plus);
               const t3 = bandColor(m.pct3Plus, TAFFER.pct3Plus);
               const t4 = bandColor(m.pct4Plus, TAFFER.pct4Plus);
-              // 5+ has no Taffer benchmark, so use a neutral tone
-              // (light grey background, plain dark text).
-              const t5 = { bg: 'rgba(0,0,0,0.04)', fg: 'rgba(0,0,0,0.7)' };
+              // "True regular" has no Taffer benchmark — neutral tone.
+              const tReg = { bg: 'rgba(0,0,0,0.04)', fg: 'rgba(0,0,0,0.7)' };
               return (
                 <tr key={m.yearMonth} style={{
                   borderTop: '1px solid rgba(0,0,0,0.05)',
@@ -569,9 +574,9 @@ function MonthlyFunnelTable({ months, isMobile }: { months: FunnelMonth[]; isMob
                   <Td align="right"><PctChip pct={m.pct3Plus} tone={t3} /></Td>
                   {!isMobile && <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>{m.exactlyThree}</Td>}
                   <Td align="right"><PctChip pct={m.pct4Plus} tone={t4} /></Td>
-                  {!isMobile && <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>{m.exactlyFour}</Td>}
-                  <Td align="right"><PctChip pct={m.pct5Plus} tone={t5} /></Td>
-                  {!isMobile && <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>{m.fivePlus}</Td>}
+                  {!isMobile && <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>{m.fourPlus}</Td>}
+                  <Td align="right"><PctChip pct={m.pctRegulars} tone={tReg} /></Td>
+                  {!isMobile && <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.5)' }}>{m.regulars}</Td>}
                 </tr>
               );
             })}

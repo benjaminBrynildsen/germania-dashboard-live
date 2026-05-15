@@ -397,12 +397,16 @@ export interface FunnelMonth {
   threePlus: number;
   exactlyThree: number;
   fourPlus: number;
-  exactlyFour: number;
-  fivePlus: number;
+  /** True regulars from this cohort. Definition: lifetime ≥ 8, tenure
+   *  (now − first-visit) ≥ 8 weeks, last seen within 60 days. */
+  regulars: number;
   pct2Plus: number | null;
   pct3Plus: number | null;
   pct4Plus: number | null;
-  pct5Plus: number | null;
+  /** regulars / total — what fraction of this cohort became real
+   *  long-term regulars (not just hit the 4-visit "you own them"
+   *  bar). The cohort-quality metric. */
+  pctRegulars: number | null;
   immature: boolean;
 }
 
@@ -411,11 +415,40 @@ export interface FunnelChainSummary {
   twoPlus: number;
   threePlus: number;
   fourPlus: number;
-  fivePlus: number;
+  regulars: number;
   pct2Plus: number | null;
   pct3Plus: number | null;
   pct4Plus: number | null;
-  pct5Plus: number | null;
+  /** regulars / fourPlus — of the patrons we "owned" by Taffer's
+   *  standard, what fraction turned into durable regulars? */
+  pctRegularsOfFourPlus: number | null;
+  /** regulars / total — share of all patrons who are durable regulars. */
+  pctRegularsOfTotal: number | null;
+}
+
+/** Thresholds for "true regular." Captures patrons who visit on a
+ *  sustained cadence over time AND are still active, not just patrons
+ *  who hit the Taffer 4-visit bar in a flash and disappeared. */
+export const REGULAR_THRESHOLDS = {
+  minVisits: 8,
+  minTenureWeeks: 8,
+  recentWithinDays: 60,
+};
+
+function isRegular(
+  lifetime: number,
+  dateCreatedMs: number | null,
+  lastSeenMs: number | null,
+  nowMs: number,
+): boolean {
+  if (lifetime < REGULAR_THRESHOLDS.minVisits) return false;
+  if (dateCreatedMs == null) return false;
+  const tenureMs = nowMs - dateCreatedMs;
+  if (tenureMs < REGULAR_THRESHOLDS.minTenureWeeks * 7 * 24 * 60 * 60 * 1000) return false;
+  if (lastSeenMs == null) return false;
+  const sinceLastMs = nowMs - lastSeenMs;
+  if (sinceLastMs > REGULAR_THRESHOLDS.recentWithinDays * 24 * 60 * 60 * 1000) return false;
+  return true;
 }
 
 export interface PatronFunnelReport {
@@ -439,23 +472,31 @@ function monthLabel(ym: string): string {
 
 export function buildFunnelReport(): PatronFunnelReport {
   const rows = db.prepare(
-    `SELECT date_created_ms, lifetime FROM patrons
+    `SELECT date_created_ms, last_seen_ms, lifetime FROM patrons
       WHERE date_created_ms IS NOT NULL
         AND date_archived_ms IS NULL`,
-  ).all() as Array<{ date_created_ms: number; lifetime: number }>;
+  ).all() as Array<{ date_created_ms: number; last_seen_ms: number | null; lifetime: number }>;
+
+  const nowMs = Date.now();
+
+  const totalRegulars = rows.filter((r) =>
+    isRegular(r.lifetime, r.date_created_ms, r.last_seen_ms, nowMs),
+  ).length;
 
   const chain: FunnelChainSummary = {
     total: rows.length,
     twoPlus: rows.filter((r) => r.lifetime >= 2).length,
     threePlus: rows.filter((r) => r.lifetime >= 3).length,
     fourPlus: rows.filter((r) => r.lifetime >= 4).length,
-    fivePlus: rows.filter((r) => r.lifetime >= 5).length,
-    pct2Plus: null, pct3Plus: null, pct4Plus: null, pct5Plus: null,
+    regulars: totalRegulars,
+    pct2Plus: null, pct3Plus: null, pct4Plus: null,
+    pctRegularsOfFourPlus: null, pctRegularsOfTotal: null,
   };
   chain.pct2Plus = pct(chain.twoPlus, chain.total);
   chain.pct3Plus = pct(chain.threePlus, chain.twoPlus);
   chain.pct4Plus = pct(chain.fourPlus, chain.threePlus);
-  chain.pct5Plus = pct(chain.fivePlus, chain.fourPlus);
+  chain.pctRegularsOfFourPlus = pct(chain.regulars, chain.fourPlus);
+  chain.pctRegularsOfTotal = pct(chain.regulars, chain.total);
 
   const buckets = new Map<string, FunnelMonth>();
   for (const r of rows) {
@@ -468,8 +509,8 @@ export function buildFunnelReport(): PatronFunnelReport {
         label: monthLabel(ym),
         total: 0, oneOnly: 0, twoPlus: 0, exactlyTwo: 0,
         threePlus: 0, exactlyThree: 0, fourPlus: 0,
-        exactlyFour: 0, fivePlus: 0,
-        pct2Plus: null, pct3Plus: null, pct4Plus: null, pct5Plus: null,
+        regulars: 0,
+        pct2Plus: null, pct3Plus: null, pct4Plus: null, pctRegulars: null,
         immature: false,
       };
       buckets.set(ym, b);
@@ -481,8 +522,7 @@ export function buildFunnelReport(): PatronFunnelReport {
     if (r.lifetime >= 3) b.threePlus++;
     if (r.lifetime === 3) b.exactlyThree++;
     if (r.lifetime >= 4) b.fourPlus++;
-    if (r.lifetime === 4) b.exactlyFour++;
-    if (r.lifetime >= 5) b.fivePlus++;
+    if (isRegular(r.lifetime, r.date_created_ms, r.last_seen_ms, nowMs)) b.regulars++;
   }
 
   const now = new Date();
@@ -494,7 +534,7 @@ export function buildFunnelReport(): PatronFunnelReport {
     pct2Plus: pct(b.twoPlus, b.total),
     pct3Plus: pct(b.threePlus, b.twoPlus),
     pct4Plus: pct(b.fourPlus, b.threePlus),
-    pct5Plus: pct(b.fivePlus, b.fourPlus),
+    pctRegulars: pct(b.regulars, b.total),
     immature: b.yearMonth >= cutoff,
   })).sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
 
