@@ -345,7 +345,11 @@ export default function BakeHaus() {
       {tab === 'saved' && (
         <SavedOrdersList
           orders={savedOrders}
-          onOpen={(iso) => { setWeekIso(iso); setTab('current'); }}
+          onOpen={(iso, store) => {
+            setWeekIso(iso);
+            setActiveStore(store);
+            setTab('current');
+          }}
         />
       )}
     </div>
@@ -356,7 +360,7 @@ function SavedOrdersList({
   orders, onOpen,
 }: {
   orders: SavedOrder[];
-  onOpen: (weekIso: string) => void;
+  onOpen: (weekIso: string, storeLabel: string) => void;
 }) {
   if (orders.length === 0) {
     return (
@@ -397,7 +401,7 @@ function SavedOrdersList({
             const theme = getTheme(o.storeLabel);
             return (
               <tr key={`${o.weekStartIso}|${o.storeLabel}`}
-                onClick={() => onOpen(o.weekStartIso)}
+                onClick={() => onOpen(o.weekStartIso, o.storeLabel)}
                 style={{
                   borderTop: '1px solid rgba(0,0,0,0.05)',
                   cursor: 'pointer',
