@@ -84,6 +84,37 @@ export default function BakeHaus() {
   // Per-store saving state so multiple cards could save in parallel.
   const [savingStores, setSavingStores] = useState<Set<string>>(new Set());
   const [activeStore, setActiveStore] = useState<string>('G1');
+  const [printPrevReport, setPrintPrevReport] = useState<WeekReport | null>(null);
+  const [printing, setPrinting] = useState(false);
+
+  const exportPdf = useCallback(async () => {
+    if (!report) return;
+    setPrinting(true);
+    try {
+      // Fetch the prior week so the print summary can show a
+      // this-week vs. last-week comparison column. Best-effort —
+      // if last week has no data we just skip the comparison
+      // column and still print.
+      const prevIso = shiftWeeks(weekIso, -1);
+      try {
+        const r = await fetch(`/api/bake-haus/week?week=${prevIso}`, { cache: 'no-store' });
+        if (r.ok) {
+          const body = await r.json();
+          setPrintPrevReport(body.report ?? null);
+        } else {
+          setPrintPrevReport(null);
+        }
+      } catch {
+        setPrintPrevReport(null);
+      }
+      // Let React paint the print-only container before the dialog
+      // grabs the page snapshot.
+      await new Promise((r) => setTimeout(r, 60));
+      window.print();
+    } finally {
+      setPrinting(false);
+    }
+  }, [report, weekIso]);
 
   const loadWeek = useCallback(async (iso: string) => {
     setLoading(true);
@@ -319,9 +350,22 @@ export default function BakeHaus() {
           />
 
           {/* Per-day delivery breakdown — what goes on each truck. */}
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, marginTop: 28 }}>
-            Delivery schedule
-          </h2>
+          <div style={{
+            display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+            gap: 12, marginTop: 28, marginBottom: 12, flexWrap: 'wrap',
+          }}>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
+              Delivery schedule
+            </h2>
+            <button onClick={exportPdf} disabled={printing}
+              style={{
+                ...primaryBtn,
+                opacity: printing ? 0.6 : 1,
+                cursor: printing ? 'wait' : 'pointer',
+              }}>
+              {printing ? 'Preparing…' : 'Export PDF'}
+            </button>
+          </div>
           <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13, marginBottom: 14 }}>
             What goes on each truck. Empty cells mean that store didn't order the item this week.
           </p>
@@ -350,6 +394,18 @@ export default function BakeHaus() {
             setActiveStore(store);
             setTab('current');
           }}
+        />
+      )}
+
+      {/* Print-only layout. Hidden on screen, rendered when the user
+          hits Export PDF and the browser print dialog kicks in. */}
+      {report && (
+        <PrintableSchedule
+          weekIso={weekIso}
+          report={report}
+          prevReport={printPrevReport}
+          stores={stores}
+          catalog={catalog}
         />
       )}
     </div>
@@ -1024,6 +1080,294 @@ function WeeklyTotalsCard({
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// ─── Printable view (PDF export) ────────────────────────────────────
+
+/** Off-screen container that renders the delivery schedule in a
+ *  print-friendly layout. Hidden during normal browsing; the
+ *  @media print rules in the embedded <style> tag take over the
+ *  page when the user triggers window.print(), giving Maggie a
+ *  one-day-per-page PDF with a summary cover page on top. */
+function PrintableSchedule({
+  weekIso, report, prevReport, stores, catalog,
+}: {
+  weekIso: string;
+  report: WeekReport;
+  prevReport: WeekReport | null;
+  stores: string[];
+  catalog: CatalogItem[];
+}) {
+  // Aggregate this week + last week into per-item totals so the
+  // cover page can show a comparison column.
+  const summary = useMemo(() => {
+    const sum = (ds: WeekReport['deliverySummary']) => {
+      const m = new Map<string, number>();
+      let grand = 0;
+      for (const day of ['mon', 'wed', 'fri'] as const) {
+        const dayMap = ds[day] ?? {};
+        for (const [item, perStore] of Object.entries(dayMap)) {
+          for (const q of Object.values(perStore)) {
+            m.set(item, (m.get(item) ?? 0) + q);
+            grand += q;
+          }
+        }
+      }
+      return { byItem: m, grand };
+    };
+    const cur = sum(report.deliverySummary);
+    const prev = prevReport ? sum(prevReport.deliverySummary) : null;
+    const itemSet = new Set<string>([
+      ...cur.byItem.keys(),
+      ...(prev ? Array.from(prev.byItem.keys()) : []),
+    ]);
+    const rows = Array.from(itemSet).map((name) => ({
+      name,
+      cur:  cur.byItem.get(name)  ?? 0,
+      prev: prev?.byItem.get(name) ?? 0,
+    }));
+    rows.sort((a, b) => {
+      const ai = catalog.find((c) => c.name === a.name)?.sort ?? 1000;
+      const bi = catalog.find((c) => c.name === b.name)?.sort ?? 1000;
+      return ai - bi || a.name.localeCompare(b.name);
+    });
+    return { rows, curTotal: cur.grand, prevTotal: prev?.grand ?? 0, hasPrev: prev != null };
+  }, [report, prevReport, catalog]);
+
+  const curRange = fmtDateRange(weekIso);
+  const prevRange = fmtDateRange(shiftWeeks(weekIso, -1));
+  const deltaTotal = summary.curTotal - summary.prevTotal;
+  const deltaTotalPct = summary.prevTotal > 0
+    ? Math.round((deltaTotal / summary.prevTotal) * 100)
+    : null;
+
+  return (
+    <div className="bh-print-root">
+      {/* Embedded print CSS. Scoping all rules under @media print
+          means the screen view is unaffected; only the print stylesheet
+          flips visibility + page-break behavior. */}
+      <style>{`
+        @media screen {
+          .bh-print-root { display: none; }
+        }
+        @media print {
+          @page { size: letter portrait; margin: 0.5in; }
+          body { background: #fff; }
+          /* Hide everything that isn't part of the print root. */
+          body * { visibility: hidden; }
+          .bh-print-root, .bh-print-root * { visibility: visible; }
+          .bh-print-root {
+            position: absolute; top: 0; left: 0; width: 100%;
+            font-family: var(--font-body), Inter, system-ui, sans-serif;
+            color: #1a1a1a;
+          }
+          .bh-print-page {
+            page-break-after: always;
+            padding: 0 0 12pt 0;
+          }
+          .bh-print-page:last-child { page-break-after: auto; }
+          .bh-print-title { font-size: 22pt; font-weight: 700; margin: 0 0 4pt; letter-spacing: -0.3pt; }
+          .bh-print-sub   { font-size: 11pt; color: #555; margin: 0 0 14pt; }
+          .bh-print-pillrow { display: flex; gap: 10pt; margin: 0 0 16pt; flex-wrap: wrap; }
+          .bh-print-pill {
+            border: 1pt solid #ddd; border-radius: 6pt;
+            padding: 6pt 12pt; font-size: 10pt;
+          }
+          .bh-print-pill strong { font-size: 14pt; display: block; margin-top: 2pt; }
+          .bh-print-table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+          .bh-print-table th, .bh-print-table td {
+            border-bottom: 0.5pt solid #ddd;
+            padding: 6pt 10pt; text-align: left;
+          }
+          .bh-print-table th {
+            font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5pt;
+            color: #555; background: #f3f3f3;
+          }
+          .bh-print-table td.num,
+          .bh-print-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+          .bh-print-table tr.total td {
+            border-top: 1pt solid #333; font-weight: 700; background: #f7f7f7;
+          }
+          .bh-delta-up   { color: #15803d; font-weight: 700; }
+          .bh-delta-down { color: #b91c1c; font-weight: 700; }
+          .bh-delta-flat { color: #888; }
+        }
+      `}</style>
+
+      {/* Cover page: summary + comparison */}
+      <div className="bh-print-page">
+        <div style={{ fontSize: '9pt', color: '#888', letterSpacing: '0.5pt', textTransform: 'uppercase' }}>
+          Bake Haus · Delivery schedule
+        </div>
+        <h1 className="bh-print-title">Week of {curRange}</h1>
+        <p className="bh-print-sub">
+          Production totals across all four stores and three delivery days.
+          {summary.hasPrev && <> Last week ({prevRange}) shown for comparison.</>}
+        </p>
+
+        <div className="bh-print-pillrow">
+          <div className="bh-print-pill">
+            This week
+            <strong>{summary.curTotal.toLocaleString()} units</strong>
+          </div>
+          {summary.hasPrev && (
+            <>
+              <div className="bh-print-pill">
+                Last week
+                <strong>{summary.prevTotal.toLocaleString()} units</strong>
+              </div>
+              <div className="bh-print-pill">
+                Δ vs last week
+                <strong className={
+                  deltaTotal > 0 ? 'bh-delta-up'
+                  : deltaTotal < 0 ? 'bh-delta-down'
+                  : 'bh-delta-flat'
+                }>
+                  {deltaTotal > 0 ? '+' : ''}{deltaTotal.toLocaleString()}
+                  {deltaTotalPct != null && (
+                    <> ({deltaTotal > 0 ? '+' : ''}{deltaTotalPct}%)</>
+                  )}
+                </strong>
+              </div>
+            </>
+          )}
+        </div>
+
+        <table className="bh-print-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th className="num">This week</th>
+              {summary.hasPrev && <th className="num">Last week</th>}
+              {summary.hasPrev && <th className="num">Δ</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {summary.rows.map((r) => {
+              const delta = r.cur - r.prev;
+              const cls = delta > 0 ? 'bh-delta-up' : delta < 0 ? 'bh-delta-down' : 'bh-delta-flat';
+              return (
+                <tr key={r.name}>
+                  <td>{r.name}</td>
+                  <td className="num">{r.cur > 0 ? r.cur.toLocaleString() : '—'}</td>
+                  {summary.hasPrev && (
+                    <td className="num" style={{ color: '#888' }}>
+                      {r.prev > 0 ? r.prev.toLocaleString() : '—'}
+                    </td>
+                  )}
+                  {summary.hasPrev && (
+                    <td className={`num ${cls}`}>
+                      {delta === 0 ? '—' : `${delta > 0 ? '+' : ''}${delta}`}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+            <tr className="total">
+              <td>Total</td>
+              <td className="num">{summary.curTotal.toLocaleString()}</td>
+              {summary.hasPrev && <td className="num">{summary.prevTotal.toLocaleString()}</td>}
+              {summary.hasPrev && (
+                <td className={`num ${deltaTotal > 0 ? 'bh-delta-up' : deltaTotal < 0 ? 'bh-delta-down' : 'bh-delta-flat'}`}>
+                  {deltaTotal === 0 ? '—' : `${deltaTotal > 0 ? '+' : ''}${deltaTotal}`}
+                </td>
+              )}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* One page per delivery day. */}
+      {([
+        { label: 'Monday',    data: report.deliverySummary.mon },
+        { label: 'Wednesday', data: report.deliverySummary.wed },
+        { label: 'Friday',    data: report.deliverySummary.fri },
+      ] as const).map((day) => (
+        <PrintableDayPage
+          key={day.label}
+          day={day.label}
+          items={day.data}
+          stores={stores}
+          catalog={catalog}
+          weekRange={curRange}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PrintableDayPage({
+  day, items, stores, catalog, weekRange,
+}: {
+  day: string;
+  items: Record<string, Record<string, number>>;
+  stores: string[];
+  catalog: CatalogItem[];
+  weekRange: string;
+}) {
+  const sortedItems = Object.keys(items).sort((a, b) => {
+    const ai = catalog.find((c) => c.name === a)?.sort ?? 1000;
+    const bi = catalog.find((c) => c.name === b)?.sort ?? 1000;
+    return ai - bi || a.localeCompare(b);
+  });
+
+  const storeTotals: Record<string, number> = {};
+  const itemTotals: Record<string, number> = {};
+  let grand = 0;
+  for (const item of sortedItems) {
+    for (const s of stores) {
+      const q = items[item]?.[s] ?? 0;
+      storeTotals[s] = (storeTotals[s] ?? 0) + q;
+      itemTotals[item] = (itemTotals[item] ?? 0) + q;
+      grand += q;
+    }
+  }
+
+  return (
+    <div className="bh-print-page">
+      <div style={{ fontSize: '9pt', color: '#888', letterSpacing: '0.5pt', textTransform: 'uppercase' }}>
+        Bake Haus · {weekRange}
+      </div>
+      <h1 className="bh-print-title">{day} delivery</h1>
+      <p className="bh-print-sub">{grand.toLocaleString()} units total · {sortedItems.length} item{sortedItems.length === 1 ? '' : 's'}</p>
+
+      {sortedItems.length === 0 ? (
+        <p style={{ fontSize: '11pt', color: '#888', marginTop: '20pt' }}>
+          No deliveries scheduled for {day}.
+        </p>
+      ) : (
+        <table className="bh-print-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              {stores.map((s) => <th key={s} className="num">{s}</th>)}
+              <th className="num">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedItems.map((name) => (
+              <tr key={name}>
+                <td>{name}</td>
+                {stores.map((s) => (
+                  <td key={s} className="num">
+                    {items[name]?.[s] ? items[name][s] : '—'}
+                  </td>
+                ))}
+                <td className="num"><strong>{itemTotals[name] || '—'}</strong></td>
+              </tr>
+            ))}
+            <tr className="total">
+              <td>Total</td>
+              {stores.map((s) => (
+                <td key={s} className="num">{storeTotals[s] || '—'}</td>
+              ))}
+              <td className="num">{grand || '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
