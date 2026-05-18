@@ -160,39 +160,53 @@ export default function BakeHaus() {
     if (tab === 'saved') loadSavedOrders();
   }, [tab, loadSavedOrders]);
 
-  const [lockBusy, setLockBusy] = useState(false);
-  const toggleMondayLock = async () => {
-    if (!report) return;
-    const isLocked = !!report.monLock;
-    const verb = isLocked ? 'Unlock' : 'Lock';
-    const confirmMsg = isLocked
-      ? "Unlock Monday delivery? Mon quantities will go back to recomputing from each item's weekly qty."
-      : "Lock Monday delivery? After this, edits to weekly qty will only affect Wed + Fri (Monday stays frozen).";
-    if (!window.confirm(confirmMsg)) return;
-    setLockBusy(true);
-    setError(null);
-    try {
-      const r = await fetch('/api/bake-haus/lock-monday', {
-        method: isLocked ? 'DELETE' : 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ week: weekIso }),
-      });
-      if (!r.ok) {
-        const body = await r.json().catch(() => ({}));
-        throw new Error(body.message || body.error || `${verb} failed`);
-      }
-      await loadWeek(weekIso);
-    } catch (err: any) {
-      setError(err.message || String(err));
-    } finally {
-      setLockBusy(false);
+  // Which store, if any, currently has its update-confirm modal open.
+  // null = closed. The modal asks how to apply the save: keep Mon frozen
+  // (lock the week's Monday delivery) or update everything (default).
+  const [confirmStore, setConfirmStore] = useState<string | null>(null);
+
+  const setMonLock = async (week: string, lock: boolean): Promise<void> => {
+    const r = await fetch('/api/bake-haus/lock-monday', {
+      method: lock ? 'POST' : 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ week }),
+    });
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      throw new Error(body.message || body.error || (lock ? 'Lock' : 'Unlock') + ' failed');
     }
   };
 
-  const saveStore = async (store: string) => {
+  /** Click handler for the per-store Save button. If this store has
+   *  already been saved this week, opens the update confirm modal
+   *  (so the user picks Wed+Fri-only vs. update-everything). First-time
+   *  saves bypass the modal and go straight through. */
+  const handleSaveClick = (store: string) => {
+    if (!report) return;
+    const alreadySaved = (report.savedAtByStore[store] ?? null) != null;
+    if (alreadySaved) {
+      setConfirmStore(store);
+      return;
+    }
+    void saveStore(store, 'no-change');
+  };
+
+  /** Persist the store-save. `lockMode` controls what we do with the
+   *  week's Monday lock state:
+   *    'lock'       — snapshot current Mon for every row, then save
+   *                   (Mon frozen, future qty edits flow into Wed+Fri).
+   *    'unlock'     — clear any existing lock, then save (Mon recomputes
+   *                   from each row's weekly qty going forward).
+   *    'no-change'  — just save; whatever lock state exists stays. */
+  const saveStore = async (
+    store: string,
+    lockMode: 'lock' | 'unlock' | 'no-change',
+  ) => {
     setSavingStores((prev) => new Set(prev).add(store));
     setError(null);
     try {
+      if (lockMode === 'lock')        await setMonLock(weekIso, true);
+      else if (lockMode === 'unlock') await setMonLock(weekIso, false);
       const r = await fetch('/api/bake-haus/save', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -362,7 +376,7 @@ export default function BakeHaus() {
               savedAt={report.savedAtByStore[activeStore] ?? null}
               saving={savingStores.has(activeStore)}
               isMobile={isMobile}
-              onSaveOrder={() => saveStore(activeStore)}
+              onSaveOrder={() => handleSaveClick(activeStore)}
               onSave={(item, qty) => saveItem(activeStore, item, qty)}
               onDelete={(item) => deleteItem(activeStore, item)}
             />
@@ -380,14 +394,29 @@ export default function BakeHaus() {
             catalog={catalog}
           />
 
-          {/* Monday lock state — Maggie hits "Lock" once the Monday
-              truck has rolled. After that, qty edits flow into Wed+Fri
-              only and Mon stays frozen. */}
-          <MondayLockBar
-            monLock={report.monLock}
-            busy={lockBusy}
-            onToggle={toggleMondayLock}
-          />
+          {/* Read-only Monday lock status — the lock itself is now
+              toggled from the per-store Save dialog (Wed+Fri only
+              vs. update everything). This banner just surfaces the
+              current state so it's visible on the schedule tab. */}
+          {report.monLock && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 14px', borderRadius: 10, marginTop: 14,
+              background: 'rgba(202, 138, 4, 0.07)',
+              border: '1px solid rgba(202, 138, 4, 0.25)',
+              fontSize: 13,
+            }}>
+              <strong style={{ color: '#a16207' }}>🔒 Monday delivery locked</strong>
+              <span style={{ color: 'rgba(0,0,0,0.55)' }}>
+                locked {new Date(report.monLock.lockedAt).toLocaleString([], {
+                  month: 'short', day: 'numeric',
+                  hour: 'numeric', minute: '2-digit',
+                })}
+                {report.monLock.lockedBy && <> by {report.monLock.lockedBy}</>}
+                . Qty edits flow into <strong>Wed + Fri</strong> only.
+              </span>
+            </div>
+          )}
 
           {/* Per-day delivery breakdown — what goes on each truck. */}
           <div style={{
@@ -433,6 +462,28 @@ export default function BakeHaus() {
             setWeekIso(iso);
             setActiveStore(store);
             setTab('current');
+          }}
+        />
+      )}
+
+      {/* Update-confirm modal — fires when the user re-saves a store
+          that's already been saved this week. Forces an explicit
+          choice between locking Mon (Wed+Fri only) and updating all
+          three days. */}
+      {confirmStore && report && (
+        <UpdateConfirmModal
+          store={confirmStore}
+          monLock={report.monLock}
+          onClose={() => setConfirmStore(null)}
+          onLock={() => {
+            const s = confirmStore;
+            setConfirmStore(null);
+            void saveStore(s, 'lock');
+          }}
+          onUpdateAll={() => {
+            const s = confirmStore;
+            setConfirmStore(null);
+            void saveStore(s, report.monLock ? 'unlock' : 'no-change');
           }}
         />
       )}
@@ -982,52 +1033,94 @@ function CartRowEditor({
   );
 }
 
-function MondayLockBar({
-  monLock, busy, onToggle,
+function UpdateConfirmModal({
+  store, monLock, onClose, onLock, onUpdateAll,
 }: {
+  store: string;
   monLock: { lockedAt: number; lockedBy: string | null } | null;
-  busy: boolean;
-  onToggle: () => void;
+  onClose: () => void;
+  onLock: () => void;
+  onUpdateAll: () => void;
 }) {
-  const isLocked = monLock != null;
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      gap: 12, flexWrap: 'wrap',
-      padding: '10px 14px', borderRadius: 10, marginTop: 14,
-      background: isLocked ? 'rgba(202, 138, 4, 0.07)' : 'rgba(0,0,0,0.025)',
-      border: `1px solid ${isLocked ? 'rgba(202, 138, 4, 0.25)' : 'rgba(0,0,0,0.08)'}`,
-    }}>
-      <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.75)' }}>
-        {isLocked ? (
-          <>
-            <strong style={{ color: '#a16207' }}>🔒 Monday delivery locked</strong>
-            <span style={{ color: 'rgba(0,0,0,0.55)' }}>
-              {' '}— locked {new Date(monLock!.lockedAt).toLocaleString([], {
-                month: 'short', day: 'numeric',
-                hour: 'numeric', minute: '2-digit',
-              })}
-              {monLock!.lockedBy && <> by {monLock!.lockedBy}</>}
-              . Edits to weekly qty now flow into <strong>Wed + Fri</strong> only.
-            </span>
-          </>
-        ) : (
-          <>
-            <strong>Monday delivery is unlocked.</strong>
-            <span style={{ color: 'rgba(0,0,0,0.55)' }}>
-              {' '}Lock it after the Monday truck rolls so later qty edits don't shuffle Mon's numbers.
-            </span>
-          </>
-        )}
-      </div>
-      <button onClick={onToggle} disabled={busy}
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20,
+      }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
         style={{
-          ...(isLocked ? pillBtn : primaryBtn),
-          opacity: busy ? 0.6 : 1,
-          cursor: busy ? 'wait' : 'pointer',
+          background: '#fff', borderRadius: 16,
+          maxWidth: 480, width: '100%',
+          padding: '22px 24px',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
         }}>
-        {busy ? '…' : isLocked ? 'Unlock Monday' : 'Lock Monday delivery'}
-      </button>
+        <div style={{
+          fontSize: 18, fontWeight: 700, marginBottom: 8,
+          fontFamily: 'var(--font-display)', letterSpacing: -0.2,
+        }}>
+          Updating {store}'s order
+        </div>
+        <p style={{
+          fontSize: 13.5, color: 'rgba(0,0,0,0.65)', lineHeight: 1.55,
+          margin: '0 0 18px',
+        }}>
+          This store already has a saved order this week. Pick how this update
+          should split across delivery days:
+        </p>
+
+        <button onClick={onLock}
+          style={{
+            width: '100%', textAlign: 'left',
+            padding: '14px 16px', marginBottom: 10,
+            borderRadius: 12,
+            border: '1px solid rgba(202, 138, 4, 0.28)',
+            background: 'rgba(202, 138, 4, 0.06)',
+            cursor: 'pointer',
+          }}>
+          <div style={{ fontWeight: 700, color: '#a16207', fontSize: 14 }}>
+            🔒 Only update Wed + Fri (keep Mon the same)
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>
+            Use this when the Monday truck has already rolled. Mon quantities
+            freeze where they are; any change flows into Wed + Fri.
+          </div>
+        </button>
+
+        <button onClick={onUpdateAll}
+          style={{
+            width: '100%', textAlign: 'left',
+            padding: '14px 16px', marginBottom: 14,
+            borderRadius: 12,
+            border: '1px solid rgba(0,0,0,0.12)',
+            background: '#fff',
+            cursor: 'pointer',
+          }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>
+            Update everything (Mon, Wed & Fri)
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>
+            {monLock
+              ? "Unlocks Monday so the entire week recomputes from the new quantities."
+              : "Normal save — all three days resplit from the updated weekly qty."}
+          </div>
+        </button>
+
+        <div style={{ textAlign: 'right' }}>
+          <button onClick={onClose}
+            style={{
+              padding: '6px 14px', borderRadius: 999,
+              background: 'transparent', border: 0, cursor: 'pointer',
+              color: 'rgba(0,0,0,0.55)', fontSize: 12, fontWeight: 600,
+            }}>
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
