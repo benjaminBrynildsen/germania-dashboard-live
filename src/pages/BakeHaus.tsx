@@ -311,7 +311,10 @@ export default function BakeHaus() {
               </p>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+                // auto-fit + minmax lets the grid stack to 2-up (or 1-up)
+                // on narrower screens (Chromebooks ~1366px) instead of
+                // squeezing 3 cards into the row and clipping G4.
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(460px, 1fr))',
                 gap: 12,
               }}>
                 <DeliveryCard day="Monday"    items={report.deliverySummary.mon} stores={stores} catalog={catalog} />
@@ -895,53 +898,59 @@ function DeliveryCard({
         <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: -0.2 }}>{day}</span>
         <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{grandTotal} units</span>
       </div>
-      <table style={{
-        width: '100%', borderCollapse: 'collapse',
-        fontSize: 13, fontFamily: 'var(--font-body)',
-      }}>
-        <thead>
-          <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
-            <Th>Item</Th>
-            {stores.map((s) => <Th key={s} align="right">{s}</Th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {itemNames.map((name) => (
-            <tr key={name} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
-              <Td style={{ fontSize: 14 }}>{name}</Td>
-              {stores.map((s) => {
-                const q = items[name]?.[s];
-                return (
+      {/* overflow-x: auto so on narrow viewports (chromebooks/tablets)
+          the table can scroll horizontally inside the card instead of
+          getting clipped by the outer card's overflow:hidden. */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{
+          width: '100%', borderCollapse: 'collapse',
+          fontSize: 13, fontFamily: 'var(--font-body)',
+          minWidth: 380,
+        }}>
+          <thead>
+            <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
+              <Th>Item</Th>
+              {stores.map((s) => <Th key={s} align="right">{s}</Th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {itemNames.map((name) => (
+              <tr key={name} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                <Td style={{ fontSize: 14 }}>{name}</Td>
+                {stores.map((s) => {
+                  const q = items[name]?.[s];
+                  return (
+                    <Td key={s} align="right" style={delivCell}>
+                      {q ? fmtNum(q) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                    </Td>
+                  );
+                })}
+              </tr>
+            ))}
+            {itemNames.length === 0 && (
+              <tr><Td colSpan={1 + stores.length} style={{
+                textAlign: 'center', padding: 18, color: 'rgba(0,0,0,0.4)', fontSize: 12,
+              }}>
+                No deliveries for {day}.
+              </Td></tr>
+            )}
+            {itemNames.length > 0 && (
+              <tr style={{
+                borderTop: '2px solid rgba(0,0,0,0.08)',
+                background: 'rgba(0,0,0,0.02)',
+                fontWeight: 700,
+              }}>
+                <Td>Total</Td>
+                {stores.map((s) => (
                   <Td key={s} align="right" style={delivCell}>
-                    {q ? fmtNum(q) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                    {totalsByStore[s] ? fmtNum(totalsByStore[s]) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
                   </Td>
-                );
-              })}
-            </tr>
-          ))}
-          {itemNames.length === 0 && (
-            <tr><Td colSpan={1 + stores.length} style={{
-              textAlign: 'center', padding: 18, color: 'rgba(0,0,0,0.4)', fontSize: 12,
-            }}>
-              No deliveries for {day}.
-            </Td></tr>
-          )}
-          {itemNames.length > 0 && (
-            <tr style={{
-              borderTop: '2px solid rgba(0,0,0,0.08)',
-              background: 'rgba(0,0,0,0.02)',
-              fontWeight: 700,
-            }}>
-              <Td>Total</Td>
-              {stores.map((s) => (
-                <Td key={s} align="right" style={delivCell}>
-                  {totalsByStore[s] ? fmtNum(totalsByStore[s]) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
-                </Td>
-              ))}
-            </tr>
-          )}
-        </tbody>
-      </table>
+                ))}
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
