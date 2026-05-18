@@ -1259,24 +1259,48 @@ export interface ReportData {
 
 /**
  * Manual weekly overrides. Keyed by the Sunday of the affected Sun-Sat week
- * (YYYY-MM-DD in local time). When set, headline gross + tickets are replaced
- * with the override values regardless of which bucket the week falls into
- * (current / prev / yoy) and the trend chart entry is bumped to match. The
- * UI surfaces `reason` so it's clear the number isn't computed from store
- * data normally.
+ * (YYYY-MM-DD in local time). Each entry can use either:
+ *   - forcedGrossCents / forcedTickets — replace the headline with an
+ *     absolute number (e.g. matching Dripos's chain Sales Summary), or
+ *   - adjustGrossCents / adjustTickets — apply a delta to whatever Dripos
+ *     reports (e.g. shift a known catch-up ticket out of last week into
+ *     the week it actually belongs to).
+ * Both can be combined — forced is applied first, then delta. The UI
+ * surfaces `reason` so it's clear the number isn't raw store data.
  */
-const WEEK_OVERRIDES: Record<string, {
-  forcedGrossCents: number;
-  forcedTickets: number;
+interface WeekOverride {
+  forcedGrossCents?: number;
+  forcedTickets?: number;
+  adjustGrossCents?: number;
+  adjustTickets?: number;
   reason: string;
-}> = {
+}
+
+const WEEK_OVERRIDES: Record<string, WeekOverride> = {
   '2026-05-03': {
-    forcedGrossCents: 5_261_109, // $52,611.09 from Dripos Sales Summary
+    // $52,611.09 from Dripos Sales Summary + $1,849.42 catch-up ticket
+    // that rang on Sun 5/10 at G3 1pm but economically belongs to Sat 5/9.
+    forcedGrossCents: 5_261_109 + 184_942,
     forcedTickets: 5403,
     reason:
       "POS errors on Saturday 5/9 caused per-store sums to read low. " +
-      "Headline overridden to match Dripos's chain Sales Summary report. " +
-      "Per-store breakdown rows below remain from the raw per-store API.",
+      "Headline overridden to match Dripos's chain Sales Summary, then " +
+      "bumped by $1,849.42 to add back the catch-up ticket rung at G3 " +
+      "on Sun 5/10 1pm (subtracted from week of 5/10). Per-store " +
+      "breakdown rows below remain from the raw per-store API.",
+  },
+  '2026-05-10': {
+    // The other side of the 5/9 catch-up. G3 had a $2,024.42 hour at
+    // 1pm on Sun 5/10 — only ~$175 was normal Sunday traffic; the
+    // remaining $1,849.42 was the POS catching up Saturday's sales.
+    // Subtract here so the week's headline reflects actual Sun-Sat
+    // activity, not the bookkeeping spike.
+    adjustGrossCents: -184_942,
+    reason:
+      "Subtracted $1,849.42 from Sun 5/10 1pm at G3 — that hour rang " +
+      "$2,024.42 but ~$175 was normal traffic and the rest was a POS " +
+      "catch-up of Sat 5/9 sales. Reattributed to week of 5/3 so " +
+      "last week's headline doesn't look inflated.",
   },
 };
 
@@ -1288,8 +1312,23 @@ function isoLocalDate(d: Date): string {
   );
 }
 
-function overrideForWeek(sun: Date) {
+function overrideForWeek(sun: Date): WeekOverride | null {
   return WEEK_OVERRIDES[isoLocalDate(sun)] ?? null;
+}
+
+/** Apply an override (forced + delta) to a base gross/tickets pair.
+ *  Returns the corrected pair, or the base values if no override is set. */
+function applyWeekOverride(
+  baseGross: number,
+  baseTickets: number,
+  ov: WeekOverride | null,
+): { gross: number; tickets: number } {
+  if (!ov) return { gross: baseGross, tickets: baseTickets };
+  let gross = ov.forcedGrossCents ?? baseGross;
+  let tickets = ov.forcedTickets ?? baseTickets;
+  if (ov.adjustGrossCents) gross += ov.adjustGrossCents;
+  if (ov.adjustTickets) tickets += ov.adjustTickets;
+  return { gross, tickets };
 }
 
 function pctChange(now: number, prior: number): number | null {
@@ -1400,7 +1439,7 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
     const entry = byWeek[w];
     const sumTotal = Object.values(entry.perStore).reduce((a, b) => a + b, 0);
     const trendOverride = overrideForWeek(entry.sun);
-    const total = trendOverride ? trendOverride.forcedGrossCents : sumTotal;
+    const total = applyWeekOverride(sumTotal, 0, trendOverride).gross;
     const m = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
     const py = priorYearByWeek[w];
     trend.push({
@@ -1462,19 +1501,16 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
   const prevOverride = overrideForWeek(prevSun);
   const yoyOverride = overrideForWeek(yoySun);
 
-  const curTotal = curOverride
-    ? curOverride.forcedGrossCents
-    : chainGrossUsable
-    ? chainGross
-    : sumCurTotal;
-  const curTickets = curOverride
-    ? curOverride.forcedTickets
-    : chainTicketsUsable
-    ? chainTickets
-    : sumCurTickets;
-  const prevTotal = prevOverride ? prevOverride.forcedGrossCents : sumPrevTotal;
-  const yoyTotal = yoyOverride ? yoyOverride.forcedGrossCents : sumYoyTotal;
-  const prevTickets = prevOverride ? prevOverride.forcedTickets : sumPrevTickets;
+  const curBaseGross = chainGrossUsable ? chainGross : sumCurTotal;
+  const curBaseTickets = chainTicketsUsable ? chainTickets : sumCurTickets;
+  const curApplied = applyWeekOverride(curBaseGross, curBaseTickets, curOverride);
+  const prevApplied = applyWeekOverride(sumPrevTotal, sumPrevTickets, prevOverride);
+  const yoyApplied = applyWeekOverride(sumYoyTotal, 0, yoyOverride);
+  const curTotal = curApplied.gross;
+  const curTickets = curApplied.tickets;
+  const prevTotal = prevApplied.gross;
+  const yoyTotal = yoyApplied.gross;
+  const prevTickets = prevApplied.tickets;
   const curAvg = curTickets > 0 ? Math.round(curTotal / curTickets) : 0;
   const prevAvg = prevTickets > 0 ? Math.round(prevTotal / prevTickets) : 0;
 
@@ -1654,8 +1690,11 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
       ? {
           sun: isoLocalDate(curSun),
           reason: curOverride.reason,
-          forcedGrossCents: curOverride.forcedGrossCents,
-          forcedTickets: curOverride.forcedTickets,
+          // Surface the final corrected values (after force + delta)
+          // rather than the override-config fields, so the UI can
+          // show "applied: $X" without re-running the math.
+          forcedGrossCents: curTotal,
+          forcedTickets: curTickets,
         }
       : null,
   };

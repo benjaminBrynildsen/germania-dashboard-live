@@ -11,7 +11,6 @@ import {
   buildHiringNeedsReport,
   buildReport,
   buildTicketTimeReport,
-  callApi,
   clearToken,
   clearWeekCache,
   clearWeeklyCache,
@@ -34,70 +33,6 @@ router.get('/dripos/status', requireAuth, (_req: AuthRequest, res: Response) => 
     hasToken: !!token,
     tokenPreview: token ? `${token.slice(0, 6)}…${token.slice(-4)}` : null,
   });
-});
-
-/**
- * Diagnostic: hourly sales breakdown for a single day at one store.
- * Pulls /report/salessummary with EXECUTE_REPORTS: ['HOUR']. Used to
- * investigate one-off POS catch-up spikes that need manual overrides.
- *   GET /api/dripos/hourly?date=2026-05-11&store=G3
- */
-router.get('/dripos/hourly', requireAuth, async (req: AuthRequest, res: Response) => {
-  try {
-    const dateStr = String(req.query.date ?? '');
-    const storeLabel = String(req.query.store ?? '').toUpperCase();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      res.status(400).json({ error: 'bad_date', message: 'date=YYYY-MM-DD required' });
-      return;
-    }
-    const store = STORES.find((s) => s.label === storeLabel);
-    if (!store) {
-      res.status(400).json({ error: 'bad_store', message: `store must be one of ${STORES.map((s) => s.label).join(', ')}` });
-      return;
-    }
-    const [y, m, d] = dateStr.split('-').map((s) => parseInt(s, 10));
-    // Day bounds in America/Chicago (where the brewery operates).
-    // Local-time Date constructor gives us the server's local TZ which
-    // on Render is UTC; offset accordingly. We use the same approach
-    // as startOfDayMs but bracket a single calendar day in Chicago.
-    const dayStartUtc = Date.UTC(y, m - 1, d, 5);   // 00:00 CT = 05:00 UTC (CDT) — close enough for spike-spotting
-    const dayEndUtc   = Date.UTC(y, m - 1, d + 1, 5) - 1;
-    const body = await callApi<{ HOUR?: Array<{ HOUR: number; GROSS_SALES?: number; NET_SALES?: number; TICKET_COUNT?: number }> }>(
-      '/report/salessummary',
-      {
-        method: 'POST',
-        locationId: store.locationId,
-        body: {
-          START_EPOCH: dayStartUtc,
-          END_EPOCH: dayEndUtc,
-          LOCATION_ID_ARRAY: [store.locationId],
-          EXECUTE_REPORTS: ['HOUR'],
-          POPULATE_MISSING_DATES: false,
-        },
-      },
-    );
-    const hours = (body.data?.HOUR ?? []).map((h) => ({
-      hourEpoch: h.HOUR,
-      hourLabelCt: new Date(h.HOUR).toLocaleString('en-US', {
-        timeZone: 'America/Chicago',
-        weekday: 'short', month: 'short', day: 'numeric',
-        hour: 'numeric', hour12: true,
-      }),
-      grossCents: h.GROSS_SALES ?? 0,
-      netCents: h.NET_SALES ?? 0,
-      tickets: h.TICKET_COUNT ?? 0,
-      grossDollars: (h.GROSS_SALES ?? 0) / 100,
-    })).sort((a, b) => a.hourEpoch - b.hourEpoch);
-    const totalGross = hours.reduce((s, h) => s + h.grossCents, 0);
-    res.json({ ok: true, date: dateStr, store: storeLabel, hours, totalGross, totalGrossDollars: totalGross / 100 });
-  } catch (err) {
-    if (err instanceof NoToken || err instanceof AuthExpired) {
-      res.status(401).json({ error: 'auth', message: err.message });
-      return;
-    }
-    console.error('[dripos-hourly]', err);
-    res.status(500).json({ error: 'hourly_failed', message: err instanceof Error ? err.message : String(err) });
-  }
 });
 
 router.get('/dripos/report', requireAuth, async (req: AuthRequest, res: Response) => {
