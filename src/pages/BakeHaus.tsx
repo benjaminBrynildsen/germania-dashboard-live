@@ -267,41 +267,61 @@ export default function BakeHaus() {
 
   return (
     <div>
-      <div style={{ marginBottom: 18 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>Bake Haus</h1>
-        <p style={{ color: 'rgba(0,0,0,0.4)', fontSize: 14, marginTop: 4 }}>
-          Weekly food orders to Chef Maggie, auto-split into the three Mon/Wed/Fri deliveries
-          (3–5pm). Each delivery gets a share weighted by how many days it covers
-          — 2/7 for Mon and Wed, 3/7 for Fri (covers the weekend). Syrups + sauces
-          are tracked separately on the chef's prep schedule.
-        </p>
+      <div style={{ marginBottom: isMobile ? 14 : 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <h1 style={{
+            fontSize: isMobile ? 22 : 28,
+            fontWeight: 700, letterSpacing: -0.5, margin: 0,
+          }}>Bake Haus</h1>
+          <span style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: 1,
+            textTransform: 'uppercase',
+            color: '#a16207',
+            background: 'rgba(202, 138, 4, 0.12)',
+            padding: '2px 8px', borderRadius: 999,
+            border: '1px solid rgba(202, 138, 4, 0.25)',
+          }}>Beta</span>
+        </div>
+        {!isMobile && (
+          <p style={{ color: 'rgba(0,0,0,0.4)', fontSize: 14, marginTop: 4 }}>
+            Weekly food orders to Chef Maggie, auto-split into the three Mon/Wed/Fri deliveries
+            (3–5pm). Each delivery gets a share weighted by how many days it covers
+            — 2/7 for Mon and Wed, 3/7 for Fri (covers the weekend). Syrups + sauces
+            are tracked separately on the chef's prep schedule.
+          </p>
+        )}
       </div>
 
-      {/* Tab bar */}
+      {/* Tab bar — tighter on mobile + shorter labels so all three fit. */}
       <div style={{
-        display: 'flex', gap: 4, marginBottom: 22,
+        display: 'flex',
+        gap: isMobile ? 0 : 4,
+        marginBottom: isMobile ? 16 : 22,
         borderBottom: '1px solid rgba(0,0,0,0.08)',
+        overflowX: 'auto',
       }}>
         {([
-          { id: 'current', label: 'Current Order' },
-          { id: 'schedule', label: 'Delivery Schedule' },
-          { id: 'saved', label: 'Saved Orders' },
-        ] as Array<{ id: Tab; label: string }>).map((t) => {
+          { id: 'current',  label: 'Current Order',     short: 'Order' },
+          { id: 'schedule', label: 'Delivery Schedule', short: 'Schedule' },
+          { id: 'saved',    label: 'Saved Orders',      short: 'Saved' },
+        ] as Array<{ id: Tab; label: string; short: string }>).map((t) => {
           const active = tab === t.id;
           return (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{
-                padding: '10px 18px',
+                padding: isMobile ? '10px 12px' : '10px 18px',
                 background: 'transparent',
                 border: 0,
                 borderBottom: `2px solid ${active ? '#1a1a1a' : 'transparent'}`,
                 color: active ? '#1a1a1a' : 'rgba(0,0,0,0.45)',
-                fontSize: 13, fontWeight: 600,
-                letterSpacing: '0.06em',
+                fontSize: isMobile ? 12 : 13, fontWeight: 600,
+                letterSpacing: isMobile ? '0.04em' : '0.06em',
                 textTransform: 'uppercase',
                 cursor: 'pointer',
                 marginBottom: -1,
-              }}>{t.label}</button>
+                flex: isMobile ? 1 : '0 0 auto',
+                whiteSpace: 'nowrap',
+              }}>{isMobile ? t.short : t.label}</button>
           );
         })}
       </div>
@@ -463,6 +483,7 @@ export default function BakeHaus() {
       {tab === 'saved' && (
         <SavedOrdersList
           orders={savedOrders}
+          isMobile={isMobile}
           onOpen={(iso, store) => {
             setWeekIso(iso);
             setActiveStore(store);
@@ -509,9 +530,10 @@ export default function BakeHaus() {
 }
 
 function SavedOrdersList({
-  orders, onOpen,
+  orders, onOpen, isMobile,
 }: {
   orders: SavedOrder[];
+  isMobile: boolean;
   onOpen: (weekIso: string, storeLabel: string) => void;
 }) {
   if (orders.length === 0) {
@@ -527,6 +549,66 @@ function SavedOrdersList({
       </div>
     );
   }
+
+  // Mobile: stack each saved order as a tappable card. The desktop
+  // table doesn't fit comfortably on a phone — Store + Week + counts
+  // + saved-by line wrap into a single 6-column row.
+  if (isMobile) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {orders.map((o) => {
+          const theme = getTheme(o.storeLabel);
+          return (
+            <button key={`${o.weekStartIso}|${o.storeLabel}`}
+              onClick={() => onOpen(o.weekStartIso, o.storeLabel)}
+              style={{
+                textAlign: 'left',
+                background: '#fff', borderRadius: 14,
+                border: '1px solid rgba(0,0,0,0.07)',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
+                padding: '14px 16px', cursor: 'pointer',
+              }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                marginBottom: 8,
+              }}>
+                <span style={{
+                  display: 'inline-block', padding: '3px 10px', borderRadius: 6,
+                  background: theme.headerBg, color: theme.headerFg,
+                  fontSize: 12, fontWeight: 700, letterSpacing: 0.4,
+                }}>{o.storeLabel}</span>
+                {STORE_CITIES[o.storeLabel] && (
+                  <span style={{
+                    fontSize: 11, color: 'rgba(0,0,0,0.55)',
+                    textTransform: 'uppercase', letterSpacing: 0.4,
+                  }}>{STORE_CITIES[o.storeLabel]}</span>
+                )}
+                <span style={{ marginLeft: 'auto', color: 'rgba(0,0,0,0.3)', fontSize: 18 }}>›</span>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
+                {fmtDateRange(o.weekStartIso)}
+              </div>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                fontSize: 12, color: 'rgba(0,0,0,0.55)',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                <span><strong style={{ color: '#1a1a1a' }}>{o.itemCount}</strong> items</span>
+                <span><strong style={{ color: '#1a1a1a' }}>{Math.round(o.totalQty)}</strong> total qty</span>
+                <span style={{ width: '100%', fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>
+                  Saved {new Date(o.savedAt).toLocaleString([], {
+                    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                  })}
+                  {o.savedBy && <> by {o.savedBy}</>}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div style={{
       background: '#fff', borderRadius: 14,
@@ -690,42 +772,51 @@ function StoreOrderCard({
       padding: 0, overflow: 'hidden',
     }}>
       <div style={{
-        padding: '14px 18px',
+        padding: isMobile ? '12px 14px' : '14px 18px',
         background: theme.headerBg, color: theme.headerFg,
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
         flexWrap: 'wrap', gap: 8,
       }}>
-        <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.3 }}>
+        <span style={{
+          fontSize: isMobile ? 18 : 22, fontWeight: 700, letterSpacing: -0.3,
+        }}>
           {store}
           {STORE_CITIES[store] && (
             <span style={{
               fontWeight: 500, letterSpacing: 0.6, marginLeft: 10, opacity: 0.85,
-              textTransform: 'uppercase', fontSize: 17,
+              textTransform: 'uppercase',
+              fontSize: isMobile ? 13 : 17,
             }}>— {STORE_CITIES[store]}</span>
           )}
         </span>
-        <span style={{ fontSize: 12, color: theme.accent }}>
-          {orderedRows.length} items · {total} ordered ·{' '}
-          Inventory @ {new Date(inventoryFetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+        <span style={{
+          fontSize: isMobile ? 11 : 12,
+          color: theme.accent,
+        }}>
+          {orderedRows.length} items · {total} ordered{!isMobile && (
+            <> · Inventory @ {new Date(inventoryFetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</>
+          )}
         </span>
       </div>
-      {/* Subtle column-header strip — no harsh table chrome, just light
-          labels above the rows. */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 150px 200px 56px',
-        gap: 28, padding: '10px 24px',
-        background: theme.rowAlt,
-        fontSize: 10, fontWeight: 700,
-        textTransform: 'uppercase', letterSpacing: 1,
-        color: 'rgba(0,0,0,0.42)',
-        fontFamily: 'var(--font-body)',
-      }}>
-        <span>Item</span>
-        <span style={{ textAlign: 'center' }}>Order</span>
-        <span style={{ textAlign: 'center' }}>Delivery · Mon / Wed / Fri</span>
-        <span />
-      </div>
+      {/* Subtle column-header strip — desktop only; on mobile each row
+          is self-labeling. */}
+      {!isMobile && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 150px 200px 56px',
+          gap: 28, padding: '10px 24px',
+          background: theme.rowAlt,
+          fontSize: 10, fontWeight: 700,
+          textTransform: 'uppercase', letterSpacing: 1,
+          color: 'rgba(0,0,0,0.42)',
+          fontFamily: 'var(--font-body)',
+        }}>
+          <span>Item</span>
+          <span style={{ textAlign: 'center' }}>Order</span>
+          <span style={{ textAlign: 'center' }}>Delivery · Mon / Wed / Fri</span>
+          <span />
+        </div>
+      )}
       <div>
         {renderItems.map((it, i) => (
           <CartRowEditor key={it.name}
@@ -736,6 +827,7 @@ function StoreOrderCard({
             isCustom={it.custom}
             theme={theme}
             isLast={i === renderItems.length - 1}
+            isMobile={isMobile}
             onSave={(qty) => onSave(it.name, qty)}
             onDelete={() => onDelete(it.name)}
           />
@@ -811,7 +903,7 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, imageUrl, row, onHand, isCustom, theme, isLast, onSave, onDelete,
+  itemName, imageUrl, row, onHand, isCustom, theme, isLast, isMobile, onSave, onDelete,
 }: {
   itemName: string;
   imageUrl?: string | null;
@@ -820,6 +912,7 @@ function CartRowEditor({
   isCustom: boolean;
   theme: ReturnType<typeof getTheme>;
   isLast: boolean;
+  isMobile: boolean;
   onSave: (qty: number) => void;
   onDelete: () => void;
 }) {
@@ -876,23 +969,28 @@ function CartRowEditor({
     </div>
   );
 
+  // Mobile renders as a stacked card: image+name+on-hand row on top,
+  // then the qty stepper next to the Mon/Wed/Fri delivery cells.
+  // Desktop keeps the original 4-column grid.
+  const photoSize = isMobile ? 56 : 96;
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: '1fr 150px 200px 56px',
-      alignItems: 'center', gap: 28,
-      padding: '14px 24px',
+      gridTemplateColumns: isMobile ? '1fr' : '1fr 150px 200px 56px',
+      alignItems: isMobile ? 'stretch' : 'center',
+      gap: isMobile ? 12 : 28,
+      padding: isMobile ? '14px 16px' : '14px 24px',
       borderBottom: isLast ? 'none' : '1px solid rgba(0,0,0,0.04)',
       background: active ? 'transparent' : theme.rowAlt,
       opacity: active ? 1 : 0.92,
       transition: 'background 0.15s',
     }}>
       {/* Item: photo + name (display font) + on-hand subtitle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16, minWidth: 0 }}>
         {imageUrl ? (
           <img src={imageUrl} alt="" loading="lazy"
             style={{
-              width: 96, height: 96, borderRadius: 14,
+              width: photoSize, height: photoSize, borderRadius: isMobile ? 10 : 14,
               objectFit: 'cover', flexShrink: 0,
               opacity: active ? 1 : 0.55,
               background: 'rgba(0,0,0,0.04)',
@@ -901,15 +999,15 @@ function CartRowEditor({
           />
         ) : (
           <span style={{
-            display: 'inline-block', width: 96, height: 96,
-            borderRadius: 14, flexShrink: 0,
+            display: 'inline-block', width: photoSize, height: photoSize,
+            borderRadius: isMobile ? 10 : 14, flexShrink: 0,
             background: 'rgba(0,0,0,0.04)',
           }} />
         )}
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 22, fontWeight: 500,
+            fontSize: isMobile ? 17 : 22, fontWeight: 500,
             color: active ? '#1a1a1a' : 'rgba(0,0,0,0.5)',
             letterSpacing: -0.2, lineHeight: 1.15,
             overflowWrap: 'anywhere',
@@ -928,8 +1026,9 @@ function CartRowEditor({
             )}
           </div>
           <div style={{
-            marginTop: 6, display: 'flex', alignItems: 'center', gap: 10,
-            fontSize: 11, color: 'rgba(0,0,0,0.45)',
+            marginTop: isMobile ? 4 : 6,
+            display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+            fontSize: isMobile ? 10 : 11, color: 'rgba(0,0,0,0.45)',
             fontFamily: 'var(--font-body)',
             textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600,
           }}>
@@ -945,10 +1044,79 @@ function CartRowEditor({
             )}
           </div>
         </div>
+        {/* Mobile: trailing delete tucked into the image row when present */}
+        {isMobile && isCustom && active && (
+          <button onClick={() => {
+            if (confirm(`Remove ${itemName} from this order?`)) onDelete();
+          }} style={iconBtn} title="Remove">×</button>
+        )}
       </div>
 
-      {/* Order qty stepper */}
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
+      {/* Mobile: qty stepper + delivery slots side-by-side, both
+          full-width-friendly so touch targets stay generous. */}
+      {isMobile && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          paddingTop: 4,
+        }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'stretch',
+            border: `1px solid ${active ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.1)'}`,
+            borderRadius: 10,
+            background: '#fff',
+            overflow: 'hidden',
+            flexShrink: 0,
+          }}>
+            <button onClick={() => step(-1)} aria-label="Decrease"
+              style={{
+                width: 40, padding: 0, border: 0, cursor: 'pointer',
+                background: 'transparent', color: 'rgba(0,0,0,0.55)',
+                fontSize: 22, fontWeight: 500, lineHeight: 1,
+                borderRight: '1px solid rgba(0,0,0,0.06)',
+                fontFamily: 'var(--font-body)',
+              }}>−</button>
+            <input type="text" inputMode="numeric" pattern="[0-9]*"
+              data-qty-input
+              value={qtyText}
+              placeholder="0"
+              onChange={(e) => {
+                const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                setQtyText(cleaned);
+              }}
+              onBlur={(e) => {
+                const raw = e.target.value.trim();
+                const next = raw === '' ? 0 : Number.parseInt(raw, 10);
+                commit(Number.isFinite(next) ? next : 0);
+              }}
+              style={{
+                width: 52, padding: '10px 4px', border: 0,
+                fontSize: 17, fontWeight: 600,
+                fontVariantNumeric: 'tabular-nums',
+                textAlign: 'center', background: 'transparent',
+                color: active ? '#1a1a1a' : 'rgba(0,0,0,0.4)',
+                outline: 'none',
+                fontFamily: 'var(--font-body)',
+              }}
+            />
+            <button onClick={() => step(1)} aria-label="Increase"
+              style={{
+                width: 40, padding: 0, border: 0, cursor: 'pointer',
+                background: 'transparent', color: 'rgba(0,0,0,0.55)',
+                fontSize: 22, fontWeight: 500, lineHeight: 1,
+                borderLeft: '1px solid rgba(0,0,0,0.06)',
+                fontFamily: 'var(--font-body)',
+              }}>+</button>
+          </div>
+          <div style={{ flex: 1, display: 'flex', gap: 6, minWidth: 0 }}>
+            {dayCell('Mon', row?.delivery.mon ?? 0, row?.monLockedQty != null)}
+            {dayCell('Wed', row?.delivery.wed ?? 0)}
+            {dayCell('Fri', row?.delivery.fri ?? 0)}
+          </div>
+        </div>
+      )}
+
+      {/* Desktop: order qty stepper */}
+      <div style={{ display: isMobile ? 'none' : 'flex', justifyContent: 'center' }}>
         <div style={{
           display: 'inline-flex', alignItems: 'stretch',
           border: `1px solid ${active ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.1)'}`,
@@ -1019,15 +1187,15 @@ function CartRowEditor({
         </div>
       </div>
 
-      {/* Delivery slots — Mon / Wed / Fri */}
-      <div style={{ display: 'flex', gap: 10 }}>
+      {/* Desktop: delivery slots — Mon / Wed / Fri */}
+      <div style={{ display: isMobile ? 'none' : 'flex', gap: 10 }}>
         {dayCell('Mon', row?.delivery.mon ?? 0, row?.monLockedQty != null)}
         {dayCell('Wed', row?.delivery.wed ?? 0)}
         {dayCell('Fri', row?.delivery.fri ?? 0)}
       </div>
 
-      {/* Trailing action (delete custom item) */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      {/* Desktop: trailing delete for custom items */}
+      <div style={{ display: isMobile ? 'none' : 'flex', justifyContent: 'flex-end' }}>
         {isCustom && active && (
           <button onClick={() => {
             if (confirm(`Remove ${itemName} from this order?`)) onDelete();
