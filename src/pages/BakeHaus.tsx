@@ -313,8 +313,10 @@ export default function BakeHaus() {
                 display: 'grid',
                 // auto-fit + minmax lets the grid stack to 2-up (or 1-up)
                 // on narrower screens (Chromebooks ~1366px) instead of
-                // squeezing 3 cards into the row and clipping G4.
-                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(460px, 1fr))',
+                // squeezing 3 cards into the row and clipping columns.
+                // 540px floor accounts for Item + 4 stores + Total = 6
+                // columns; below that, the card stacks vertically.
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(540px, 1fr))',
                 gap: 12,
               }}>
                 <DeliveryCard day="Monday"    items={report.deliverySummary.mon} stores={stores} catalog={catalog} />
@@ -876,10 +878,12 @@ function DeliveryCard({
   }, [items, catalog]);
 
   const totalsByStore: Record<string, number> = {};
+  const totalsByItem: Record<string, number> = {};
   let grandTotal = 0;
   for (const item of itemNames) {
     for (const [store, qty] of Object.entries(items[item] ?? {})) {
       totalsByStore[store] = (totalsByStore[store] ?? 0) + qty;
+      totalsByItem[item] = (totalsByItem[item] ?? 0) + qty;
       grandTotal += qty;
     }
   }
@@ -905,12 +909,13 @@ function DeliveryCard({
         <table style={{
           width: '100%', borderCollapse: 'collapse',
           fontSize: 13, fontFamily: 'var(--font-body)',
-          minWidth: 380,
+          minWidth: 460,
         }}>
           <thead>
             <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
               <Th>Item</Th>
               {stores.map((s) => <Th key={s} align="right">{s}</Th>)}
+              <Th align="right">Total</Th>
             </tr>
           </thead>
           <tbody>
@@ -925,10 +930,13 @@ function DeliveryCard({
                     </Td>
                   );
                 })}
+                <Td align="right" style={delivRowTotalCell}>
+                  {totalsByItem[name] ? fmtNum(totalsByItem[name]) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                </Td>
               </tr>
             ))}
             {itemNames.length === 0 && (
-              <tr><Td colSpan={1 + stores.length} style={{
+              <tr><Td colSpan={2 + stores.length} style={{
                 textAlign: 'center', padding: 18, color: 'rgba(0,0,0,0.4)', fontSize: 12,
               }}>
                 No deliveries for {day}.
@@ -946,6 +954,9 @@ function DeliveryCard({
                     {totalsByStore[s] ? fmtNum(totalsByStore[s]) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
                   </Td>
                 ))}
+                <Td align="right" style={delivRowTotalCell}>
+                  {grandTotal > 0 ? fmtNum(grandTotal) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                </Td>
               </tr>
             )}
           </tbody>
@@ -978,6 +989,17 @@ const iconBtn: React.CSSProperties = {
 };
 const delivCell: React.CSSProperties = {
   fontVariantNumeric: 'tabular-nums', color: 'rgba(0,0,0,0.7)',
+  // Override the default Td padding (8px 14px) so 6-column tables
+  // (Item + G1-G4 + Total) get more horizontal breathing room and
+  // numbers don't crowd up against G4's right edge.
+  padding: '8px 18px',
+};
+const delivRowTotalCell: React.CSSProperties = {
+  fontVariantNumeric: 'tabular-nums', color: '#1a1a1a',
+  fontWeight: 700,
+  padding: '8px 18px',
+  borderLeft: '1px solid rgba(0,0,0,0.06)',
+  background: 'rgba(0,0,0,0.02)',
 };
 
 function Th({ children, align }: { children?: React.ReactNode; align?: 'left' | 'right' }) {
