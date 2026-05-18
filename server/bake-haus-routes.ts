@@ -13,6 +13,7 @@ import {
   lockWeekMonday,
   markOrderSaved,
   mondayOfWeek,
+  snapshotMonForStoreWeek,
   unlockWeekMonday,
   unmarkOrderSaved,
   upsertOrderItem,
@@ -83,9 +84,10 @@ router.get('/bake-haus/saved', requireAuth, (_req: AuthRequest, res: Response) =
   res.json({ ok: true, orders });
 });
 
-router.post('/bake-haus/save', requireAuth, (req: AuthRequest, res: Response) => {
+router.post('/bake-haus/save', requireAuth, async (req: AuthRequest, res: Response) => {
   const week = String(req.body?.week ?? '').trim();
   const store = String(req.body?.store ?? '').trim().toUpperCase();
+  const snapshotMon = req.body?.snapshotMon === true;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
     res.status(400).json({ error: 'invalid_week' });
     return;
@@ -95,6 +97,13 @@ router.post('/bake-haus/save', requireAuth, (req: AuthRequest, res: Response) =>
     return;
   }
   const savedBy = req.user?.name ?? null;
+  // Snapshot the per-row Mon qty before marking saved, so future
+  // "Lock Mon" picks have this baseline to fall back to. Only fired
+  // on baseline saves (initial save + "update everything") — not
+  // when the user is actively asking to LOCK Mon at the current value.
+  if (snapshotMon) {
+    await snapshotMonForStoreWeek(week, store);
+  }
   markOrderSaved(week, store, savedBy);
   res.json({ ok: true, savedAt: Date.now() });
 });
@@ -118,13 +127,13 @@ router.delete('/bake-haus/save', requireAuth, (req: AuthRequest, res: Response) 
  * Lock the week's Monday delivery — snapshots each row's current
  * Mon qty so subsequent edits flow into Wed/Fri only. Idempotent.
  */
-router.post('/bake-haus/lock-monday', requireAuth, async (req: AuthRequest, res: Response) => {
+router.post('/bake-haus/lock-monday', requireAuth, (req: AuthRequest, res: Response) => {
   const week = String(req.body?.week ?? '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
     res.status(400).json({ error: 'invalid_week' });
     return;
   }
-  await lockWeekMonday(week, req.user?.name ?? null);
+  lockWeekMonday(week, req.user?.name ?? null);
   res.json({ ok: true, lockedAt: Date.now() });
 });
 

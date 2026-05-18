@@ -207,10 +207,15 @@ export default function BakeHaus() {
     try {
       if (lockMode === 'lock')        await setMonLock(weekIso, true);
       else if (lockMode === 'unlock') await setMonLock(weekIso, false);
+      // Snapshot Mon as the new baseline UNLESS we're actively
+      // locking — in that case, preserve whatever snapshot is
+      // already in place (it represents the last baseline save,
+      // which is the Mon value the user is asking us to freeze).
+      const snapshotMon = lockMode !== 'lock';
       const r = await fetch('/api/bake-haus/save', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ week: weekIso, store }),
+        body: JSON.stringify({ week: weekIso, store, snapshotMon }),
       });
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));

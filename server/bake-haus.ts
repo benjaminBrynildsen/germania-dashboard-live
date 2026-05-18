@@ -399,58 +399,62 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
   };
 }
 
-/** Lock the week's Monday delivery — snapshots the current Mon qty
- *  for every order row so subsequent edits flow into Wed/Fri only.
- *  Idempotent: re-locking a locked week refreshes the snapshot to
- *  whatever Mon currently computes to (use case: locked too early,
- *  unlocked, edited, re-lock with fresh values). */
-export async function lockWeekMonday(
+/** Lock the week's Monday delivery — just flips the week-lock flag.
+ *  The per-row mon_locked_qty snapshot is set independently, at save
+ *  time, so locking uses whatever baseline Mon was captured at the
+ *  last "update everything" save (or initial save). This avoids the
+ *  trap of locking Mon to the JUST-EDITED value when the user wanted
+ *  to preserve the previous saved value. */
+export function lockWeekMonday(
   weekStartIso: string,
   lockedBy: string | null = null,
+): void {
+  db.prepare(
+    `INSERT INTO bake_haus_week_locks (week_start_iso, mon_locked_at, locked_by)
+     VALUES (?, ?, ?)
+     ON CONFLICT(week_start_iso) DO UPDATE SET
+       mon_locked_at = excluded.mon_locked_at,
+       locked_by = COALESCE(excluded.locked_by, bake_haus_week_locks.locked_by)`,
+  ).run(weekStartIso, Date.now(), lockedBy);
+}
+
+export function unlockWeekMonday(weekStartIso: string): void {
+  db.prepare('DELETE FROM bake_haus_week_locks WHERE week_start_iso = ?').run(weekStartIso);
+  // Note: mon_locked_qty per-row snapshots are intentionally NOT
+  // cleared on unlock. They represent the baseline at the last
+  // non-locking save; they'll be refreshed on the next non-locking
+  // save (via snapshotMonForStoreWeek).
+}
+
+/** Snapshot each row's current Mon qty into mon_locked_qty for one
+ *  (week, store). Called from the save endpoint when the user does a
+ *  baseline-establishing save (initial save or "update everything").
+ *  When the user later picks "Lock Mon," we use this snapshot rather
+ *  than re-computing from the (possibly post-edit) weekly_qty. */
+export async function snapshotMonForStoreWeek(
+  weekStartIso: string,
+  storeLabel: string,
 ): Promise<void> {
   const rows = db.prepare(
     `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, mon_locked_qty
      FROM bake_haus_orders
-     WHERE week_start_iso = ?`,
-  ).all(weekStartIso) as DbRow[];
+     WHERE week_start_iso = ? AND store_label = ?`,
+  ).all(weekStartIso, storeLabel) as DbRow[];
 
-  // Inventory snapshot to mirror what getWeekReport sees right now;
-  // ensures the locked mon qty matches what the UI was showing.
   const inventoryByStore = await getBakeHausInventoryByStore().catch(() => ({} as Record<string, Record<string, number>>));
 
   const updateRow = db.prepare(
     `UPDATE bake_haus_orders SET mon_locked_qty = ?
       WHERE week_start_iso = ? AND store_label = ? AND item_name = ?`,
   );
-  const insertLock = db.prepare(
-    `INSERT INTO bake_haus_week_locks (week_start_iso, mon_locked_at, locked_by)
-     VALUES (?, ?, ?)
-     ON CONFLICT(week_start_iso) DO UPDATE SET
-       mon_locked_at = excluded.mon_locked_at,
-       locked_by = COALESCE(excluded.locked_by, bake_haus_week_locks.locked_by)`,
-  );
 
   const txn = db.transaction(() => {
     for (const r of rows) {
       const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
       const netQty = Math.max(0, r.weekly_qty - onHand);
-      // Compute the unlocked split — that's what Mon would be right
-      // now. Snapshot that as the locked value.
       const split = splitForDeliveries(netQty, null);
       updateRow.run(split.mon, r.week_start_iso, r.store_label, r.item_name);
     }
-    insertLock.run(weekStartIso, Date.now(), lockedBy);
-  });
-  txn();
-}
-
-export function unlockWeekMonday(weekStartIso: string): void {
-  const txn = db.transaction(() => {
-    db.prepare('DELETE FROM bake_haus_week_locks WHERE week_start_iso = ?').run(weekStartIso);
-    // Clear per-row snapshots too so a future re-lock starts fresh.
-    db.prepare(
-      'UPDATE bake_haus_orders SET mon_locked_qty = NULL WHERE week_start_iso = ?',
-    ).run(weekStartIso);
   });
   txn();
 }
