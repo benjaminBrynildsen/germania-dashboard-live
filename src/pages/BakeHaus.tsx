@@ -10,6 +10,7 @@ interface OrderRow {
   onHand: number;
   netQty: number;
   delivery: { mon: number; wed: number; fri: number };
+  monLockedQty: number | null;
 }
 
 interface WeekReport {
@@ -23,6 +24,7 @@ interface WeekReport {
   };
   inventoryByStore: Record<string, Record<string, number>>;
   inventoryFetchedAt: number;
+  monLock: { lockedAt: number; lockedBy: string | null } | null;
 }
 
 interface CatalogItem { name: string; sort: number; imageUrl?: string | null }
@@ -157,6 +159,35 @@ export default function BakeHaus() {
   useEffect(() => {
     if (tab === 'saved') loadSavedOrders();
   }, [tab, loadSavedOrders]);
+
+  const [lockBusy, setLockBusy] = useState(false);
+  const toggleMondayLock = async () => {
+    if (!report) return;
+    const isLocked = !!report.monLock;
+    const verb = isLocked ? 'Unlock' : 'Lock';
+    const confirmMsg = isLocked
+      ? "Unlock Monday delivery? Mon quantities will go back to recomputing from each item's weekly qty."
+      : "Lock Monday delivery? After this, edits to weekly qty will only affect Wed + Fri (Monday stays frozen).";
+    if (!window.confirm(confirmMsg)) return;
+    setLockBusy(true);
+    setError(null);
+    try {
+      const r = await fetch('/api/bake-haus/lock-monday', {
+        method: isLocked ? 'DELETE' : 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ week: weekIso }),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.message || body.error || `${verb} failed`);
+      }
+      await loadWeek(weekIso);
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      setLockBusy(false);
+    }
+  };
 
   const saveStore = async (store: string) => {
     setSavingStores((prev) => new Set(prev).add(store));
@@ -347,6 +378,15 @@ export default function BakeHaus() {
           <WeeklyTotalsCard
             deliverySummary={report.deliverySummary}
             catalog={catalog}
+          />
+
+          {/* Monday lock state — Maggie hits "Lock" once the Monday
+              truck has rolled. After that, qty edits flow into Wed+Fri
+              only and Mon stays frozen. */}
+          <MondayLockBar
+            monLock={report.monLock}
+            busy={lockBusy}
+            onToggle={toggleMondayLock}
           />
 
           {/* Per-day delivery breakdown — what goes on each truck. */}
@@ -751,23 +791,30 @@ function CartRowEditor({
     commit(next);
   };
 
-  const dayCell = (label: string, qty: number) => (
+  const dayCell = (label: string, qty: number, locked?: boolean) => (
     <div style={{
       flex: 1, textAlign: 'center',
       padding: '6px 4px', borderRadius: 8,
-      background: active && qty > 0 ? 'rgba(255,255,255,0.75)' : 'transparent',
-      border: active && qty > 0 ? '1px solid rgba(0,0,0,0.06)' : '1px solid transparent',
+      background: locked
+        ? 'rgba(202, 138, 4, 0.10)'
+        : active && qty > 0 ? 'rgba(255,255,255,0.75)' : 'transparent',
+      border: locked
+        ? '1px solid rgba(202, 138, 4, 0.25)'
+        : active && qty > 0 ? '1px solid rgba(0,0,0,0.06)' : '1px solid transparent',
       transition: 'background 0.15s',
     }}>
       <div style={{
         fontSize: 9, fontWeight: 700, letterSpacing: 1,
-        textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)',
+        textTransform: 'uppercase',
+        color: locked ? '#a16207' : 'rgba(0,0,0,0.4)',
         marginBottom: 2, fontFamily: 'var(--font-body)',
-      }}>{label}</div>
+      }}>{label}{locked && ' 🔒'}</div>
       <div style={{
         fontSize: 20, fontWeight: 600,
         fontVariantNumeric: 'tabular-nums', lineHeight: 1,
-        color: active && qty > 0 ? '#1a1a1a' : 'rgba(0,0,0,0.2)',
+        color: locked
+          ? '#a16207'
+          : active && qty > 0 ? '#1a1a1a' : 'rgba(0,0,0,0.2)',
         fontFamily: 'var(--font-body)',
       }}>{active && qty > 0 ? qty : '—'}</div>
     </div>
@@ -918,7 +965,7 @@ function CartRowEditor({
 
       {/* Delivery slots — Mon / Wed / Fri */}
       <div style={{ display: 'flex', gap: 10 }}>
-        {dayCell('Mon', row?.delivery.mon ?? 0)}
+        {dayCell('Mon', row?.delivery.mon ?? 0, row?.monLockedQty != null)}
         {dayCell('Wed', row?.delivery.wed ?? 0)}
         {dayCell('Fri', row?.delivery.fri ?? 0)}
       </div>
@@ -931,6 +978,56 @@ function CartRowEditor({
           }} style={iconBtn} title="Remove">×</button>
         )}
       </div>
+    </div>
+  );
+}
+
+function MondayLockBar({
+  monLock, busy, onToggle,
+}: {
+  monLock: { lockedAt: number; lockedBy: string | null } | null;
+  busy: boolean;
+  onToggle: () => void;
+}) {
+  const isLocked = monLock != null;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      gap: 12, flexWrap: 'wrap',
+      padding: '10px 14px', borderRadius: 10, marginTop: 14,
+      background: isLocked ? 'rgba(202, 138, 4, 0.07)' : 'rgba(0,0,0,0.025)',
+      border: `1px solid ${isLocked ? 'rgba(202, 138, 4, 0.25)' : 'rgba(0,0,0,0.08)'}`,
+    }}>
+      <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.75)' }}>
+        {isLocked ? (
+          <>
+            <strong style={{ color: '#a16207' }}>🔒 Monday delivery locked</strong>
+            <span style={{ color: 'rgba(0,0,0,0.55)' }}>
+              {' '}— locked {new Date(monLock!.lockedAt).toLocaleString([], {
+                month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit',
+              })}
+              {monLock!.lockedBy && <> by {monLock!.lockedBy}</>}
+              . Edits to weekly qty now flow into <strong>Wed + Fri</strong> only.
+            </span>
+          </>
+        ) : (
+          <>
+            <strong>Monday delivery is unlocked.</strong>
+            <span style={{ color: 'rgba(0,0,0,0.55)' }}>
+              {' '}Lock it after the Monday truck rolls so later qty edits don't shuffle Mon's numbers.
+            </span>
+          </>
+        )}
+      </div>
+      <button onClick={onToggle} disabled={busy}
+        style={{
+          ...(isLocked ? pillBtn : primaryBtn),
+          opacity: busy ? 0.6 : 1,
+          cursor: busy ? 'wait' : 'pointer',
+        }}>
+        {busy ? '…' : isLocked ? 'Unlock Monday' : 'Lock Monday delivery'}
+      </button>
     </div>
   );
 }

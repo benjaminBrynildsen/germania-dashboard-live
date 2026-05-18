@@ -10,8 +10,10 @@ import {
   getCatalogImageMap,
   getWeekReport,
   listSavedOrders,
+  lockWeekMonday,
   markOrderSaved,
   mondayOfWeek,
+  unlockWeekMonday,
   unmarkOrderSaved,
   upsertOrderItem,
 } from './bake-haus.js';
@@ -109,6 +111,30 @@ router.delete('/bake-haus/save', requireAuth, (req: AuthRequest, res: Response) 
     return;
   }
   unmarkOrderSaved(week, store);
+  res.json({ ok: true });
+});
+
+/**
+ * Lock the week's Monday delivery — snapshots each row's current
+ * Mon qty so subsequent edits flow into Wed/Fri only. Idempotent.
+ */
+router.post('/bake-haus/lock-monday', requireAuth, async (req: AuthRequest, res: Response) => {
+  const week = String(req.body?.week ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
+    res.status(400).json({ error: 'invalid_week' });
+    return;
+  }
+  await lockWeekMonday(week, req.user?.name ?? null);
+  res.json({ ok: true, lockedAt: Date.now() });
+});
+
+router.delete('/bake-haus/lock-monday', requireAuth, (req: AuthRequest, res: Response) => {
+  const week = String(req.body?.week ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
+    res.status(400).json({ error: 'invalid_week' });
+    return;
+  }
+  unlockWeekMonday(week);
   res.json({ ok: true });
 });
 

@@ -201,7 +201,14 @@ function findProductForCatalogItem(
  * Rounding leftovers go to Fri so the three components always sum back
  * to the original weekly qty exactly.
  */
-export function splitForDeliveries(weeklyQty: number): {
+export function splitForDeliveries(
+  weeklyQty: number,
+  /** When non-null, Monday's qty is frozen to this value (set when the
+   *  week is locked after Monday's truck rolls). Wed/Fri then split
+   *  the remaining qty 2:3. Pass null/undefined for the normal 2/7
+   *  2/7 3/7 split. */
+  monLockedQty?: number | null,
+): {
   mon: number;
   wed: number;
   fri: number;
@@ -211,6 +218,21 @@ export function splitForDeliveries(weeklyQty: number): {
   }
   const total = Math.round(weeklyQty);
   if (total <= 0) return { mon: 0, wed: 0, fri: 0 };
+
+  if (monLockedQty != null && Number.isFinite(monLockedQty)) {
+    // Locked branch: mon is fixed. Anything left goes to wed/fri at
+    // 2:3 (matching the 2-day vs 3-day delivery coverage). If the new
+    // weekly qty has been *reduced* below the locked Mon qty (very
+    // unusual — would mean the store is unordering items already
+    // delivered), cap mon at total and zero out the rest.
+    const mon = Math.max(0, Math.min(Math.round(monLockedQty), total));
+    const remaining = Math.max(0, total - mon);
+    let wed = Math.round(remaining * (2 / 5));
+    let fri = remaining - wed;
+    if (fri < 0) { fri = 0; }
+    return { mon, wed, fri };
+  }
+
   let mon = Math.round(total * (2 / 7));
   let wed = Math.round(total * (2 / 7));
   let fri = total - mon - wed;
@@ -241,6 +263,9 @@ export interface BakeHausOrderRow {
   netQty: number;
   /** Mon/Wed/Fri split of netQty. */
   delivery: { mon: number; wed: number; fri: number };
+  /** When the week is locked, the frozen Mon qty for this row. null
+   *  when the week isn't locked or this row was added after lock. */
+  monLockedQty: number | null;
 }
 
 export interface BakeHausWeekReport {
@@ -264,6 +289,13 @@ export interface BakeHausWeekReport {
   inventoryByStore: Record<string, Record<string, number>>;
   /** When the inventory snapshot was fetched (ms epoch). */
   inventoryFetchedAt: number;
+  /** Set when the week's Monday delivery has been locked. After this,
+   *  any qty edits flow into Wed/Fri only — Mon stays frozen at the
+   *  per-row mon_locked_qty snapshot taken at lock time. */
+  monLock: {
+    lockedAt: number;
+    lockedBy: string | null;
+  } | null;
 }
 
 interface DbRow {
@@ -272,6 +304,7 @@ interface DbRow {
   item_name: string;
   weekly_qty: number;
   notes: string | null;
+  mon_locked_qty: number | null;
 }
 
 /** Sort items by the catalog order; unknown items go to the bottom. */
@@ -282,10 +315,19 @@ function itemSortKey(name: string): number {
 
 export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekReport> {
   const rows = db.prepare(
-    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes
+    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, mon_locked_qty
      FROM bake_haus_orders
      WHERE week_start_iso = ?`,
   ).all(weekStartIso) as DbRow[];
+
+  // Week-level Mon lock state. When present, the per-row mon_locked_qty
+  // snapshots are authoritative for Monday's delivery.
+  const lockRow = db.prepare(
+    'SELECT mon_locked_at, locked_by FROM bake_haus_week_locks WHERE week_start_iso = ?',
+  ).get(weekStartIso) as { mon_locked_at: number; locked_by: string | null } | undefined;
+  const monLock = lockRow
+    ? { lockedAt: lockRow.mon_locked_at, lockedBy: lockRow.locked_by ?? null }
+    : null;
 
   // Pull current Dripos inventory in parallel with everything else. Cache
   // protects us if Dripos is slow/down — falls back to empty map.
@@ -303,7 +345,12 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
   for (const r of rows) {
     const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
     const netQty = Math.max(0, r.weekly_qty - onHand);
-    const split = splitForDeliveries(netQty);
+    // Lock semantics: when the week is locked, use the row's snapshot
+    // (or 0 if the row was added post-lock). When unlocked, ignore
+    // any stale snapshot. mon_locked_qty is intentionally a soft
+    // value tied to monLock state, not a column-level switch.
+    const lockedMonQty = monLock ? (r.mon_locked_qty ?? 0) : null;
+    const split = splitForDeliveries(netQty, lockedMonQty);
     const row: BakeHausOrderRow = {
       weekStartIso: r.week_start_iso,
       storeLabel: r.store_label,
@@ -313,6 +360,7 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
       onHand,
       netQty,
       delivery: split,
+      monLockedQty: lockedMonQty,
     };
     if (!byStore[r.store_label]) byStore[r.store_label] = [];
     byStore[r.store_label].push(row);
@@ -346,7 +394,64 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
     deliverySummary,
     inventoryByStore,
     inventoryFetchedAt: inventoryMapCache?.fetchedAt ?? Date.now(),
+    monLock,
   };
+}
+
+/** Lock the week's Monday delivery — snapshots the current Mon qty
+ *  for every order row so subsequent edits flow into Wed/Fri only.
+ *  Idempotent: re-locking a locked week refreshes the snapshot to
+ *  whatever Mon currently computes to (use case: locked too early,
+ *  unlocked, edited, re-lock with fresh values). */
+export async function lockWeekMonday(
+  weekStartIso: string,
+  lockedBy: string | null = null,
+): Promise<void> {
+  const rows = db.prepare(
+    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, mon_locked_qty
+     FROM bake_haus_orders
+     WHERE week_start_iso = ?`,
+  ).all(weekStartIso) as DbRow[];
+
+  // Inventory snapshot to mirror what getWeekReport sees right now;
+  // ensures the locked mon qty matches what the UI was showing.
+  const inventoryByStore = await getBakeHausInventoryByStore().catch(() => ({} as Record<string, Record<string, number>>));
+
+  const updateRow = db.prepare(
+    `UPDATE bake_haus_orders SET mon_locked_qty = ?
+      WHERE week_start_iso = ? AND store_label = ? AND item_name = ?`,
+  );
+  const insertLock = db.prepare(
+    `INSERT INTO bake_haus_week_locks (week_start_iso, mon_locked_at, locked_by)
+     VALUES (?, ?, ?)
+     ON CONFLICT(week_start_iso) DO UPDATE SET
+       mon_locked_at = excluded.mon_locked_at,
+       locked_by = COALESCE(excluded.locked_by, bake_haus_week_locks.locked_by)`,
+  );
+
+  const txn = db.transaction(() => {
+    for (const r of rows) {
+      const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
+      const netQty = Math.max(0, r.weekly_qty - onHand);
+      // Compute the unlocked split — that's what Mon would be right
+      // now. Snapshot that as the locked value.
+      const split = splitForDeliveries(netQty, null);
+      updateRow.run(split.mon, r.week_start_iso, r.store_label, r.item_name);
+    }
+    insertLock.run(weekStartIso, Date.now(), lockedBy);
+  });
+  txn();
+}
+
+export function unlockWeekMonday(weekStartIso: string): void {
+  const txn = db.transaction(() => {
+    db.prepare('DELETE FROM bake_haus_week_locks WHERE week_start_iso = ?').run(weekStartIso);
+    // Clear per-row snapshots too so a future re-lock starts fresh.
+    db.prepare(
+      'UPDATE bake_haus_orders SET mon_locked_qty = NULL WHERE week_start_iso = ?',
+    ).run(weekStartIso);
+  });
+  txn();
 }
 
 export function upsertOrderItem(args: {

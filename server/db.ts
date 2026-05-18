@@ -27,6 +27,17 @@ db.pragma('foreign_keys = ON');
   }
 }
 
+// bake_haus_orders.mon_locked_qty migration — adds the Mon-delivery
+// snapshot column to existing tables that pre-date the lock feature.
+// CREATE TABLE IF NOT EXISTS below won't backfill columns on its own.
+{
+  const tbl = db.prepare("PRAGMA table_info(bake_haus_orders)").all() as Array<{ name: string }>;
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'mon_locked_qty')) {
+    console.log('[migration] adding mon_locked_qty to bake_haus_orders');
+    db.exec('ALTER TABLE bake_haus_orders ADD COLUMN mon_locked_qty REAL');
+  }
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -223,6 +234,12 @@ db.exec(`
     weekly_qty REAL NOT NULL,
     notes TEXT,
     updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
+    -- Snapshot of this row's Monday delivery qty at the moment the
+    -- week was locked. NULL = not locked. When set, the split logic
+    -- uses this value for mon and redistributes the rest to wed/fri
+    -- so post-Monday qty edits don't retroactively change what
+    -- already left the kitchen.
+    mon_locked_qty REAL,
     PRIMARY KEY (week_start_iso, store_label, item_name)
   );
 
@@ -236,6 +253,16 @@ db.exec(`
     saved_at INTEGER NOT NULL,
     saved_by TEXT,
     PRIMARY KEY (week_start_iso, store_label)
+  );
+
+  -- Marks a week as "Monday delivery already went out". When a row
+  -- exists for a given week_start_iso, the Monday qty for each order
+  -- row in that week is frozen to its mon_locked_qty snapshot.
+  CREATE TABLE IF NOT EXISTS bake_haus_week_locks (
+    week_start_iso TEXT NOT NULL,
+    mon_locked_at INTEGER NOT NULL,
+    locked_by TEXT,
+    PRIMARY KEY (week_start_iso)
   );
 
   -- Patron snapshots from Dripos's /patrons/dumb/v2 endpoint. Pulled
