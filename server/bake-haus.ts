@@ -204,7 +204,8 @@ function findProductForCatalogItem(
 export function splitForDeliveries(
   weeklyQty: number,
   /** When non-null, Monday's qty is frozen to this value (set when the
-   *  week is locked after Monday's truck rolls). Wed/Fri then split
+   *  week is locked after the kitchen starts baking off Monday's
+   *  count). Wed/Fri then split
    *  the remaining qty 2:3. Pass null/undefined for the normal 2/7
    *  2/7 3/7 split. */
   monLockedQty?: number | null,

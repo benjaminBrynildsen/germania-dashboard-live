@@ -418,7 +418,7 @@ export default function BakeHaus() {
             </div>
           )}
 
-          {/* Per-day delivery breakdown — what goes on each truck. */}
+          {/* Per-day delivery breakdown. */}
           <div style={{
             display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
             gap: 12, marginTop: 28, marginBottom: 12, flexWrap: 'wrap',
@@ -436,7 +436,7 @@ export default function BakeHaus() {
             </button>
           </div>
           <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13, marginBottom: 14 }}>
-            What goes on each truck. Empty cells mean that store didn't order the item this week.
+            What goes out each delivery day. Empty cells mean that store didn't order the item this week.
           </p>
           <div style={{
             display: 'grid',
@@ -1086,8 +1086,9 @@ function UpdateConfirmModal({
             🔒 Only update Wed + Fri (keep Mon the same)
           </div>
           <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>
-            Use this when the Monday truck has already rolled. Mon quantities
-            freeze where they are; any change flows into Wed + Fri.
+            Use this when the kitchen has already started baking off the
+            current Monday count. Mon quantities freeze where they are;
+            any change flows into Wed + Fri.
           </div>
         </button>
 
