@@ -127,13 +127,13 @@ router.delete('/bake-haus/save', requireAuth, (req: AuthRequest, res: Response) 
  * Lock the week's Monday delivery — snapshots each row's current
  * Mon qty so subsequent edits flow into Wed/Fri only. Idempotent.
  */
-router.post('/bake-haus/lock-monday', requireAuth, (req: AuthRequest, res: Response) => {
+router.post('/bake-haus/lock-monday', requireAuth, async (req: AuthRequest, res: Response) => {
   const week = String(req.body?.week ?? '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
     res.status(400).json({ error: 'invalid_week' });
     return;
   }
-  lockWeekMonday(week, req.user?.name ?? null);
+  await lockWeekMonday(week, req.user?.name ?? null);
   res.json({ ok: true, lockedAt: Date.now() });
 });
 

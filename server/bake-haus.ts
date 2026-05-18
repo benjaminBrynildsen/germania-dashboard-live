@@ -346,11 +346,19 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
   for (const r of rows) {
     const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
     const netQty = Math.max(0, r.weekly_qty - onHand);
-    // Lock semantics: when the week is locked, use the row's snapshot
-    // (or 0 if the row was added post-lock). When unlocked, ignore
-    // any stale snapshot. mon_locked_qty is intentionally a soft
-    // value tied to monLock state, not a column-level switch.
-    const lockedMonQty = monLock ? (r.mon_locked_qty ?? 0) : null;
+    // Lock semantics: when the week is locked, use the row's
+    // snapshot. If the snapshot is NULL (row predates the snapshot
+    // column OR was created after a lock without going through a
+    // baseline save), fall back to the unlocked computed Mon. The
+    // fallback makes the lock effectively a no-op for that row
+    // until a real snapshot is established — better than silently
+    // zeroing out Mon (the prior bug).
+    let lockedMonQty: number | null = null;
+    if (monLock) {
+      lockedMonQty = r.mon_locked_qty != null
+        ? r.mon_locked_qty
+        : splitForDeliveries(netQty, null).mon;
+    }
     const split = splitForDeliveries(netQty, lockedMonQty);
     const row: BakeHausOrderRow = {
       weekStartIso: r.week_start_iso,
@@ -399,23 +407,49 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
   };
 }
 
-/** Lock the week's Monday delivery — just flips the week-lock flag.
- *  The per-row mon_locked_qty snapshot is set independently, at save
- *  time, so locking uses whatever baseline Mon was captured at the
- *  last "update everything" save (or initial save). This avoids the
- *  trap of locking Mon to the JUST-EDITED value when the user wanted
- *  to preserve the previous saved value. */
-export function lockWeekMonday(
+/** Lock the week's Monday delivery — flips the week-lock flag, and
+ *  backfills mon_locked_qty for any row that doesn't have a baseline
+ *  snapshot yet. Rows that DO have a snapshot are preserved as-is
+ *  (they were captured at the last "update everything" save and
+ *  represent the user's intended freeze point). */
+export async function lockWeekMonday(
   weekStartIso: string,
   lockedBy: string | null = null,
-): void {
-  db.prepare(
+): Promise<void> {
+  const rows = db.prepare(
+    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, mon_locked_qty
+     FROM bake_haus_orders
+     WHERE week_start_iso = ? AND mon_locked_qty IS NULL`,
+  ).all(weekStartIso) as DbRow[];
+
+  // Only fetch inventory if we have rows to backfill (saves a network
+  // call when every row already has a snapshot).
+  const inventoryByStore = rows.length > 0
+    ? await getBakeHausInventoryByStore().catch(() => ({} as Record<string, Record<string, number>>))
+    : {};
+
+  const updateRow = db.prepare(
+    `UPDATE bake_haus_orders SET mon_locked_qty = ?
+      WHERE week_start_iso = ? AND store_label = ? AND item_name = ?`,
+  );
+  const insertLock = db.prepare(
     `INSERT INTO bake_haus_week_locks (week_start_iso, mon_locked_at, locked_by)
      VALUES (?, ?, ?)
      ON CONFLICT(week_start_iso) DO UPDATE SET
        mon_locked_at = excluded.mon_locked_at,
        locked_by = COALESCE(excluded.locked_by, bake_haus_week_locks.locked_by)`,
-  ).run(weekStartIso, Date.now(), lockedBy);
+  );
+
+  const txn = db.transaction(() => {
+    for (const r of rows) {
+      const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
+      const netQty = Math.max(0, r.weekly_qty - onHand);
+      const split = splitForDeliveries(netQty, null);
+      updateRow.run(split.mon, r.week_start_iso, r.store_label, r.item_name);
+    }
+    insertLock.run(weekStartIso, Date.now(), lockedBy);
+  });
+  txn();
 }
 
 export function unlockWeekMonday(weekStartIso: string): void {
