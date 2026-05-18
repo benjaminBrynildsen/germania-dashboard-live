@@ -44,7 +44,7 @@ interface SavedOrder {
   totalQty: number;
 }
 
-type Tab = 'current' | 'saved';
+type Tab = 'current' | 'schedule' | 'saved';
 
 function fmtDateRange(weekStartIso: string): string {
   const start = new Date(weekStartIso + 'T00:00:00');
@@ -203,6 +203,7 @@ export default function BakeHaus() {
       }}>
         {([
           { id: 'current', label: 'Current Order' },
+          { id: 'schedule', label: 'Delivery Schedule' },
           { id: 'saved', label: 'Saved Orders' },
         ] as Array<{ id: Tab; label: string }>).map((t) => {
           const active = tab === t.id;
@@ -231,9 +232,10 @@ export default function BakeHaus() {
         }}>{error}</div>
       )}
 
-      {tab === 'current' && (
+      {(tab === 'current' || tab === 'schedule') && (
         <>
-          {/* Week selector */}
+          {/* Week selector — shared by Current Order + Delivery Schedule
+              since both views read off the same weekly report. */}
           <div style={{
             display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 18,
           }}>
@@ -251,80 +253,92 @@ export default function BakeHaus() {
           {loading && !report && (
             <div style={{ color: 'rgba(0,0,0,0.4)', padding: 24 }}>Loading…</div>
           )}
+        </>
+      )}
 
-          {report && (
-            <>
-              {/* Store selector — pills colored by house theme so the
-                  currently-selected store is unmistakable. */}
-              <div style={{
-                display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18,
-              }}>
-                {stores.map((store) => {
-                  const theme = getTheme(store);
-                  const on = activeStore === store;
-                  const city = STORE_CITIES[store];
-                  return (
-                    <button key={store} onClick={() => setActiveStore(store)}
-                      style={{
-                        padding: '10px 18px', borderRadius: 12,
-                        border: on ? `2px solid ${theme.headerBg}` : '1px solid rgba(0,0,0,0.12)',
-                        background: on ? theme.headerBg : '#fff',
-                        color: on ? theme.headerFg : 'rgba(0,0,0,0.6)',
-                        fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}>
-                      {store}{city && (<>
-                        <span style={{
-                          marginLeft: 6, fontWeight: 500, opacity: on ? 0.85 : 0.55,
-                          textTransform: 'uppercase', fontSize: 11,
-                        }}>· {city}</span>
-                      </>)}
-                    </button>
-                  );
-                })}
-              </div>
+      {tab === 'current' && report && (
+        <>
+          {/* Store selector — pills colored by house theme so the
+              currently-selected store is unmistakable. */}
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18,
+          }}>
+            {stores.map((store) => {
+              const theme = getTheme(store);
+              const on = activeStore === store;
+              const city = STORE_CITIES[store];
+              return (
+                <button key={store} onClick={() => setActiveStore(store)}
+                  style={{
+                    padding: '10px 18px', borderRadius: 12,
+                    border: on ? `2px solid ${theme.headerBg}` : '1px solid rgba(0,0,0,0.12)',
+                    background: on ? theme.headerBg : '#fff',
+                    color: on ? theme.headerFg : 'rgba(0,0,0,0.6)',
+                    fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}>
+                  {store}{city && (<>
+                    <span style={{
+                      marginLeft: 6, fontWeight: 500, opacity: on ? 0.85 : 0.55,
+                      textTransform: 'uppercase', fontSize: 11,
+                    }}>· {city}</span>
+                  </>)}
+                </button>
+              );
+            })}
+          </div>
 
-              {/* Single full-width store order card */}
-              <div style={{ marginBottom: 32 }}>
-                <StoreOrderCard
-                  store={activeStore}
-                  rows={report.byStore[activeStore] ?? []}
-                  catalog={catalog}
-                  inventory={report.inventoryByStore[activeStore] ?? {}}
-                  inventoryFetchedAt={report.inventoryFetchedAt}
-                  savedAt={report.savedAtByStore[activeStore] ?? null}
-                  saving={savingStores.has(activeStore)}
-                  isMobile={isMobile}
-                  onSaveOrder={() => saveStore(activeStore)}
-                  onSave={(item, qty) => saveItem(activeStore, item, qty)}
-                  onDelete={(item) => deleteItem(activeStore, item)}
-                />
-              </div>
+          {/* Single full-width store order card */}
+          <div style={{ marginBottom: 32 }}>
+            <StoreOrderCard
+              store={activeStore}
+              rows={report.byStore[activeStore] ?? []}
+              catalog={catalog}
+              inventory={report.inventoryByStore[activeStore] ?? {}}
+              inventoryFetchedAt={report.inventoryFetchedAt}
+              savedAt={report.savedAtByStore[activeStore] ?? null}
+              saving={savingStores.has(activeStore)}
+              isMobile={isMobile}
+              onSaveOrder={() => saveStore(activeStore)}
+              onSave={(item, qty) => saveItem(activeStore, item, qty)}
+              onDelete={(item) => deleteItem(activeStore, item)}
+            />
+          </div>
+        </>
+      )}
 
-              {/* Cross-store delivery summary */}
-              <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
-                Delivery summary
-              </h2>
-              <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13, marginBottom: 14 }}>
-                What goes on each truck. Empty cells mean that store didn't order the item this week.
-              </p>
-              <div style={{
-                display: 'grid',
-                // auto-fit + minmax lets the grid stack to 2-up (or 1-up)
-                // on narrower screens (Chromebooks ~1366px) instead of
-                // squeezing 3 cards into the row and clipping columns.
-                // 540px floor accounts for Item + 4 stores + Total = 6
-                // columns; below that, the card stacks vertically.
-                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(540px, 1fr))',
-                gap: 12,
-              }}>
-                <DeliveryCard day="Monday"    items={report.deliverySummary.mon} stores={stores} catalog={catalog} />
-                <DeliveryCard day="Wednesday" items={report.deliverySummary.wed} stores={stores} catalog={catalog} />
-                <DeliveryCard day="Friday"    items={report.deliverySummary.fri} stores={stores} catalog={catalog} />
-              </div>
-            </>
-          )}
+      {tab === 'schedule' && report && (
+        <>
+          {/* Weekly production totals — what the kitchen needs to make
+              this week, summed across all stores + all delivery days.
+              Drives raw-ingredient ordering and prep scheduling. */}
+          <WeeklyTotalsCard
+            deliverySummary={report.deliverySummary}
+            catalog={catalog}
+          />
+
+          {/* Per-day delivery breakdown — what goes on each truck. */}
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, marginTop: 28 }}>
+            Delivery schedule
+          </h2>
+          <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13, marginBottom: 14 }}>
+            What goes on each truck. Empty cells mean that store didn't order the item this week.
+          </p>
+          <div style={{
+            display: 'grid',
+            // auto-fit + minmax lets the grid stack to 2-up (or 1-up)
+            // on narrower screens (Chromebooks ~1366px) instead of
+            // squeezing 3 cards into the row and clipping columns.
+            // 540px floor accounts for Item + 4 stores + Total = 6
+            // columns; below that, the card stacks vertically.
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(540px, 1fr))',
+            gap: 12,
+          }}>
+            <DeliveryCard day="Monday"    items={report.deliverySummary.mon} stores={stores} catalog={catalog} />
+            <DeliveryCard day="Wednesday" items={report.deliverySummary.wed} stores={stores} catalog={catalog} />
+            <DeliveryCard day="Friday"    items={report.deliverySummary.fri} stores={stores} catalog={catalog} />
+          </div>
         </>
       )}
 
@@ -856,6 +870,155 @@ function CartRowEditor({
             if (confirm(`Remove ${itemName} from this order?`)) onDelete();
           }} style={iconBtn} title="Remove">×</button>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Weekly production totals — rolls Mon/Wed/Fri × all stores into a
+ *  single item-level table. Drives raw-ingredient planning ("we need
+ *  to bake 270 Bacon Egg & Cheese this week") which the per-day cards
+ *  don't surface at a glance. */
+function WeeklyTotalsCard({
+  deliverySummary, catalog,
+}: {
+  deliverySummary: {
+    mon: Record<string, Record<string, number>>;
+    wed: Record<string, Record<string, number>>;
+    fri: Record<string, Record<string, number>>;
+  };
+  catalog: CatalogItem[];
+}) {
+  const days = [
+    { key: 'mon' as const, label: 'Mon' },
+    { key: 'wed' as const, label: 'Wed' },
+    { key: 'fri' as const, label: 'Fri' },
+  ];
+
+  // Build the item list (union of items across all days), then
+  // compute per-day-total and week-total per item.
+  const byItem = useMemo(() => {
+    const sums = new Map<string, { mon: number; wed: number; fri: number; total: number }>();
+    for (const day of days) {
+      const dayMap = deliverySummary[day.key] ?? {};
+      for (const [item, perStore] of Object.entries(dayMap)) {
+        let s = sums.get(item);
+        if (!s) {
+          s = { mon: 0, wed: 0, fri: 0, total: 0 };
+          sums.set(item, s);
+        }
+        for (const qty of Object.values(perStore)) {
+          s[day.key] += qty;
+          s.total += qty;
+        }
+      }
+    }
+    const arr = Array.from(sums.entries()).map(([name, v]) => ({ name, ...v }));
+    arr.sort((a, b) => {
+      const ai = catalog.find((c) => c.name === a.name)?.sort ?? 1000;
+      const bi = catalog.find((c) => c.name === b.name)?.sort ?? 1000;
+      return ai - bi || a.name.localeCompare(b.name);
+    });
+    return arr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliverySummary, catalog]);
+
+  const dayTotals = { mon: 0, wed: 0, fri: 0 };
+  let weekTotal = 0;
+  for (const r of byItem) {
+    dayTotals.mon += r.mon;
+    dayTotals.wed += r.wed;
+    dayTotals.fri += r.fri;
+    weekTotal += r.total;
+  }
+
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14,
+      border: '1px solid rgba(0,0,0,0.07)',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '14px 18px', borderBottom: '1px solid rgba(0,0,0,0.05)',
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+        flexWrap: 'wrap', gap: 8,
+      }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>
+            This week's production
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginTop: 2 }}>
+            Total units to bake across all stores and delivery days.
+          </div>
+        </div>
+        <span style={{
+          fontSize: 13, fontWeight: 700, color: '#1a1a1a',
+          background: 'rgba(0,0,0,0.05)', padding: '4px 10px', borderRadius: 999,
+          fontVariantNumeric: 'tabular-nums',
+        }}>{weekTotal.toLocaleString()} units total</span>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{
+          width: '100%', borderCollapse: 'collapse',
+          fontSize: 13, fontFamily: 'var(--font-body)',
+          minWidth: 460,
+        }}>
+          <thead>
+            <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
+              <Th>Item</Th>
+              <Th align="right">Mon</Th>
+              <Th align="right">Wed</Th>
+              <Th align="right">Fri</Th>
+              <Th align="right">Week total</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {byItem.map((r) => (
+              <tr key={r.name} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                <Td style={{ fontSize: 14 }}>{r.name}</Td>
+                <Td align="right" style={delivCell}>
+                  {r.mon ? fmtNum(r.mon) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                </Td>
+                <Td align="right" style={delivCell}>
+                  {r.wed ? fmtNum(r.wed) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                </Td>
+                <Td align="right" style={delivCell}>
+                  {r.fri ? fmtNum(r.fri) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                </Td>
+                <Td align="right" style={delivRowTotalCell}>
+                  {r.total ? fmtNum(r.total) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                </Td>
+              </tr>
+            ))}
+            {byItem.length === 0 && (
+              <tr><Td colSpan={5} style={{
+                textAlign: 'center', padding: 18, color: 'rgba(0,0,0,0.4)', fontSize: 12,
+              }}>No orders placed for this week yet.</Td></tr>
+            )}
+            {byItem.length > 0 && (
+              <tr style={{
+                borderTop: '2px solid rgba(0,0,0,0.08)',
+                background: 'rgba(0,0,0,0.02)',
+                fontWeight: 700,
+              }}>
+                <Td>Total</Td>
+                <Td align="right" style={delivCell}>
+                  {dayTotals.mon ? fmtNum(dayTotals.mon) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                </Td>
+                <Td align="right" style={delivCell}>
+                  {dayTotals.wed ? fmtNum(dayTotals.wed) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                </Td>
+                <Td align="right" style={delivCell}>
+                  {dayTotals.fri ? fmtNum(dayTotals.fri) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                </Td>
+                <Td align="right" style={delivRowTotalCell}>
+                  {weekTotal > 0 ? fmtNum(weekTotal) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                </Td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
