@@ -35,6 +35,24 @@ export interface BakeHausItem {
   sort: number;
 }
 
+/** Unified catalog item — covers both the hardcoded food list AND
+ *  the DB-backed editable syrup catalog. `category` distinguishes
+ *  them; the order card renders food + syrup as two sections.
+ *  `includeMonday` controls the delivery split: true → 2/7-2/7-3/7,
+ *  false → 0 / Wed:Fri at 2:3. */
+export interface BakeHausCatalogItem {
+  name: string;            // canonical item_name stored in bake_haus_orders
+  sort: number;
+  category: 'food' | 'syrup-sauce';
+  includeMonday: boolean;
+  /** Dripos product ID for inventory lookup. null for food (we use
+   *  fuzzy name matching for those). */
+  driposProductId: number | null;
+  /** Dripos product name — used as a fallback inventory match key
+   *  and for showing the underlying Dripos name in the manage UI. */
+  driposProductName: string | null;
+}
+
 export const BAKE_HAUS_ITEMS: BakeHausItem[] = [
   { name: 'Bacon, Egg & Cheese',           aliases: ['bec', 'b.e.c.', 'bacon egg & cheese', 'bacon egg cheese', 'bacon, egg and cheese'], sort: 10 },
   { name: 'Jalapeno Sausage Biscuit',      aliases: ['jalapeno sausage biscuit', 'jalapeno biscuit', 'sausage biscuit', 'biscuit', 'biscuits'], sort: 20 },
@@ -148,13 +166,28 @@ export async function getBakeHausInventoryByStore(): Promise<Record<string, Reco
   const map: Record<string, Record<string, number>> = {};
   for (const store of STORES) map[store.label] = {};
 
+  // Syrups are linked by Dripos product ID (set in the catalog admin
+  // tab). Food items are matched by fuzzy name search since their
+  // canonical name lives in code, not in Dripos.
+  const syrups = listSyrups(false);
+
   await Promise.all(STORES.map(async (store) => {
     try {
       const products = await fetchInventory(store.locationId);
+      // Food: fuzzy name match into Dripos's product list.
       for (const item of BAKE_HAUS_ITEMS) {
         const found = findProductForCatalogItem(item, products);
         if (found && typeof found.INVENTORY === 'number') {
           map[store.label][item.name] = found.INVENTORY;
+        }
+      }
+      // Syrups: ID-based exact match — stable against Dripos renames.
+      const byId = new Map<number, typeof products[number]>();
+      for (const p of products) byId.set(p.ID, p);
+      for (const s of syrups) {
+        const found = byId.get(s.driposProductId);
+        if (found && !found.ARCHIVED && typeof found.INVENTORY === 'number') {
+          map[store.label][s.displayName] = found.INVENTORY;
         }
       }
     } catch (err) {
@@ -209,6 +242,10 @@ export function splitForDeliveries(
    *  the remaining qty 2:3. Pass null/undefined for the normal 2/7
    *  2/7 3/7 split. */
   monLockedQty?: number | null,
+  /** When false, this item skips Monday entirely (Mon=0, Wed/Fri at
+   *  2:3). Used for most syrups + sauces which are made Tue/Thu and
+   *  only delivered Wed/Fri. Defaults to true. */
+  includeMonday: boolean = true,
 ): {
   mon: number;
   wed: number;
@@ -219,6 +256,14 @@ export function splitForDeliveries(
   }
   const total = Math.round(weeklyQty);
   if (total <= 0) return { mon: 0, wed: 0, fri: 0 };
+
+  // No-Monday branch (most syrups/sauces): split across Wed/Fri at
+  // 2:3. Lock state is moot — Mon is always 0 here.
+  if (!includeMonday) {
+    const wed = Math.round(total * (2 / 5));
+    const fri = Math.max(0, total - wed);
+    return { mon: 0, wed, fri };
+  }
 
   if (monLockedQty != null && Number.isFinite(monLockedQty)) {
     // Locked branch: mon is fixed. Anything left goes to wed/fri at
@@ -267,6 +312,10 @@ export interface BakeHausOrderRow {
   /** When the week is locked, the frozen Mon qty for this row. null
    *  when the week isn't locked or this row was added after lock. */
   monLockedQty: number | null;
+  /** 'food' or 'syrup-sauce', for the order card's section grouping. */
+  category: 'food' | 'syrup-sauce' | 'custom';
+  /** Whether this item delivers on Monday. false → Wed/Fri only. */
+  includeMonday: boolean;
 }
 
 export interface BakeHausWeekReport {
@@ -343,23 +392,32 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
     fri: {} as Record<string, Record<string, number>>,
   };
 
+  // Resolve per-item category + includeMonday from the merged
+  // catalog. Food items + Haus-Vanilla-style syrups → includeMonday
+  // true; other syrups → false. Items not in the catalog (legacy
+  // custom items) default to category='custom', includeMonday=true.
+  const catalog = getMergedCatalog();
+  const catalogByName = new Map<string, BakeHausCatalogItem>();
+  for (const c of catalog) catalogByName.set(c.name, c);
+
   for (const r of rows) {
     const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
     const netQty = Math.max(0, r.weekly_qty - onHand);
-    // Lock semantics: when the week is locked, use the row's
-    // snapshot. If the snapshot is NULL (row predates the snapshot
-    // column OR was created after a lock without going through a
-    // baseline save), fall back to the unlocked computed Mon. The
-    // fallback makes the lock effectively a no-op for that row
-    // until a real snapshot is established — better than silently
-    // zeroing out Mon (the prior bug).
+    const catEntry = catalogByName.get(r.item_name);
+    const includeMonday = catEntry?.includeMonday ?? true;
+    const category: 'food' | 'syrup-sauce' | 'custom' =
+      catEntry?.category ?? 'custom';
+    // Lock semantics: when the week is locked AND this item gets a
+    // Monday delivery, use the row's snapshot (or the unlocked
+    // computed Mon as a fallback if snapshot is NULL). For items
+    // that skip Monday (most syrups), the lock is irrelevant.
     let lockedMonQty: number | null = null;
-    if (monLock) {
+    if (monLock && includeMonday) {
       lockedMonQty = r.mon_locked_qty != null
         ? r.mon_locked_qty
-        : splitForDeliveries(netQty, null).mon;
+        : splitForDeliveries(netQty, null, true).mon;
     }
-    const split = splitForDeliveries(netQty, lockedMonQty);
+    const split = splitForDeliveries(netQty, lockedMonQty, includeMonday);
     const row: BakeHausOrderRow = {
       weekStartIso: r.week_start_iso,
       storeLabel: r.store_label,
@@ -370,6 +428,8 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
       netQty,
       delivery: split,
       monLockedQty: lockedMonQty,
+      category,
+      includeMonday,
     };
     if (!byStore[r.store_label]) byStore[r.store_label] = [];
     byStore[r.store_label].push(row);
@@ -575,6 +635,145 @@ export function listSavedOrders(): SavedOrderSummary[] {
   ).all() as SavedOrderSummary[];
   return rows;
 }
+
+// ─── Syrup catalog (DB-backed, editable) ──────────────────────────
+
+export interface SyrupRow {
+  id: number;
+  displayName: string;
+  driposProductId: number;
+  driposProductName: string;
+  sort: number;
+  includeMonday: boolean;
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface SyrupDbRow {
+  id: number;
+  display_name: string;
+  dripos_product_id: number;
+  dripos_product_name: string;
+  sort: number;
+  include_monday: number;
+  active: number;
+  created_at: number;
+  updated_at: number;
+}
+
+function rowToSyrup(r: SyrupDbRow): SyrupRow {
+  return {
+    id: r.id,
+    displayName: r.display_name,
+    driposProductId: r.dripos_product_id,
+    driposProductName: r.dripos_product_name,
+    sort: r.sort,
+    includeMonday: r.include_monday === 1,
+    active: r.active === 1,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export function listSyrups(includeInactive = false): SyrupRow[] {
+  const rows = (includeInactive
+    ? db.prepare('SELECT * FROM bake_haus_syrups ORDER BY sort, display_name').all()
+    : db.prepare('SELECT * FROM bake_haus_syrups WHERE active = 1 ORDER BY sort, display_name').all()
+  ) as SyrupDbRow[];
+  return rows.map(rowToSyrup);
+}
+
+export function getSyrup(id: number): SyrupRow | null {
+  const r = db.prepare('SELECT * FROM bake_haus_syrups WHERE id = ?').get(id) as SyrupDbRow | undefined;
+  return r ? rowToSyrup(r) : null;
+}
+
+export function createSyrup(args: {
+  displayName: string;
+  driposProductId: number;
+  driposProductName: string;
+  sort?: number;
+  includeMonday?: boolean;
+}): SyrupRow {
+  const now = Date.now();
+  const sort = args.sort ?? 100;
+  const include = args.includeMonday ? 1 : 0;
+  const info = db.prepare(
+    `INSERT INTO bake_haus_syrups
+       (display_name, dripos_product_id, dripos_product_name, sort, include_monday, active, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+  ).run(args.displayName, args.driposProductId, args.driposProductName, sort, include, now, now);
+  return getSyrup(info.lastInsertRowid as number)!;
+}
+
+export function updateSyrup(
+  id: number,
+  args: Partial<{
+    displayName: string;
+    driposProductId: number;
+    driposProductName: string;
+    sort: number;
+    includeMonday: boolean;
+    active: boolean;
+  }>,
+): SyrupRow | null {
+  const cur = getSyrup(id);
+  if (!cur) return null;
+  const next = {
+    displayName: args.displayName ?? cur.displayName,
+    driposProductId: args.driposProductId ?? cur.driposProductId,
+    driposProductName: args.driposProductName ?? cur.driposProductName,
+    sort: args.sort ?? cur.sort,
+    includeMonday: args.includeMonday ?? cur.includeMonday,
+    active: args.active ?? cur.active,
+  };
+  db.prepare(
+    `UPDATE bake_haus_syrups SET
+       display_name = ?, dripos_product_id = ?, dripos_product_name = ?,
+       sort = ?, include_monday = ?, active = ?, updated_at = ?
+     WHERE id = ?`,
+  ).run(
+    next.displayName, next.driposProductId, next.driposProductName,
+    next.sort, next.includeMonday ? 1 : 0, next.active ? 1 : 0,
+    Date.now(), id,
+  );
+  return getSyrup(id);
+}
+
+export function deleteSyrup(id: number): boolean {
+  const info = db.prepare('DELETE FROM bake_haus_syrups WHERE id = ?').run(id);
+  return info.changes > 0;
+}
+
+/** Merged catalog: hardcoded food items + active syrups. Stable item
+ *  identity comes from `name` (food canonical name OR syrup display
+ *  name). Order pages and getWeekReport both consume this. */
+export function getMergedCatalog(): BakeHausCatalogItem[] {
+  const food: BakeHausCatalogItem[] = BAKE_HAUS_ITEMS.map((i) => ({
+    name: i.name,
+    sort: i.sort,
+    category: 'food',
+    includeMonday: true,
+    driposProductId: null,
+    driposProductName: null,
+  }));
+  const syrups: BakeHausCatalogItem[] = listSyrups(false).map((s) => ({
+    name: s.displayName,
+    // Syrups sort below food. Base at 1000 + per-row sort so adding
+    // a new food item with sort < 1000 still slots above all syrups.
+    sort: 1000 + s.sort,
+    category: 'syrup-sauce',
+    includeMonday: s.includeMonday,
+    driposProductId: s.driposProductId,
+    driposProductName: s.driposProductName,
+  }));
+  return [...food, ...syrups].sort((a, b) =>
+    a.sort - b.sort || a.name.localeCompare(b.name),
+  );
+}
+
+// ─── Week / report helpers ────────────────────────────────────────
 
 /** Returns the ISO date (YYYY-MM-DD) of the Monday of the week containing
  *  the given date. Uses local time so "this week" matches a manager's

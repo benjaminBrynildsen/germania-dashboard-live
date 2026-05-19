@@ -112,6 +112,35 @@ check(
   splitForDeliveries(21),
 );
 
+// 8. includeMonday=false (syrup behavior) — Mon always 0, Wed/Fri at 2:3.
+check(
+  'syrup split: qty=15, includeMonday=false → 0/6/9',
+  splitForDeliveries(15, null, false),
+  { mon: 0, wed: 6, fri: 9 },
+);
+check(
+  'syrup split: qty=10, includeMonday=false → 0/4/6',
+  splitForDeliveries(10, null, false),
+  { mon: 0, wed: 4, fri: 6 },
+);
+check(
+  'syrup split: lock arg ignored when includeMonday=false',
+  splitForDeliveries(20, 5, false),
+  { mon: 0, wed: 8, fri: 12 },
+);
+check(
+  'syrup split: qty=0 still 0/0/0',
+  splitForDeliveries(0, null, false),
+  { mon: 0, wed: 0, fri: 0 },
+);
+
+// 9. includeMonday=true (default for food + Haus Vanilla) unchanged.
+check(
+  'food split with includeMonday=true matches old behavior',
+  splitForDeliveries(21, null, true),
+  splitForDeliveries(21),
+);
+
 console.log('');
 if (failures > 0) {
   console.error(`✗ ${failures} test(s) failed`);

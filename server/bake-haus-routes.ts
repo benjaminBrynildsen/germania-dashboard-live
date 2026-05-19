@@ -4,18 +4,24 @@
 import { Router, Response } from 'express';
 import { requireAuth, AuthRequest } from './auth.js';
 import { STORES } from './dripos.js';
+import { fetchInventory, STORES as DRIPOS_STORES } from './dripos.js';
 import {
   BAKE_HAUS_ITEMS,
+  createSyrup,
   deleteOrderItem,
+  deleteSyrup,
   getCatalogImageMap,
+  getMergedCatalog,
   getWeekReport,
   listSavedOrders,
+  listSyrups,
   lockWeekMonday,
   markOrderSaved,
   mondayOfWeek,
   snapshotMonForStoreWeek,
   unlockWeekMonday,
   unmarkOrderSaved,
+  updateSyrup,
   upsertOrderItem,
 } from './bake-haus.js';
 
@@ -24,14 +30,104 @@ const router = Router();
 router.get('/bake-haus/catalog', requireAuth, async (_req: AuthRequest, res: Response) => {
   res.set('Cache-Control', 'no-store');
   const imageMap = await getCatalogImageMap();
+  const merged = getMergedCatalog();
   res.json({
     ok: true,
-    items: BAKE_HAUS_ITEMS.map(({ name, sort }) => ({
-      name,
-      sort,
-      imageUrl: imageMap[name] ?? null,
+    items: merged.map((c) => ({
+      name: c.name,
+      sort: c.sort,
+      category: c.category,
+      includeMonday: c.includeMonday,
+      imageUrl: imageMap[c.name] ?? null,
     })),
   });
+});
+
+// ─── Syrup catalog management ─────────────────────────────────────
+
+router.get('/bake-haus/syrups', requireAuth, (_req: AuthRequest, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  // Always include inactive — the manage UI needs to see the toggle.
+  res.json({ ok: true, syrups: listSyrups(true) });
+});
+
+/** Returns the Dripos product list (one call, first store's catalog
+ *  — products are chain-shared) so Maggie can pick from a dropdown
+ *  when adding a syrup. Filtered to a syrup-like candidate set
+ *  (BOTTLE- prefix, sauce category, etc.) is up to the UI to filter
+ *  further; we ship the raw list so future categories don't need a
+ *  backend change. */
+router.get('/bake-haus/dripos-products', requireAuth, async (_req: AuthRequest, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const products = await fetchInventory(DRIPOS_STORES[0].locationId);
+    res.json({
+      ok: true,
+      products: products
+        .filter((p) => !p.ARCHIVED)
+        .map((p) => ({ id: p.ID, name: p.NAME, categoryName: p.CATEGORY_NAME })),
+    });
+  } catch (err) {
+    console.error('[bake-haus-dripos-products]', err);
+    res.status(500).json({ error: 'fetch_failed', message: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+router.post('/bake-haus/syrups', requireAuth, (req: AuthRequest, res: Response) => {
+  const displayName = String(req.body?.displayName ?? '').trim();
+  const driposProductId = Number(req.body?.driposProductId);
+  const driposProductName = String(req.body?.driposProductName ?? '').trim();
+  const sort = req.body?.sort != null ? Number(req.body.sort) : 100;
+  const includeMonday = req.body?.includeMonday === true;
+  if (!displayName) {
+    res.status(400).json({ error: 'invalid_display_name' });
+    return;
+  }
+  if (!Number.isFinite(driposProductId) || driposProductId <= 0) {
+    res.status(400).json({ error: 'invalid_dripos_id' });
+    return;
+  }
+  if (!driposProductName) {
+    res.status(400).json({ error: 'invalid_dripos_name' });
+    return;
+  }
+  const syrup = createSyrup({ displayName, driposProductId, driposProductName, sort, includeMonday });
+  res.json({ ok: true, syrup });
+});
+
+router.put('/bake-haus/syrups/:id', requireAuth, (req: AuthRequest, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    res.status(400).json({ error: 'invalid_id' });
+    return;
+  }
+  const patch: Parameters<typeof updateSyrup>[1] = {};
+  if (typeof req.body?.displayName === 'string')        patch.displayName = req.body.displayName.trim();
+  if (typeof req.body?.driposProductId === 'number')    patch.driposProductId = req.body.driposProductId;
+  if (typeof req.body?.driposProductName === 'string')  patch.driposProductName = req.body.driposProductName.trim();
+  if (typeof req.body?.sort === 'number')               patch.sort = req.body.sort;
+  if (typeof req.body?.includeMonday === 'boolean')     patch.includeMonday = req.body.includeMonday;
+  if (typeof req.body?.active === 'boolean')            patch.active = req.body.active;
+  const updated = updateSyrup(id, patch);
+  if (!updated) {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
+  res.json({ ok: true, syrup: updated });
+});
+
+router.delete('/bake-haus/syrups/:id', requireAuth, (req: AuthRequest, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    res.status(400).json({ error: 'invalid_id' });
+    return;
+  }
+  const ok = deleteSyrup(id);
+  if (!ok) {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
+  res.json({ ok: true });
 });
 
 router.get('/bake-haus/week', requireAuth, async (req: AuthRequest, res: Response) => {

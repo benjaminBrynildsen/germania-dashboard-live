@@ -11,6 +11,26 @@ interface OrderRow {
   netQty: number;
   delivery: { mon: number; wed: number; fri: number };
   monLockedQty: number | null;
+  category: 'food' | 'syrup-sauce' | 'custom';
+  includeMonday: boolean;
+}
+
+interface Syrup {
+  id: number;
+  displayName: string;
+  driposProductId: number;
+  driposProductName: string;
+  sort: number;
+  includeMonday: boolean;
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface DriposProductOption {
+  id: number;
+  name: string;
+  categoryName: string;
 }
 
 interface WeekReport {
@@ -27,7 +47,13 @@ interface WeekReport {
   monLock: { lockedAt: number; lockedBy: string | null } | null;
 }
 
-interface CatalogItem { name: string; sort: number; imageUrl?: string | null }
+interface CatalogItem {
+  name: string;
+  sort: number;
+  imageUrl?: string | null;
+  category?: 'food' | 'syrup-sauce';
+  includeMonday?: boolean;
+}
 
 /** Per-store city labels shown next to the G1/G2/G3/G4 code. */
 const STORE_CITIES: Record<string, string> = {
@@ -46,7 +72,7 @@ interface SavedOrder {
   totalQty: number;
 }
 
-type Tab = 'current' | 'schedule' | 'saved';
+type Tab = 'current' | 'schedule' | 'saved' | 'manage';
 
 function fmtDateRange(weekStartIso: string): string {
   const start = new Date(weekStartIso + 'T00:00:00');
@@ -304,6 +330,7 @@ export default function BakeHaus() {
           { id: 'current',  label: 'Current Order',     short: 'Order' },
           { id: 'schedule', label: 'Delivery Schedule', short: 'Schedule' },
           { id: 'saved',    label: 'Saved Orders',      short: 'Saved' },
+          { id: 'manage',   label: 'Manage Syrups',     short: 'Manage' },
         ] as Array<{ id: Tab; label: string; short: string }>).map((t) => {
           const active = tab === t.id;
           return (
@@ -492,6 +519,13 @@ export default function BakeHaus() {
         />
       )}
 
+      {tab === 'manage' && (
+        <ManageSyrupsView
+          isMobile={isMobile}
+          onChanged={() => loadWeek(weekIso)}
+        />
+      )}
+
       {/* Update-confirm modal — fires when the user re-saves a store
           that's already been saved this week. Forces an explicit
           choice between locking Mon (Wed+Fri only) and updating all
@@ -525,6 +559,407 @@ export default function BakeHaus() {
           catalog={catalog}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Manage Syrups Tab ──────────────────────────────────────────────
+
+function ManageSyrupsView({
+  isMobile, onChanged,
+}: {
+  isMobile: boolean;
+  onChanged: () => void;
+}) {
+  const [syrups, setSyrups] = useState<Syrup[] | null>(null);
+  const [products, setProducts] = useState<DriposProductOption[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<number | 'new' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [newDripos, setNewDripos] = useState<DriposProductOption | null>(null);
+  const [newName, setNewName] = useState('');
+  const [newIncludeMon, setNewIncludeMon] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [sRes, pRes] = await Promise.all([
+        fetch('/api/bake-haus/syrups', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/bake-haus/dripos-products', { cache: 'no-store' }).then((r) => r.json()),
+      ]);
+      if (sRes.ok) setSyrups(sRes.syrups);
+      if (pRes.ok) setProducts(pRes.products);
+      if (!sRes.ok) throw new Error(sRes.message || sRes.error || 'Failed to load syrups');
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Default the display name to a cleaned version of the Dripos
+  // product name — strip a leading "BOTTLE-", "BOTTLE -", etc.
+  const cleanProductName = (raw: string): string => {
+    return raw
+      .replace(/^\s*bottle\s*[-:]?\s*/i, '')
+      .trim();
+  };
+
+  const filteredProducts = useMemo(() => {
+    if (!products) return [];
+    const q = productSearch.trim().toLowerCase();
+    const usedIds = new Set((syrups ?? []).map((s) => s.driposProductId));
+    return products
+      .filter((p) => !usedIds.has(p.id))
+      .filter((p) => {
+        if (!q) return true;
+        return p.name.toLowerCase().includes(q) || p.categoryName.toLowerCase().includes(q);
+      })
+      .slice(0, 40);
+  }, [products, productSearch, syrups]);
+
+  const create = async () => {
+    if (!newDripos) { setError('Pick a Dripos product first.'); return; }
+    const displayName = newName.trim() || cleanProductName(newDripos.name);
+    setBusyId('new');
+    setError(null);
+    try {
+      const r = await fetch('/api/bake-haus/syrups', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          displayName,
+          driposProductId: newDripos.id,
+          driposProductName: newDripos.name,
+          includeMonday: newIncludeMon,
+        }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.message || body.error || 'Create failed');
+      setAdding(false);
+      setNewDripos(null);
+      setNewName('');
+      setNewIncludeMon(false);
+      setProductSearch('');
+      await load();
+      onChanged();
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const patchSyrup = async (id: number, patch: Partial<Syrup>) => {
+    setBusyId(id);
+    setError(null);
+    try {
+      const r = await fetch(`/api/bake-haus/syrups/${id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.message || body.error || 'Update failed');
+      await load();
+      onChanged();
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const removeSyrup = async (id: number, name: string) => {
+    if (!window.confirm(`Remove "${name}" from the catalog? Past orders will keep the name but it'll disappear from new orders.`)) return;
+    setBusyId(id);
+    setError(null);
+    try {
+      const r = await fetch(`/api/bake-haus/syrups/${id}`, { method: 'DELETE' });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.message || body.error || 'Delete failed');
+      await load();
+      onChanged();
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (loading) {
+    return <div style={{ color: 'rgba(0,0,0,0.4)', padding: 24 }}>Loading syrups…</div>;
+  }
+
+  return (
+    <>
+      <p style={{ color: 'rgba(0,0,0,0.5)', fontSize: 13, marginTop: -8, marginBottom: 18 }}>
+        Manage the syrup + sauce catalog. Each item links to a Dripos product so
+        on-hand inventory and net-qty math stay accurate. Toggle items off
+        between seasons; they disappear from the ordering page without
+        losing their Dripos link.
+      </p>
+
+      {error && (
+        <div style={{
+          background: '#fee2e2', color: '#b91c1c', padding: '10px 14px',
+          borderRadius: 8, marginBottom: 14, fontSize: 13,
+        }}>{error}</div>
+      )}
+
+      {/* Add new syrup */}
+      <div style={{
+        background: '#fff', borderRadius: 14,
+        border: '1px solid rgba(0,0,0,0.07)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+        padding: '14px 18px', marginBottom: 18,
+      }}>
+        {!adding ? (
+          <button onClick={() => setAdding(true)} style={primaryBtn}>
+            + Add syrup or sauce
+          </button>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{
+              fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.55)',
+              textTransform: 'uppercase', letterSpacing: 0.8,
+            }}>
+              Pick the Dripos product
+            </div>
+            <input
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              placeholder="Search Dripos products (e.g., bottle, vanilla, caramel)…"
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: 8,
+                border: '1px solid rgba(0,0,0,0.15)', fontSize: 13,
+                background: '#fff',
+              }}
+            />
+            <div style={{
+              maxHeight: 220, overflowY: 'auto',
+              border: '1px solid rgba(0,0,0,0.08)', borderRadius: 8,
+            }}>
+              {filteredProducts.length === 0 && (
+                <div style={{ padding: 12, fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                  {productSearch ? 'No products match.' : 'Start typing to search…'}
+                </div>
+              )}
+              {filteredProducts.map((p) => {
+                const selected = newDripos?.id === p.id;
+                return (
+                  <button key={p.id}
+                    onClick={() => {
+                      setNewDripos(p);
+                      if (!newName) setNewName(cleanProductName(p.name));
+                    }}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '8px 12px',
+                      background: selected ? 'rgba(202, 138, 4, 0.08)' : '#fff',
+                      border: 0,
+                      borderBottom: '1px solid rgba(0,0,0,0.04)',
+                      cursor: 'pointer', fontSize: 13,
+                    }}>
+                    <div style={{ fontWeight: selected ? 700 : 500 }}>{p.name}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)' }}>{p.categoryName}</div>
+                  </button>
+                );
+              })}
+            </div>
+            {newDripos && (
+              <>
+                <div style={{
+                  fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.55)',
+                  textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 6,
+                }}>
+                  Display name (shown on the ordering page)
+                </div>
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder={cleanProductName(newDripos.name)}
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: 8,
+                    border: '1px solid rgba(0,0,0,0.15)', fontSize: 14,
+                    background: '#fff',
+                  }}
+                />
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  fontSize: 13, color: 'rgba(0,0,0,0.7)',
+                  cursor: 'pointer', marginTop: 4,
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={newIncludeMon}
+                    onChange={(e) => setNewIncludeMon(e.target.checked)}
+                  />
+                  <span>Delivered on Monday too (Haus Vanilla and similar)</span>
+                </label>
+              </>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={create} disabled={!newDripos || busyId === 'new'}
+                style={{ ...primaryBtn, opacity: !newDripos || busyId === 'new' ? 0.5 : 1 }}>
+                {busyId === 'new' ? 'Adding…' : 'Add syrup'}
+              </button>
+              <button onClick={() => {
+                setAdding(false);
+                setNewDripos(null);
+                setNewName('');
+                setNewIncludeMon(false);
+                setProductSearch('');
+              }} style={pillBtn}>Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Existing syrups list */}
+      <div style={{
+        background: '#fff', borderRadius: 14,
+        border: '1px solid rgba(0,0,0,0.07)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          padding: '14px 18px', borderBottom: '1px solid rgba(0,0,0,0.05)',
+          fontSize: 14, fontWeight: 700,
+        }}>
+          Syrup & sauce catalog
+          <span style={{
+            marginLeft: 10, fontSize: 11, fontWeight: 600,
+            color: 'rgba(0,0,0,0.45)',
+          }}>{syrups?.length ?? 0} total · {syrups?.filter((s) => s.active).length ?? 0} active</span>
+        </div>
+        {(!syrups || syrups.length === 0) ? (
+          <div style={{ padding: 28, textAlign: 'center', color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>
+            No syrups yet. Hit <strong>Add syrup or sauce</strong> above to link the first one.
+          </div>
+        ) : (
+          syrups.map((s) => (
+            <SyrupRow
+              key={s.id} syrup={s}
+              busy={busyId === s.id}
+              isMobile={isMobile}
+              onToggleActive={() => patchSyrup(s.id, { active: !s.active })}
+              onToggleMonday={() => patchSyrup(s.id, { includeMonday: !s.includeMonday })}
+              onRename={(name) => patchSyrup(s.id, { displayName: name })}
+              onDelete={() => removeSyrup(s.id, s.displayName)}
+            />
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
+function SyrupRow({
+  syrup, busy, isMobile, onToggleActive, onToggleMonday, onRename, onDelete,
+}: {
+  syrup: Syrup;
+  busy: boolean;
+  isMobile: boolean;
+  onToggleActive: () => void;
+  onToggleMonday: () => void;
+  onRename: (name: string) => void;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(syrup.displayName);
+  useEffect(() => { setDraft(syrup.displayName); }, [syrup.displayName]);
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: isMobile ? 'column' : 'row',
+      alignItems: isMobile ? 'stretch' : 'center', gap: 12,
+      padding: '14px 18px',
+      borderTop: '1px solid rgba(0,0,0,0.04)',
+      opacity: syrup.active ? 1 : 0.55,
+    }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {editing ? (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              autoFocus
+              style={{
+                flex: 1, padding: '6px 10px', borderRadius: 6,
+                border: '1px solid rgba(0,0,0,0.15)', fontSize: 14,
+              }}
+            />
+            <button onClick={() => { onRename(draft.trim() || syrup.displayName); setEditing(false); }}
+              style={primaryBtn}>Save</button>
+            <button onClick={() => { setDraft(syrup.displayName); setEditing(false); }}
+              style={pillBtn}>Cancel</button>
+          </div>
+        ) : (
+          <>
+            <div style={{
+              fontSize: 15, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+            }}>
+              {syrup.displayName}
+              <button onClick={() => setEditing(true)}
+                title="Rename"
+                style={{
+                  background: 'transparent', border: 0, padding: '2px 6px',
+                  color: 'rgba(0,0,0,0.4)', fontSize: 11, cursor: 'pointer',
+                }}>rename</button>
+              {!syrup.active && (
+                <span style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: 0.6,
+                  textTransform: 'uppercase',
+                  padding: '2px 6px', borderRadius: 4,
+                  background: 'rgba(0,0,0,0.06)', color: 'rgba(0,0,0,0.45)',
+                }}>inactive</span>
+              )}
+              {syrup.includeMonday && (
+                <span style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: 0.6,
+                  textTransform: 'uppercase',
+                  padding: '2px 6px', borderRadius: 4,
+                  background: 'rgba(20, 83, 45, 0.08)', color: '#14532d',
+                }}>Mon delivery</span>
+              )}
+            </div>
+            <div style={{
+              fontSize: 11, color: 'rgba(0,0,0,0.5)', marginTop: 4,
+            }}>
+              Dripos: <strong>{syrup.driposProductName}</strong>
+              <span style={{ marginLeft: 8, color: 'rgba(0,0,0,0.4)' }}>#{syrup.driposProductId}</span>
+            </div>
+          </>
+        )}
+      </div>
+      <div style={{
+        display: 'flex', gap: 8, flexWrap: 'wrap',
+        justifyContent: isMobile ? 'flex-start' : 'flex-end',
+      }}>
+        <button onClick={onToggleActive} disabled={busy}
+          style={{ ...pillBtn, opacity: busy ? 0.5 : 1 }}>
+          {syrup.active ? 'Disable' : 'Enable'}
+        </button>
+        <button onClick={onToggleMonday} disabled={busy}
+          title="Toggle whether this item ships on Monday too"
+          style={{ ...pillBtn, opacity: busy ? 0.5 : 1 }}>
+          {syrup.includeMonday ? 'Skip Mon' : 'Add Mon'}
+        </button>
+        <button onClick={onDelete} disabled={busy}
+          style={{
+            ...pillBtn, opacity: busy ? 0.5 : 1,
+            color: '#b91c1c', border: '1px solid rgba(220, 38, 38, 0.25)',
+          }}>
+          Delete
+        </button>
+      </div>
     </div>
   );
 }
@@ -740,19 +1175,24 @@ function StoreOrderCard({
       sort: number;
       custom: boolean;
       imageUrl: string | null;
+      category: 'food' | 'syrup-sauce' | 'custom';
     }> = catalog.map((c) => ({
       name: c.name,
       row: rowByName.get(c.name) ?? null,
       sort: c.sort,
       custom: false,
       imageUrl: c.imageUrl ?? null,
+      category: c.category ?? 'food',
     }));
     // Append any rows whose item isn't in the catalog — these are ad-hoc
     // additions and live at the bottom so they don't break the catalog
     // ordering.
     for (const r of rows) {
       if (!catalogNames.has(r.itemName)) {
-        cart.push({ name: r.itemName, row: r, sort: 9999, custom: true, imageUrl: null });
+        cart.push({
+          name: r.itemName, row: r, sort: 9999, custom: true,
+          imageUrl: null, category: 'custom',
+        });
       }
     }
     return cart;
@@ -818,20 +1258,43 @@ function StoreOrderCard({
         </div>
       )}
       <div>
-        {renderItems.map((it, i) => (
-          <CartRowEditor key={it.name}
-            itemName={it.name}
-            imageUrl={it.imageUrl}
-            row={it.row}
-            onHand={inventory[it.name] ?? 0}
-            isCustom={it.custom}
-            theme={theme}
-            isLast={i === renderItems.length - 1}
-            isMobile={isMobile}
-            onSave={(qty) => onSave(it.name, qty)}
-            onDelete={() => onDelete(it.name)}
-          />
-        ))}
+        {renderItems.map((it, i) => {
+          // Insert a section divider when the category changes — gives
+          // a visual break between Food and Syrups + Sauces.
+          const prev = renderItems[i - 1];
+          const showDivider = !prev || prev.category !== it.category;
+          return (
+            <Fragment key={it.name}>
+              {showDivider && (
+                <div style={{
+                  padding: isMobile ? '10px 16px 6px' : '12px 24px 6px',
+                  background: theme.rowAlt,
+                  fontSize: 10, fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: 1.2,
+                  color: 'rgba(0,0,0,0.5)',
+                  fontFamily: 'var(--font-body)',
+                  borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.06)',
+                }}>
+                  {it.category === 'food' && 'Food'}
+                  {it.category === 'syrup-sauce' && 'Syrups & sauces'}
+                  {it.category === 'custom' && 'Custom items'}
+                </div>
+              )}
+              <CartRowEditor
+                itemName={it.name}
+                imageUrl={it.imageUrl}
+                row={it.row}
+                onHand={inventory[it.name] ?? 0}
+                isCustom={it.custom}
+                theme={theme}
+                isLast={i === renderItems.length - 1}
+                isMobile={isMobile}
+                onSave={(qty) => onSave(it.name, qty)}
+                onDelete={() => onDelete(it.name)}
+              />
+            </Fragment>
+          );
+        })}
       </div>
       <div style={{
         padding: '10px 18px',

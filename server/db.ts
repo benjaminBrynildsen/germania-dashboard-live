@@ -265,6 +265,31 @@ db.exec(`
     PRIMARY KEY (week_start_iso)
   );
 
+  -- Editable syrup/sauce catalog. Unlike the hardcoded food list in
+  -- BAKE_HAUS_ITEMS, syrups rotate seasonally — Chef Maggie can
+  -- add/remove/rename and toggle active without a deploy. Each entry
+  -- is linked to a Dripos product ID for inventory tracking, but uses
+  -- a separate display_name on the ordering UI (Dripos's "BOTTLE-
+  -- Haus Vanilla" → "Haus Vanilla" on the order page).
+  CREATE TABLE IF NOT EXISTS bake_haus_syrups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    display_name TEXT NOT NULL,
+    dripos_product_id INTEGER NOT NULL,
+    dripos_product_name TEXT NOT NULL,
+    sort INTEGER NOT NULL DEFAULT 100,
+    -- Most syrups skip Monday (made Tue/Thu, delivered Wed/Fri only).
+    -- Haus Vanilla is the exception — set this to 1 for items that
+    -- should follow the food 2/7-2/7-3/7 split.
+    include_monday INTEGER NOT NULL DEFAULT 0,
+    -- Soft delete / seasonal toggle. Inactive items hide from the
+    -- ordering UI but stay in the DB so historical orders still
+    -- resolve their display name.
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
+  );
+  CREATE INDEX IF NOT EXISTS idx_bake_haus_syrups_active ON bake_haus_syrups(active);
+
   -- Patron snapshots from Dripos's /patrons/dumb/v2 endpoint. Pulled
   -- automatically on boot + every 6h (refresh button also available in
   -- the UI). dripos_id is the upstream PK; the table is replaced
