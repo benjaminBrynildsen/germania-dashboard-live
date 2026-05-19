@@ -251,6 +251,12 @@ export function splitForDeliveries(
    *  2:3). Used for most syrups + sauces which are made Tue/Thu and
    *  only delivered Wed/Fri. Defaults to true. */
   includeMonday: boolean = true,
+  /** When true, weight the earliest delivery day more heavily — used
+   *  when the store is fully out of stock and needs the next shipment
+   *  ASAP. Flips Wed:Fri from 2:3 → 3:2 (no-Monday syrups), and
+   *  Mon:Wed:Fri from 2:2:3 → 3:2:2 (food / Haus Vanilla). The
+   *  locked-Mon path also flips the Wed:Fri remainder. */
+  prioritizeEarly: boolean = false,
 ): {
   mon: number;
   wed: number;
@@ -262,25 +268,42 @@ export function splitForDeliveries(
   const total = Math.round(weeklyQty);
   if (total <= 0) return { mon: 0, wed: 0, fri: 0 };
 
-  // No-Monday branch (most syrups/sauces): split across Wed/Fri at
-  // 2:3. Lock state is moot — Mon is always 0 here.
+  // Wed-share-of-remainder: normally 2/5 (Wed covers 2 days, Fri
+  // covers 3); when prioritizing early it flips to 3/5 so the
+  // earlier truck takes the larger chunk.
+  const wedShare = prioritizeEarly ? (3 / 5) : (2 / 5);
+
+  // No-Monday branch (most syrups/sauces). Lock state is moot —
+  // Mon is always 0 here.
   if (!includeMonday) {
-    const wed = Math.round(total * (2 / 5));
+    const wed = Math.round(total * wedShare);
     const fri = Math.max(0, total - wed);
     return { mon: 0, wed, fri };
   }
 
   if (monLockedQty != null && Number.isFinite(monLockedQty)) {
     // Locked branch: mon is fixed. Anything left goes to wed/fri at
-    // 2:3 (matching the 2-day vs 3-day delivery coverage). If the new
-    // weekly qty has been *reduced* below the locked Mon qty (very
-    // unusual — would mean the store is unordering items already
-    // delivered), cap mon at total and zero out the rest.
+    // wedShare. If the new weekly qty has been *reduced* below the
+    // locked Mon qty (very unusual — would mean the store is
+    // unordering items already delivered), cap mon at total and
+    // zero out the rest.
     const mon = Math.max(0, Math.min(Math.round(monLockedQty), total));
     const remaining = Math.max(0, total - mon);
-    let wed = Math.round(remaining * (2 / 5));
+    let wed = Math.round(remaining * wedShare);
     let fri = remaining - wed;
     if (fri < 0) { fri = 0; }
+    return { mon, wed, fri };
+  }
+
+  // Unlocked, Monday-included branch.
+  if (prioritizeEarly) {
+    // 3:2:2 instead of 2:2:3 — earliest truck takes the larger chunk.
+    let mon = Math.round(total * (3 / 7));
+    let wed = Math.round(total * (2 / 7));
+    let fri = total - mon - wed;
+    if (mon < 0) mon = 0;
+    if (wed < 0) wed = 0;
+    if (fri < 0) fri = 0;
     return { mon, wed, fri };
   }
 
@@ -412,6 +435,9 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
     const includeMonday = catEntry?.includeMonday ?? true;
     const category: 'food' | 'syrup-sauce' | 'custom' =
       catEntry?.category ?? 'custom';
+    // Out-of-stock at this store → prioritize the earliest delivery
+    // so the next truck gets the bigger chunk.
+    const prioritizeEarly = onHand === 0 && netQty > 0;
     // Lock semantics: when the week is locked AND this item gets a
     // Monday delivery, use the row's snapshot (or the unlocked
     // computed Mon as a fallback if snapshot is NULL). For items
@@ -422,7 +448,7 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
         ? r.mon_locked_qty
         : splitForDeliveries(netQty, null, true).mon;
     }
-    const split = splitForDeliveries(netQty, lockedMonQty, includeMonday);
+    const split = splitForDeliveries(netQty, lockedMonQty, includeMonday, prioritizeEarly);
     const row: BakeHausOrderRow = {
       weekStartIso: r.week_start_iso,
       storeLabel: r.store_label,

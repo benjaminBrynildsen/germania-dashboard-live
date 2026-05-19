@@ -141,6 +141,55 @@ check(
   splitForDeliveries(21),
 );
 
+// 10. prioritizeEarly=true on no-Monday syrup → Wed:Fri flips to 3:2.
+check(
+  'OOS syrup qty=5 → 0/3/2 (Wed prioritized 3/5)',
+  splitForDeliveries(5, null, false, true),
+  { mon: 0, wed: 3, fri: 2 },
+);
+check(
+  'OOS syrup qty=1 → 0/1/0 (single unit lands on Wed not Fri)',
+  splitForDeliveries(1, null, false, true),
+  { mon: 0, wed: 1, fri: 0 },
+);
+check(
+  'OOS syrup qty=10 → 0/6/4',
+  splitForDeliveries(10, null, false, true),
+  { mon: 0, wed: 6, fri: 4 },
+);
+
+// 11. prioritizeEarly=true on food → 3:2:2 instead of 2:2:3.
+check(
+  'OOS food qty=7 → 3/2/2',
+  splitForDeliveries(7, null, true, true),
+  { mon: 3, wed: 2, fri: 2 },
+);
+check(
+  'OOS food qty=14 → 6/4/4',
+  splitForDeliveries(14, null, true, true),
+  { mon: 6, wed: 4, fri: 4 },
+);
+
+// 12. OOS + locked Mon — Mon held at snapshot, Wed:Fri remainder
+//     flipped to 3:2 (so the next available truck — Wed — gets more).
+check(
+  'OOS locked-Mon: snapshot=4, qty=14 → 4/6/4 (remaining 10 split 3:2)',
+  splitForDeliveries(14, 4, true, true),
+  { mon: 4, wed: 6, fri: 4 },
+);
+
+// 13. In-stock items keep the original ratios (no regression).
+check(
+  'in-stock food qty=14 unchanged at 4/4/6',
+  splitForDeliveries(14, null, true, false),
+  { mon: 4, wed: 4, fri: 6 },
+);
+check(
+  'in-stock syrup qty=5 unchanged at 0/2/3',
+  splitForDeliveries(5, null, false, false),
+  { mon: 0, wed: 2, fri: 3 },
+);
+
 console.log('');
 if (failures > 0) {
   console.error(`✗ ${failures} test(s) failed`);
