@@ -64,8 +64,18 @@ router.get('/bake-haus/dripos-products', requireAuth, async (_req: AuthRequest, 
     // own Dripos categories outside BAKE HAUS FOOD. The UI search
     // filter narrows down from there.
     const products = await fetchAllProducts(DRIPOS_STORES[0].locationId);
+    // Build a category breakdown so we can spot when Dripos returns
+    // fewer items than expected (e.g., paginated response, missing
+    // category, etc.). Shipped alongside the list so it's visible
+    // both in the UI dropdown footer and in the Network panel.
+    const categories: Record<string, number> = {};
+    for (const p of products) {
+      categories[p.CATEGORY_NAME] = (categories[p.CATEGORY_NAME] ?? 0) + 1;
+    }
     res.json({
       ok: true,
+      totalCount: products.length,
+      categories,
       products: products.map((p) => ({
         id: p.ID, name: p.NAME, categoryName: p.CATEGORY_NAME,
       })),

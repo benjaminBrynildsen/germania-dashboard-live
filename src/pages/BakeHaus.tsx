@@ -573,6 +573,7 @@ function ManageSyrupsView({
 }) {
   const [syrups, setSyrups] = useState<Syrup[] | null>(null);
   const [products, setProducts] = useState<DriposProductOption[] | null>(null);
+  const [productCategories, setProductCategories] = useState<Record<string, number> | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | 'new' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -591,7 +592,10 @@ function ManageSyrupsView({
         fetch('/api/bake-haus/dripos-products', { cache: 'no-store' }).then((r) => r.json()),
       ]);
       if (sRes.ok) setSyrups(sRes.syrups);
-      if (pRes.ok) setProducts(pRes.products);
+      if (pRes.ok) {
+        setProducts(pRes.products);
+        setProductCategories(pRes.categories ?? null);
+      }
       if (!sRes.ok) throw new Error(sRes.message || sRes.error || 'Failed to load syrups');
     } catch (err: any) {
       setError(err.message || String(err));
@@ -741,6 +745,22 @@ function ManageSyrupsView({
                 background: '#fff',
               }}
             />
+            {products && (
+              <div style={{
+                fontSize: 11, color: 'rgba(0,0,0,0.5)',
+                marginTop: -4, marginBottom: -4,
+              }}>
+                Dripos returned <strong>{products.length}</strong> products
+                {productCategories && (
+                  <> across {Object.keys(productCategories).length} categories
+                    {productCategories['BOTTLES'] != null && <> · BOTTLES: {productCategories['BOTTLES']}</>}
+                    {productCategories['Bottles'] != null && <> · Bottles: {productCategories['Bottles']}</>}
+                    {productCategories['SYRUPS'] != null && <> · SYRUPS: {productCategories['SYRUPS']}</>}
+                    {productCategories['BAKE HAUS FOOD'] != null && <> · BAKE HAUS FOOD: {productCategories['BAKE HAUS FOOD']}</>}
+                  </>
+                )}.
+              </div>
+            )}
             <div style={{
               maxHeight: 220, overflowY: 'auto',
               border: '1px solid rgba(0,0,0,0.08)', borderRadius: 8,
