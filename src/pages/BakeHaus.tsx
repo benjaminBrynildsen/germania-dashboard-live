@@ -618,13 +618,31 @@ function ManageSyrupsView({
     if (!products) return [];
     const q = productSearch.trim().toLowerCase();
     const usedIds = new Set((syrups ?? []).map((s) => s.driposProductId));
-    return products
-      .filter((p) => !usedIds.has(p.id))
-      .filter((p) => {
-        if (!q) return true;
-        return p.name.toLowerCase().includes(q) || p.categoryName.toLowerCase().includes(q);
-      })
-      .slice(0, 40);
+    const available = products.filter((p) => !usedIds.has(p.id));
+    if (q) {
+      return available
+        .filter((p) => p.name.toLowerCase().includes(q) || p.categoryName.toLowerCase().includes(q))
+        .slice(0, 80);
+    }
+    // No search query → surface "Bottle ..." / "Sauce" items first
+    // since that's what Maggie is here to manage. Everything else
+    // sorts alphabetically below, still reachable via scroll.
+    const isLikelySyrup = (p: DriposProductOption) => {
+      const name = p.name.toLowerCase();
+      const cat = p.categoryName.toLowerCase();
+      return name.startsWith('bottle')
+        || name.includes('syrup')
+        || name.includes('sauce')
+        || cat.includes('syrup')
+        || cat.includes('sauce')
+        || cat.includes('bottle');
+    };
+    const sorted = [...available].sort((a, b) => {
+      const aSyrup = isLikelySyrup(a) ? 0 : 1;
+      const bSyrup = isLikelySyrup(b) ? 0 : 1;
+      return aSyrup - bSyrup || a.name.localeCompare(b.name);
+    });
+    return sorted.slice(0, 80);
   }, [products, productSearch, syrups]);
 
   const create = async () => {
