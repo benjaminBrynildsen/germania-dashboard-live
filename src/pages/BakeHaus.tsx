@@ -330,7 +330,7 @@ export default function BakeHaus() {
           { id: 'current',  label: 'Current Order',     short: 'Order' },
           { id: 'schedule', label: 'Delivery Schedule', short: 'Schedule' },
           { id: 'saved',    label: 'Saved Orders',      short: 'Saved' },
-          { id: 'manage',   label: 'Manage Syrups',     short: 'Manage' },
+          { id: 'manage',   label: 'Manage Syrups & Sauces', short: 'Manage' },
         ] as Array<{ id: Tab; label: string; short: string }>).map((t) => {
           const active = tab === t.id;
           return (
