@@ -1135,8 +1135,18 @@ function CardFullContent({
     /availability/i, /experience/i, /previous/i,
     /why/i, /tell us about/i, /interest/i, /strength/i,
   ];
+  // Suppress the "which location(s) are you interested in working at"
+  // question — the answer is already represented by the colored
+  // store-label tags right under the name, so showing it again as a
+  // text Q&A is pure duplication.
+  const HIGHLIGHT_EXCLUDE = [
+    /which.*location/i,
+  ];
   const highlights = Object.entries(a.fields).filter(
-    ([k, v]) => v && v.length > 0 && HIGHLIGHT_PATTERNS.some((p) => p.test(k)),
+    ([k, v]) =>
+      v && v.length > 0
+      && HIGHLIGHT_PATTERNS.some((p) => p.test(k))
+      && !HIGHLIGHT_EXCLUDE.some((p) => p.test(k)),
   );
 
   return (
