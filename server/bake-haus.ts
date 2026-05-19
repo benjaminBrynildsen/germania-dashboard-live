@@ -7,7 +7,7 @@
  * down by the chef on prep days and handled outside this system.
  */
 import db from './db.js';
-import { fetchInventory, STORES } from './dripos.js';
+import { BAKE_HAUS_CATEGORY, fetchAllProducts, fetchInventory, STORES } from './dripos.js';
 
 /** CDN base for Dripos product images. The /products endpoint returns
  *  each item's LOGO field as either:
@@ -173,20 +173,25 @@ export async function getBakeHausInventoryByStore(): Promise<Record<string, Reco
 
   await Promise.all(STORES.map(async (store) => {
     try {
-      const products = await fetchInventory(store.locationId);
-      // Food: fuzzy name match into Dripos's product list.
+      // Use the unfiltered product list — syrups live outside the
+      // BAKE HAUS FOOD category (Dripos puts "Bottle - ..." items in
+      // their own category), so the food-only fetchInventory would
+      // miss them. We filter to food in-place for the fuzzy match.
+      const allProducts = await fetchAllProducts(store.locationId);
+      const foodProducts = allProducts.filter((p) => p.CATEGORY_NAME === BAKE_HAUS_CATEGORY);
+      // Food: fuzzy name match into the food-category subset.
       for (const item of BAKE_HAUS_ITEMS) {
-        const found = findProductForCatalogItem(item, products);
+        const found = findProductForCatalogItem(item, foodProducts);
         if (found && typeof found.INVENTORY === 'number') {
           map[store.label][item.name] = found.INVENTORY;
         }
       }
-      // Syrups: ID-based exact match — stable against Dripos renames.
-      const byId = new Map<number, typeof products[number]>();
-      for (const p of products) byId.set(p.ID, p);
+      // Syrups: ID-based exact match across the full product list.
+      const byId = new Map<number, typeof allProducts[number]>();
+      for (const p of allProducts) byId.set(p.ID, p);
       for (const s of syrups) {
         const found = byId.get(s.driposProductId);
-        if (found && !found.ARCHIVED && typeof found.INVENTORY === 'number') {
+        if (found && typeof found.INVENTORY === 'number') {
           map[store.label][s.displayName] = found.INVENTORY;
         }
       }

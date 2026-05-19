@@ -700,10 +700,19 @@ export async function syncDailySales(days = 30): Promise<SyncSummary> {
   return summary;
 }
 
-export async function fetchInventory(locationId: number): Promise<DriposProduct[]> {
+/** Full /products list for one location — no category filter, just
+ *  archived items removed. Used by the syrup catalog manager (needs
+ *  "Bottle - ..." items which live in a different category from
+ *  BAKE HAUS FOOD) and by per-store inventory lookups that need to
+ *  resolve both food and syrup product IDs. */
+export async function fetchAllProducts(locationId: number): Promise<DriposProduct[]> {
   const body = await callApi<DriposProduct[]>('/products', { locationId });
-  const all = (body.data ?? []) as DriposProduct[];
-  return all.filter((p) => p.CATEGORY_NAME === BAKE_HAUS_CATEGORY && !p.ARCHIVED);
+  return ((body.data ?? []) as DriposProduct[]).filter((p) => !p.ARCHIVED);
+}
+
+export async function fetchInventory(locationId: number): Promise<DriposProduct[]> {
+  const all = await fetchAllProducts(locationId);
+  return all.filter((p) => p.CATEGORY_NAME === BAKE_HAUS_CATEGORY);
 }
 
 // ── Login flow ────────────────────────────────────────────────────────────

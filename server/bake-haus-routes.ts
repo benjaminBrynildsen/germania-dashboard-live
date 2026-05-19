@@ -4,7 +4,7 @@
 import { Router, Response } from 'express';
 import { requireAuth, AuthRequest } from './auth.js';
 import { STORES } from './dripos.js';
-import { fetchInventory, STORES as DRIPOS_STORES } from './dripos.js';
+import { fetchAllProducts, STORES as DRIPOS_STORES } from './dripos.js';
 import {
   BAKE_HAUS_ITEMS,
   createSyrup,
@@ -60,12 +60,15 @@ router.get('/bake-haus/syrups', requireAuth, (_req: AuthRequest, res: Response) 
 router.get('/bake-haus/dripos-products', requireAuth, async (_req: AuthRequest, res: Response) => {
   res.set('Cache-Control', 'no-store');
   try {
-    const products = await fetchInventory(DRIPOS_STORES[0].locationId);
+    // Use the unfiltered product list — bottles + sauces sit in their
+    // own Dripos categories outside BAKE HAUS FOOD. The UI search
+    // filter narrows down from there.
+    const products = await fetchAllProducts(DRIPOS_STORES[0].locationId);
     res.json({
       ok: true,
-      products: products
-        .filter((p) => !p.ARCHIVED)
-        .map((p) => ({ id: p.ID, name: p.NAME, categoryName: p.CATEGORY_NAME })),
+      products: products.map((p) => ({
+        id: p.ID, name: p.NAME, categoryName: p.CATEGORY_NAME,
+      })),
     });
   } catch (err) {
     console.error('[bake-haus-dripos-products]', err);
