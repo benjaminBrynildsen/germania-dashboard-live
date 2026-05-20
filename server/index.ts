@@ -10,6 +10,8 @@ import driposRouter from './dripos-routes.js';
 import applicantsRouter from './applicants-routes.js';
 import bakeHausRouter from './bake-haus-routes.js';
 import patronsRouter from './patrons-routes.js';
+import holidayRouter from './holiday-routes.js';
+import { seedHolidaysForYear } from './holidays.js';
 import { startReviewSync } from './places.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,6 +28,7 @@ app.use('/api', driposRouter);
 app.use('/api', applicantsRouter);
 app.use('/api', bakeHausRouter);
 app.use('/api', patronsRouter);
+app.use('/api', holidayRouter);
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '..', 'dist');
@@ -38,6 +41,21 @@ if (process.env.NODE_ENV === 'production') {
 app.listen(PORT, () => {
   console.log(`Germania Dashboard API running on http://localhost:${PORT}`);
   startReviewSync();
+
+  // Holiday calendar — seed Germania-observed holidays for a 4-year
+  // window (prev-2 through next year). Past years are essential so the
+  // detail-modal historical-sales lookup has something to match on;
+  // future year keeps the page populated when managers preview the
+  // upcoming season. Idempotent via the unique (date, name) index.
+  try {
+    const yr = new Date().getFullYear();
+    for (const y of [yr - 2, yr - 1, yr, yr + 1]) {
+      const { inserted, skipped } = seedHolidaysForYear(y);
+      if (inserted > 0) console.log(`[HolidaySeed] ${y}: inserted ${inserted}, skipped ${skipped}`);
+    }
+  } catch (err) {
+    console.warn('[HolidaySeed] failed:', err instanceof Error ? err.message : err);
+  }
 
   // Daily Dripos sales sync — runs once on boot (after a short delay so the
   // network/DB has fully settled) and then every 6h. Keeps `sales_daily`

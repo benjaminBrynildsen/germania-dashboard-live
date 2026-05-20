@@ -374,6 +374,29 @@ db.exec(`
   -- drop because the feature was only live for a few hours and never
   -- had production rows worth migrating.
   DROP TABLE IF EXISTS bake_haus_saved_weeks;
+
+  -- Holiday calendar — Germania-wide special-hours decisions per date.
+  -- Chain-wide (one row per holiday, not per store) matching how the
+  -- existing voting spreadsheet works. Per-store divergences go in the
+  -- notes field as free text (e.g., "Drive-thru only at G3").
+  CREATE TABLE IF NOT EXISTS holidays (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    name TEXT NOT NULL,
+    -- 'normal' = open at store-default hours, 'closed' = fully closed,
+    -- 'custom' = explicit open/close times stored below.
+    status TEXT NOT NULL DEFAULT 'normal',
+    open_time TEXT,
+    close_time TEXT,
+    notes TEXT,
+    created_by INTEGER,
+    created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
+  );
+  CREATE INDEX IF NOT EXISTS idx_holidays_date ON holidays(date);
+  -- Unique (date, name) makes the seed idempotent — every boot can
+  -- safely re-run seedHolidaysForYear without producing duplicates.
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_holidays_date_name ON holidays(date, name);
 `);
 
 // Apply additional schema (sales_daily, weather_daily, closure_decisions)

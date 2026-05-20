@@ -934,14 +934,14 @@ export async function fetchProductSales(
 // HOUR is the epoch-ms of the bucket start expressed in Eastern; we relabel
 // it in America/Chicago (where the brewery operates) so the grid hours match
 // what baristas actually see on the clock.
-interface CompletionHour {
+export interface CompletionHour {
   HOUR: number;
   TICKET_COUNT: number;
   TICKET_SECONDS: number;
   AVG_COMPLETION_TIME: number;
 }
 
-async function fetchCompletion(
+export async function fetchCompletion(
   locationId: number,
   sun: Date,
   sat: Date,
