@@ -38,9 +38,16 @@ router.get('/dripos/status', requireAuth, (_req: AuthRequest, res: Response) => 
 router.get('/dripos/report', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-    const weekOffset = Math.max(0, parseInt(String(req.query.weekOffset ?? '0'), 10) || 0);
+    // weekOffset semantics:
+    //   -1 = current in-progress week (partial data through today)
+    //    0 = most-recently-completed Sun-Sat ("last week")
+    //   1+ = N completed weeks before that
+    const rawOffset = parseInt(String(req.query.weekOffset ?? '-1'), 10);
+    const weekOffset = Math.max(-1, Number.isFinite(rawOffset) ? rawOffset : -1);
     const referenceDate = new Date();
-    if (weekOffset > 0) referenceDate.setDate(referenceDate.getDate() - 7 * weekOffset);
+    if (weekOffset !== 0) {
+      referenceDate.setDate(referenceDate.getDate() - 7 * weekOffset);
+    }
     if (req.query.force === '1') {
       // Nuke current-week (TTL'd) entries chain-wide, plus the requested
       // week's forever-cached entries. Other navigated weeks keep their
@@ -71,9 +78,20 @@ router.get('/dripos/ticket-time', requireAuth, async (req: AuthRequest, res: Res
       const { default: db } = await import('./db.js');
       db.prepare('DELETE FROM dripos_cache WHERE expires_at IS NOT NULL').run();
     }
-    const weekOffset = Math.max(0, parseInt(String(req.query.weekOffset ?? '0'), 10) || 0);
+    // weekOffset semantics:
+    //   -1 = current in-progress week (Sun..today, partial data)
+    //    0 = most-recently-completed Sun-Sat ("last week")
+    //   1+ = N completed weeks before that
+    // Clamp to >= -1 so a runaway client can't ask for unwritten future weeks.
+    const rawOffset = parseInt(String(req.query.weekOffset ?? '-1'), 10);
+    const weekOffset = Math.max(-1, Number.isFinite(rawOffset) ? rawOffset : -1);
     const referenceDate = new Date();
-    if (weekOffset > 0) referenceDate.setDate(referenceDate.getDate() - 7 * weekOffset);
+    if (weekOffset !== 0) {
+      // Positive offset shifts the reference date backward (older weeks);
+      // -1 shifts it forward 7 days so latestCompleteSun() lands on the
+      // current Sunday → buildTicketTimeReport returns the in-progress week.
+      referenceDate.setDate(referenceDate.getDate() - 7 * weekOffset);
+    }
     const week = await buildTicketTimeReport(referenceDate);
     res.json({ ok: true, week, weekOffset });
   } catch (err) {

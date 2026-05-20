@@ -251,28 +251,389 @@ export default function LocationDetail() {
           </div>
         )}
 
-        {/* Other tabs */}
-        {tab !== 'Overview' && (
-          <div style={{
-            background: 'rgba(255,255,255,0.80)',
-            border: '1px solid rgba(0,0,0,0.07)',
-            borderRadius: 16,
-            padding: '60px 24px',
-            textAlign: 'center',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
-          }}>
-            <div style={{ fontSize: 28, marginBottom: 12 }}>🔧</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'rgba(0,0,0,0.4)' }}>{tab} — Coming Soon</div>
-            <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.3)', marginTop: 6 }}>
-              {tab === 'Sales' && 'Live sales data from Dripos once connected'}
-              {tab === 'Reviews' && 'Full Google Reviews feed with sentiment analysis'}
-              {tab === 'Staff' && 'Staff scheduling, performance, and attendance'}
-            </div>
+        {tab === 'Sales' && <SalesTab locId={location.id} />}
+        {tab === 'Reviews' && <ReviewsTab locId={location.id} />}
+        {tab === 'Staff' && <StaffTab locId={location.id} />}
+      </div>
+    </div>
+  );
+}
+
+// ── Sales tab ────────────────────────────────────────────────────────────
+// Daily sales + avg ticket time from Dripos, last 28 days. Bars are sized
+// to the max non-zero day so a single big Saturday doesn't flatten everything.
+
+interface DailySalesPoint {
+  date: string;            // YYYY-MM-DD
+  avgTicketMin: number | null;
+  ticketCount: number;
+  salesCents: number;
+}
+
+function SalesTab({ locId }: { locId: string }) {
+  const [series, setSeries] = useState<DailySalesPoint[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetch(`/api/dripos/ticket-vs-sales/${locId.toUpperCase()}?days=28`, { cache: 'no-store' })
+      .then(async r => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.message || j.error || 'Failed to load sales');
+        setSeries(j.series || []);
+      })
+      .catch(e => setError(e.message || String(e)))
+      .finally(() => setLoading(false));
+  }, [locId]);
+
+  if (loading) return <SectionLoading label="Loading sales…" />;
+  if (error) return <SectionError msg={error} />;
+  if (!series || series.length === 0) return <SectionEmpty label="No sales data yet." />;
+
+  // Compute current vs prior 7-day windows. Today is excluded server-side
+  // already, so the most recent point is yesterday. Use the last 7 vs the
+  // 7 before that.
+  const last7 = series.slice(-7);
+  const prev7 = series.slice(-14, -7);
+  const sum = (arr: DailySalesPoint[]) => arr.reduce((a, p) => a + p.salesCents, 0);
+  const last7Total = sum(last7);
+  const prev7Total = sum(prev7);
+  const change = prev7Total > 0 ? ((last7Total - prev7Total) / prev7Total) * 100 : null;
+  const ticketsLast7 = last7.reduce((a, p) => a + p.ticketCount, 0);
+  const avgTktLast7 = (() => {
+    const w = last7.filter(p => p.avgTicketMin !== null && p.ticketCount > 0);
+    const total = w.reduce((acc, p) => acc + (p.avgTicketMin || 0) * p.ticketCount, 0);
+    const ct = w.reduce((acc, p) => acc + p.ticketCount, 0);
+    return ct > 0 ? total / ct : null;
+  })();
+
+  const maxSales = Math.max(1, ...series.map(p => p.salesCents));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+        <KPICard label="Last 7 days" value={fmtMoney(last7Total)} sub={change !== null ? `${change >= 0 ? '+' : ''}${change.toFixed(1)}% vs prior 7` : '—'} />
+        <KPICard label="Tickets" value={ticketsLast7.toLocaleString()} sub="last 7 days" />
+        <KPICard label="Avg Ticket Time" value={avgTktLast7 !== null ? `${avgTktLast7.toFixed(1)} min` : '—'} sub="weighted, last 7 days" />
+      </div>
+
+      {/* Daily bar chart — 28 days */}
+      <div style={{
+        background: 'rgba(255,255,255,0.80)',
+        border: '1px solid rgba(0,0,0,0.07)',
+        backdropFilter: 'blur(20px)',
+        borderRadius: 16,
+        padding: '24px 28px',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(0,0,0,0.35)', marginBottom: 20 }}>
+          Daily Sales · Last {series.length} days
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 140 }}>
+          {series.map((p, i) => {
+            const h = (p.salesCents / maxSales) * 130;
+            const dow = new Date(p.date + 'T00:00:00').getDay(); // 0=Sun
+            const isWeekend = dow === 0 || dow === 6;
+            return (
+              <div key={p.date} title={`${p.date}: ${fmtMoney(p.salesCents)} · ${p.ticketCount} tickets`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <div style={{
+                  width: '100%',
+                  height: `${Math.max(2, h)}px`,
+                  background: isWeekend ? '#1a1a1a' : 'rgba(0,0,0,0.18)',
+                  borderRadius: 4,
+                  transition: 'all 0.2s',
+                }} />
+                {i % Math.ceil(series.length / 7) === 0 && (
+                  <span style={{ fontSize: 9, color: 'rgba(0,0,0,0.3)' }}>{p.date.slice(5)}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 12, fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
+          Weekend days highlighted. Today is excluded (incomplete).
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Reviews tab ──────────────────────────────────────────────────────────
+// Mirrors the full GoogleReviews page in compact form. Shows aggregate rating,
+// star distribution, and the 5 most recent reviews with a link to the full feed.
+
+interface ReviewRow {
+  id: number;
+  author: string;
+  rating: number;
+  text: string;
+  date: string;
+  relativeDate: string;
+  replied?: boolean;
+  replyText?: string;
+}
+interface ReviewsResponse {
+  reviews: ReviewRow[];
+  distribution: { stars: number; count: number }[];
+  source?: string;
+}
+
+function ReviewsTab({ locId }: { locId: string }) {
+  const [data, setData] = useState<ReviewsResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetch(`/api/locations/${locId}/reviews`, { cache: 'no-store' })
+      .then(async r => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.message || j.error || 'Failed to load reviews');
+        setData(j);
+      })
+      .catch(e => setError(e.message || String(e)))
+      .finally(() => setLoading(false));
+  }, [locId]);
+
+  if (loading) return <SectionLoading label="Loading reviews…" />;
+  if (error) return <SectionError msg={error} />;
+  if (!data) return <SectionEmpty label="No reviews yet." />;
+
+  const total = data.distribution.reduce((a, b) => a + b.count, 0);
+  const recent = data.reviews.slice(0, 5);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Distribution */}
+      <div style={{
+        background: 'rgba(255,255,255,0.80)',
+        border: '1px solid rgba(0,0,0,0.07)',
+        backdropFilter: 'blur(20px)',
+        borderRadius: 16,
+        padding: '24px 28px',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(0,0,0,0.35)', marginBottom: 16 }}>
+          Star Distribution · {total} reviews
+          {data.source === 'demo' && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.3)' }}>(demo data)</span>}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {data.distribution.map(d => {
+            const pct = total > 0 ? (d.count / total) * 100 : 0;
+            return (
+              <div key={d.stars} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, width: 30, color: 'rgba(0,0,0,0.5)' }}>{d.stars}★</span>
+                <div style={{ flex: 1, background: 'rgba(0,0,0,0.06)', borderRadius: 4, height: 10, overflow: 'hidden' }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: '#1a1a1a', borderRadius: 4, transition: 'width 0.3s' }} />
+                </div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', width: 36, textAlign: 'right' }}>{d.count}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Recent reviews */}
+      <div style={{
+        background: 'rgba(255,255,255,0.80)',
+        border: '1px solid rgba(0,0,0,0.07)',
+        backdropFilter: 'blur(20px)',
+        borderRadius: 16,
+        padding: '24px 28px',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(0,0,0,0.35)' }}>
+            Recent Reviews
+          </div>
+          <Link to={`/locations/${locId}/reviews`} style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.5)', textDecoration: 'none' }}>
+            View all →
+          </Link>
+        </div>
+        {recent.length === 0 ? (
+          <div style={{ color: 'rgba(0,0,0,0.3)', fontSize: 13, padding: 16 }}>No reviews yet.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {recent.map((r, i) => (
+              <div key={r.id} style={{ padding: '14px 0', borderBottom: i < recent.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>{r.author}</span>
+                  <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>{r.relativeDate || r.date}</span>
+                </div>
+                <div style={{ marginBottom: 6 }}>
+                  {[1,2,3,4,5].map(s => (
+                    <span key={s} style={{ fontSize: 12, color: s <= r.rating ? '#1a1a1a' : 'rgba(0,0,0,0.12)' }}>★</span>
+                  ))}
+                </div>
+                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', lineHeight: 1.5, margin: 0 }}>{r.text}</p>
+                {r.replied && r.replyText && (
+                  <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: '2px solid rgba(0,0,0,0.1)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.4)', marginBottom: 2 }}>Owner replied</div>
+                    <p style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', lineHeight: 1.5, margin: 0 }}>{r.replyText}</p>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
     </div>
   );
+}
+
+// ── Staff tab ────────────────────────────────────────────────────────────
+// Filters the chain-wide employee-hours report down to this location and
+// shows tenure + recent weekly hours. Useful for the manager who wants to
+// see who's on this store's roster and how busy they've been.
+
+interface EmployeeRow {
+  employeeId: number;
+  fullName: string;
+  primaryStore: string;
+  weeklyHours: number[];
+  totalHours: number;
+  rollingAvg: number;
+  last4WkAvg: number;
+  last13WkAvg: number;
+  dateStartedMs: number | null;
+  weeksSinceHire: number | null;
+}
+
+function StaffTab({ locId }: { locId: string }) {
+  const [employees, setEmployees] = useState<EmployeeRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetch('/api/dripos/employee-hours', { cache: 'no-store' })
+      .then(async r => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.message || j.error || 'Failed to load staff');
+        const filtered = (j.report?.employees || []).filter(
+          (e: EmployeeRow) => e.primaryStore.toUpperCase() === locId.toUpperCase()
+        );
+        setEmployees(filtered);
+      })
+      .catch(e => setError(e.message || String(e)))
+      .finally(() => setLoading(false));
+  }, [locId]);
+
+  if (loading) return <SectionLoading label="Loading staff (this can take ~10s on first load)…" />;
+  if (error) return <SectionError msg={error} />;
+  if (!employees || employees.length === 0) return <SectionEmpty label="No staff records found for this location." />;
+
+  // Sort by last 4-week avg, descending.
+  const rows = [...employees].sort((a, b) => b.last4WkAvg - a.last4WkAvg);
+  const totalLast4 = rows.reduce((acc, r) => acc + r.last4WkAvg, 0);
+  const activeCount = rows.filter(r => r.last4WkAvg > 0).length;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+        <KPICard label="On Roster" value={rows.length.toString()} sub={`${activeCount} active last 4 wks`} />
+        <KPICard label="Team Hours" value={`${totalLast4.toFixed(0)} h`} sub="weekly avg, last 4 wks" />
+        <KPICard label="Avg per Employee" value={activeCount > 0 ? `${(totalLast4 / activeCount).toFixed(1)} h` : '—'} sub="weekly avg, active only" />
+      </div>
+
+      <div style={{
+        background: 'rgba(255,255,255,0.80)',
+        border: '1px solid rgba(0,0,0,0.07)',
+        backdropFilter: 'blur(20px)',
+        borderRadius: 16,
+        padding: '24px 28px',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+        overflowX: 'auto',
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(0,0,0,0.35)', marginBottom: 16 }}>
+          Roster · sorted by last 4-wk avg
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+              <th style={thStyle}>Name</th>
+              <th style={thStyle}>Tenure</th>
+              <th style={thStyleRight}>Last 4 wk</th>
+              <th style={thStyleRight}>Last 13 wk</th>
+              <th style={thStyleRight}>52-wk total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.employeeId} style={{ borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+                <td style={tdStyle}>{r.fullName}</td>
+                <td style={{ ...tdStyle, color: 'rgba(0,0,0,0.4)' }}>{fmtTenure(r.weeksSinceHire)}</td>
+                <td style={tdStyleRight}>{r.last4WkAvg.toFixed(1)} h</td>
+                <td style={tdStyleRight}>{r.last13WkAvg.toFixed(1)} h</td>
+                <td style={tdStyleRight}>{r.totalHours.toFixed(0)} h</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Shared section helpers ──────────────────────────────────────────────
+
+function SectionLoading({ label }: { label: string }) {
+  return (
+    <div style={sectionEmptyStyle}>
+      <div style={{ color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>{label}</div>
+    </div>
+  );
+}
+function SectionError({ msg }: { msg: string }) {
+  return (
+    <div style={{ ...sectionEmptyStyle, background: '#fef2f2', border: '1px solid #fecaca' }}>
+      <div style={{ color: '#b91c1c', fontSize: 13, fontWeight: 600 }}>Error loading: {msg}</div>
+    </div>
+  );
+}
+function SectionEmpty({ label }: { label: string }) {
+  return (
+    <div style={sectionEmptyStyle}>
+      <div style={{ color: 'rgba(0,0,0,0.3)', fontSize: 13 }}>{label}</div>
+    </div>
+  );
+}
+
+const sectionEmptyStyle: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.80)',
+  border: '1px solid rgba(0,0,0,0.07)',
+  borderRadius: 16,
+  padding: '40px 24px',
+  textAlign: 'center',
+};
+
+const thStyle: React.CSSProperties = {
+  padding: '10px 8px',
+  textAlign: 'left',
+  fontSize: 11,
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  color: 'rgba(0,0,0,0.4)',
+};
+const thStyleRight: React.CSSProperties = { ...thStyle, textAlign: 'right' };
+const tdStyle: React.CSSProperties = { padding: '10px 8px', fontSize: 13 };
+const tdStyleRight: React.CSSProperties = { ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+
+function fmtMoney(cents: number): string {
+  return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+function fmtTenure(weeks: number | null): string {
+  if (weeks === null || weeks <= 0) return '—';
+  if (weeks < 52) return `${weeks}w`;
+  const years = Math.floor(weeks / 52);
+  const rem = weeks % 52;
+  return rem > 0 ? `${years}y ${rem}w` : `${years}y`;
 }
 
 const pageWrap: React.CSSProperties = {

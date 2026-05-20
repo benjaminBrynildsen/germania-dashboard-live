@@ -612,7 +612,8 @@ export default function WeeklySales() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLogin, setShowLogin] = useState(false);
-  const [weekOffset, setWeekOffset] = useState(0);
+  // -1 = current in-progress week (default), 0 = last completed, 1+ = older.
+  const [weekOffset, setWeekOffset] = useState(-1);
 
   const fetchReport = async (refresh = false, offset = weekOffset) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -623,7 +624,9 @@ export default function WeeklySales() {
         params.set('force', '1');
         params.set('_', String(Date.now()));
       }
-      if (offset > 0) params.set('weekOffset', String(offset));
+      // Always send the offset so the server picks the right week (including
+      // the -1 in-progress default). Server clamps to [-1, ∞).
+      params.set('weekOffset', String(offset));
       const qs = params.toString();
       const url = '/api/dripos/report' + (qs ? `?${qs}` : '');
       const r = await fetch(url, { cache: 'no-store' });
@@ -661,6 +664,15 @@ export default function WeeklySales() {
     const sun0 = new Date(today);
     sun0.setDate(today.getDate() - daysSinceSat - 6);
     const opts: Array<{ offset: number; label: string }> = [];
+
+    // Offset -1 = in-progress current week. Sun-Sat range starts 7 days after
+    // the most-recently-completed Sunday; data is partial through today.
+    const thisSun = new Date(sun0);
+    thisSun.setDate(sun0.getDate() + 7);
+    const thisSat = new Date(thisSun);
+    thisSat.setDate(thisSun.getDate() + 6);
+    opts.push({ offset: -1, label: `This week · ${fmt(thisSun)}–${fmt(thisSat)}` });
+
     for (let i = 0; i < 12; i++) {
       const sun = new Date(sun0);
       sun.setDate(sun0.getDate() - 7 * i);
@@ -728,8 +740,8 @@ export default function WeeklySales() {
             <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button
                 className="btn btn-secondary btn-sm"
-                onClick={() => setWeekOffset((o) => o + 1)}
-                disabled={loading || refreshing}
+                onClick={() => setWeekOffset((o) => Math.min(11, o + 1))}
+                disabled={loading || refreshing || weekOffset === 11}
                 title="Previous week"
                 style={{ padding: '2px 8px' }}
               >‹</button>
@@ -754,18 +766,18 @@ export default function WeeklySales() {
               </select>
               <button
                 className="btn btn-secondary btn-sm"
-                onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}
-                disabled={weekOffset === 0 || loading || refreshing}
+                onClick={() => setWeekOffset((o) => Math.max(-1, o - 1))}
+                disabled={weekOffset === -1 || loading || refreshing}
                 title="Next week"
                 style={{ padding: '2px 8px' }}
               >›</button>
-              {weekOffset > 0 && (
+              {weekOffset > -1 && (
                 <button
                   className="btn btn-secondary btn-sm"
-                  onClick={() => setWeekOffset(0)}
+                  onClick={() => setWeekOffset(-1)}
                   disabled={loading || refreshing}
                   style={{ marginLeft: 4 }}
-                >Today</button>
+                >This week</button>
               )}
             </div>
           )}

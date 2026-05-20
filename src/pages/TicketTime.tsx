@@ -54,7 +54,8 @@ export default function TicketTime() {
   const [searchParams] = useSearchParams();
   const initialLoc = LOCS.includes(searchParams.get('loc') || '') ? searchParams.get('loc')! : 'G1';
   const [activeLoc, setActiveLoc] = useState(initialLoc);
-  const [weekOffset, setWeekOffset] = useState(0);
+  // -1 = current in-progress week (default), 0 = last completed week, 1+ = older.
+  const [weekOffset, setWeekOffset] = useState(-1);
 
   const [week, setWeek] = useState<TicketWeek | null>(null);
   const [prevWeek, setPrevWeek] = useState<TicketWeek | null>(null);
@@ -98,6 +99,19 @@ export default function TicketTime() {
     const sun0 = new Date(today);
     sun0.setDate(today.getDate() - daysSinceSat - 6);
     const opts: Array<{ offset: number; label: string }> = [];
+
+    // Offset -1 = in-progress week (Sunday after sun0). Partial data through
+    // today; server keys the cache on the actual date range, so refreshes
+    // through the day pull whatever new hours have arrived from Dripos.
+    const thisWeekSun = new Date(sun0);
+    thisWeekSun.setDate(sun0.getDate() + 7);
+    const thisWeekSat = new Date(thisWeekSun);
+    thisWeekSat.setDate(thisWeekSun.getDate() + 6);
+    opts.push({
+      offset: -1,
+      label: `This week · ${fmtDate(thisWeekSun)}–${fmtDate(thisWeekSat)}`,
+    });
+
     for (let i = 0; i < 12; i++) {
       const sun = new Date(sun0);
       sun.setDate(sun0.getDate() - 7 * i);
@@ -143,10 +157,10 @@ export default function TicketTime() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
-            onClick={() => setWeekOffset((o) => o + 1)}
-            disabled={loading}
+            onClick={() => setWeekOffset((o) => Math.min(11, o + 1))}
+            disabled={loading || weekOffset === 11}
             title="Previous week"
-            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: 'pointer', fontSize: 16 }}
+            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: weekOffset === 11 ? 'default' : 'pointer', fontSize: 16, opacity: weekOffset === 11 ? 0.4 : 1 }}
           >‹</button>
           <select
             value={weekOffset}
@@ -172,17 +186,17 @@ export default function TicketTime() {
             ))}
           </select>
           <button
-            onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}
-            disabled={weekOffset === 0 || loading}
+            onClick={() => setWeekOffset((o) => Math.max(-1, o - 1))}
+            disabled={weekOffset === -1 || loading}
             title="Next week"
-            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: weekOffset === 0 ? 'default' : 'pointer', fontSize: 16, opacity: weekOffset === 0 ? 0.4 : 1 }}
+            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: weekOffset === -1 ? 'default' : 'pointer', fontSize: 16, opacity: weekOffset === -1 ? 0.4 : 1 }}
           >›</button>
-          {weekOffset > 0 && (
+          {weekOffset > -1 && (
             <button
-              onClick={() => setWeekOffset(0)}
+              onClick={() => setWeekOffset(-1)}
               disabled={loading}
               style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
-            >Today</button>
+            >This week</button>
           )}
         </div>
       </div>
