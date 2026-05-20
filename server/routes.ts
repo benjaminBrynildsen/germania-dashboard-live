@@ -389,6 +389,83 @@ router.post('/locations/:id/sync-reviews', requireAuth, requireRole('admin', 'ma
   res.json(result);
 });
 
+// Bulk-import reviews from an Apify Google Maps Reviews Scraper export.
+// Body:
+//   { locationId: "g1", reviews: [...apify-export-array] }
+// Expected per-review shape (Apify "compass/google-maps-reviews-scraper" output):
+//   { reviewId, reviewerName, reviewerPhotoUrl, stars, text,
+//     publishedAtDate, publishAt,
+//     responseFromOwnerText, responseFromOwnerDate }
+// Tolerates missing/null fields. Upserts on (location_id, google_review_id).
+router.post('/locations/:id/import-reviews', requireAuth, requireRole('admin', 'manager'), (req: AuthRequest, res: Response) => {
+  const locationId = req.params.id;
+  const loc = db.prepare('SELECT id FROM locations WHERE id = ?').get(locationId) as any;
+  if (!loc) { res.status(404).json({ error: 'Location not found' }); return; }
+
+  const payload = req.body || {};
+  const reviews: any[] = Array.isArray(payload) ? payload : (Array.isArray(payload.reviews) ? payload.reviews : []);
+  if (!Array.isArray(reviews) || reviews.length === 0) {
+    res.status(400).json({ error: 'Body must be an array of reviews, or { reviews: [...] }' });
+    return;
+  }
+
+  const upsert = db.prepare(`
+    INSERT INTO google_reviews (location_id, google_review_id, author, author_photo, rating, text, date, relative_date, replied, reply_text, fetched_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(location_id, google_review_id) DO UPDATE SET
+      author = excluded.author,
+      author_photo = excluded.author_photo,
+      rating = excluded.rating,
+      text = excluded.text,
+      date = excluded.date,
+      relative_date = excluded.relative_date,
+      replied = excluded.replied,
+      reply_text = excluded.reply_text,
+      fetched_at = CURRENT_TIMESTAMP
+  `);
+
+  let inserted = 0;
+  let updated = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  // Drizzle's better-sqlite3 doesn't expose row.changes vs row.lastInsertRowid
+  // in a way that distinguishes insert from update reliably. Pre-check existing
+  // ids so we can report accurate inserted/updated counts.
+  const existing = new Set(
+    (db.prepare('SELECT google_review_id FROM google_reviews WHERE location_id = ?')
+      .all(locationId) as any[])
+      .map((r) => r.google_review_id),
+  );
+
+  const txn = db.transaction(() => {
+    for (const r of reviews) {
+      const reviewId = String(r.reviewId ?? r.id ?? '').trim();
+      if (!reviewId) { skipped++; continue; }
+      const stars = Number(r.stars ?? r.rating ?? 0);
+      if (!Number.isFinite(stars) || stars < 1 || stars > 5) { skipped++; continue; }
+
+      const author = String(r.reviewerName ?? r.author ?? 'Anonymous').slice(0, 200);
+      const photo = r.reviewerPhotoUrl ?? r.authorPhoto ?? null;
+      const text = String(r.text ?? '').slice(0, 5000);
+      const date = String(r.publishedAtDate ?? r.date ?? new Date().toISOString());
+      const relative = String(r.publishAt ?? r.relativeDate ?? '').slice(0, 80);
+      const replyText = r.responseFromOwnerText ?? r.replyText ?? null;
+      const replied = replyText ? 1 : 0;
+
+      try {
+        upsert.run(locationId, reviewId, author, photo, stars, text, date, relative, replied, replyText);
+        if (existing.has(reviewId)) updated++; else { inserted++; existing.add(reviewId); }
+      } catch (e: any) {
+        errors.push(`${reviewId}: ${e.message || String(e)}`);
+      }
+    }
+  });
+  txn();
+
+  res.json({ ok: true, inserted, updated, skipped, errorCount: errors.length, errors: errors.slice(0, 10) });
+});
+
 // Update location's google_place_id
 router.patch('/locations/:id', requireAuth, requireRole('admin'), (req: AuthRequest, res: Response) => {
   const { google_place_id, google_maps_url } = req.body;
