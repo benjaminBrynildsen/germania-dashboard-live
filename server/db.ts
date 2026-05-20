@@ -36,6 +36,28 @@ db.pragma('foreign_keys = ON');
     console.log('[migration] adding mon_locked_qty to bake_haus_orders');
     db.exec('ALTER TABLE bake_haus_orders ADD COLUMN mon_locked_qty REAL');
   }
+  // Week-wide lock — extends the Mon-only freeze to Wed + Fri so Chef
+  // Maggie has stable production targets for every delivery day. NULL
+  // on each column means that day is not locked; splitForDeliveries
+  // recomputes those days normally.
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'wed_locked_qty')) {
+    console.log('[migration] adding wed_locked_qty to bake_haus_orders');
+    db.exec('ALTER TABLE bake_haus_orders ADD COLUMN wed_locked_qty REAL');
+  }
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'fri_locked_qty')) {
+    console.log('[migration] adding fri_locked_qty to bake_haus_orders');
+    db.exec('ALTER TABLE bake_haus_orders ADD COLUMN fri_locked_qty REAL');
+  }
+}
+// bake_haus_week_locks.lock_source migration — distinguishes manual
+// locks (Maggie/admin pressed "Lock this week") from auto-locks fired
+// by the Monday 11:59pm cron. Used for diagnostic / audit display.
+{
+  const tbl = db.prepare("PRAGMA table_info(bake_haus_week_locks)").all() as Array<{ name: string }>;
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'lock_source')) {
+    console.log("[migration] adding lock_source to bake_haus_week_locks");
+    db.exec("ALTER TABLE bake_haus_week_locks ADD COLUMN lock_source TEXT NOT NULL DEFAULT 'manual'");
+  }
 }
 
 db.exec(`
@@ -234,12 +256,14 @@ db.exec(`
     weekly_qty REAL NOT NULL,
     notes TEXT,
     updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
-    -- Snapshot of this row's Monday delivery qty at the moment the
-    -- week was locked. NULL = not locked. When set, the split logic
-    -- uses this value for mon and redistributes the rest to wed/fri
-    -- so post-Monday qty edits don't retroactively change what
-    -- already left the kitchen.
+    -- Per-delivery-day snapshots captured at lock time. NULL = that
+    -- day is not locked; splitForDeliveries recomputes it normally.
+    -- When set, the day's qty is frozen and the remainder splits
+    -- across whatever days remain unlocked so post-lock qty edits
+    -- don't retroactively change what already left the kitchen.
     mon_locked_qty REAL,
+    wed_locked_qty REAL,
+    fri_locked_qty REAL,
     PRIMARY KEY (week_start_iso, store_label, item_name)
   );
 
@@ -255,13 +279,19 @@ db.exec(`
     PRIMARY KEY (week_start_iso, store_label)
   );
 
-  -- Marks a week as "Monday delivery already went out". When a row
-  -- exists for a given week_start_iso, the Monday qty for each order
-  -- row in that week is frozen to its mon_locked_qty snapshot.
+  -- Marks a week as "deliveries are locked for the week". When a row
+  -- exists for a given week_start_iso, mon/wed/fri qtys per order are
+  -- frozen to their *_locked_qty snapshots and the save endpoint
+  -- rejects writes from users not on the unlock allowlist. The column
+  -- name mon_locked_at predates the week-wide lock and is preserved
+  -- to avoid touching every consumer; semantically it is now "week
+  -- locked at" (the timestamp the snapshot was captured).
   CREATE TABLE IF NOT EXISTS bake_haus_week_locks (
     week_start_iso TEXT NOT NULL,
     mon_locked_at INTEGER NOT NULL,
     locked_by TEXT,
+    -- 'manual' = pressed Lock; 'auto' = Mon 23:59 CT cron fired
+    lock_source TEXT NOT NULL DEFAULT 'manual',
     PRIMARY KEY (week_start_iso)
   );
 

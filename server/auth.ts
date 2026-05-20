@@ -183,8 +183,20 @@ router.post('/dev-login', (req: Request, res: Response) => {
   res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
 });
 
-router.get('/me', requireAuth, (req: AuthRequest, res: Response) => {
-  res.json({ user: req.user });
+router.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
+  // Lazy-import the bake-haus allowlist helper so /me stays cheap and
+  // a failing import (older deploy) doesn't take auth offline.
+  let canUnlockBakeHaus = false;
+  try {
+    const mod = await import('./bake-haus.js');
+    canUnlockBakeHaus = mod.isUserAllowedToUnlock(req.user?.email ?? null);
+  } catch { /* non-fatal — falls back to false */ }
+  res.json({
+    user: req.user,
+    permissions: {
+      canUnlockBakeHaus,
+    },
+  });
 });
 
 router.post('/logout', (_req: Request, res: Response) => {

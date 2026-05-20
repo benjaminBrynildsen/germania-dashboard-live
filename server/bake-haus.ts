@@ -7,7 +7,7 @@
  * down by the chef on prep days and handled outside this system.
  */
 import db from './db.js';
-import { BAKE_HAUS_CATEGORY, fetchAllProducts, fetchInventory, STORES } from './dripos.js';
+import { BAKE_HAUS_CATEGORY, fetchAllProducts, fetchInventory, fetchProductSales, STORES } from './dripos.js';
 
 /** CDN base for Dripos product images. The /products endpoint returns
  *  each item's LOGO field as either:
@@ -239,14 +239,24 @@ function findProductForCatalogItem(
  * Rounding leftovers go to Fri so the three components always sum back
  * to the original weekly qty exactly.
  */
+/** Per-delivery-day lock snapshot. Any day set to a finite number is
+ *  frozen — splitForDeliveries returns that value verbatim. NULL/undefined
+ *  for unlocked days, which then divide the remaining qty using the
+ *  baseline 2/7-2/7-3/7 ratio (or 3/2/2 when prioritizing early). */
+export interface DayLocks {
+  mon?: number | null;
+  wed?: number | null;
+  fri?: number | null;
+}
+
 export function splitForDeliveries(
   weeklyQty: number,
-  /** When non-null, Monday's qty is frozen to this value (set when the
-   *  week is locked after the kitchen starts baking off Monday's
-   *  count). Wed/Fri then split
-   *  the remaining qty 2:3. Pass null/undefined for the normal 2/7
-   *  2/7 3/7 split. */
-  monLockedQty?: number | null,
+  /** Per-day locks. When a day's value is a finite number, it's frozen
+   *  to that value and unlocked days split the remainder using their
+   *  relative weights from the 2/2/3 (or 3/2/2 when prioritizeEarly)
+   *  baseline. Pass an empty object (or omit) for the unlocked split.
+   *  Backwards-compatible with a bare `number` (legacy Monday-lock arg). */
+  locks: DayLocks | number | null = null,
   /** When false, this item skips Monday entirely (Mon=0, Wed/Fri at
    *  2:3). Used for most syrups + sauces which are made Tue/Thu and
    *  only delivered Wed/Fri. Defaults to true. */
@@ -254,74 +264,137 @@ export function splitForDeliveries(
   /** When true, weight the earliest delivery day more heavily — used
    *  when the store is fully out of stock and needs the next shipment
    *  ASAP. Flips Wed:Fri from 2:3 → 3:2 (no-Monday syrups), and
-   *  Mon:Wed:Fri from 2:2:3 → 3:2:2 (food / Haus Vanilla). The
-   *  locked-Mon path also flips the Wed:Fri remainder. */
+   *  Mon:Wed:Fri from 2:2:3 → 3:2:2 (food / Haus Vanilla). */
   prioritizeEarly: boolean = false,
 ): {
   mon: number;
   wed: number;
   fri: number;
 } {
+  // Normalize the legacy `monLockedQty: number | null` calling
+  // convention into the new DayLocks object so callers don't have to
+  // change all at once.
+  const normalizedLocks: DayLocks = typeof locks === 'number'
+    ? { mon: locks }
+    : (locks ?? {});
+  const monLocked = isFiniteNum(normalizedLocks.mon) ? normalizedLocks.mon! : null;
+  const wedLocked = isFiniteNum(normalizedLocks.wed) ? normalizedLocks.wed! : null;
+  const friLocked = isFiniteNum(normalizedLocks.fri) ? normalizedLocks.fri! : null;
+
   if (!Number.isFinite(weeklyQty) || weeklyQty <= 0) {
     return { mon: 0, wed: 0, fri: 0 };
   }
   const total = Math.round(weeklyQty);
   if (total <= 0) return { mon: 0, wed: 0, fri: 0 };
 
-  // Wed-share-of-remainder: normally 2/5 (Wed covers 2 days, Fri
-  // covers 3); when prioritizing early it flips to 3/5 so the
-  // earlier truck takes the larger chunk.
-  const wedShare = prioritizeEarly ? (3 / 5) : (2 / 5);
+  // Baseline weights (sum to 1) used for both the unlocked split and
+  // the redistribution of remainder when some days are locked.
+  // includeMonday=false forces the Mon weight to 0; the rest is
+  // renormalized to 1 across wed/fri.
+  const w = baselineWeights(includeMonday, prioritizeEarly);
 
-  // No-Monday branch (most syrups/sauces). Lock state is moot —
-  // Mon is always 0 here.
-  if (!includeMonday) {
-    const wed = Math.round(total * wedShare);
-    const fri = Math.max(0, total - wed);
-    return { mon: 0, wed, fri };
-  }
-
-  if (monLockedQty != null && Number.isFinite(monLockedQty)) {
-    // Locked branch: mon is fixed. Anything left goes to wed/fri at
-    // wedShare. If the new weekly qty has been *reduced* below the
-    // locked Mon qty (very unusual — would mean the store is
-    // unordering items already delivered), cap mon at total and
-    // zero out the rest.
-    const mon = Math.max(0, Math.min(Math.round(monLockedQty), total));
-    const remaining = Math.max(0, total - mon);
-    let wed = Math.round(remaining * wedShare);
-    let fri = remaining - wed;
-    if (fri < 0) { fri = 0; }
-    return { mon, wed, fri };
-  }
-
-  // Unlocked, Monday-included branch.
-  if (prioritizeEarly) {
-    // 3:2:2 instead of 2:2:3 — earliest truck takes the larger chunk.
-    let mon = Math.round(total * (3 / 7));
+  // ── Fast path: nothing locked ─────────────────────────────────────
+  // The historical no-lock branches do exact integer balancing with
+  // remainder-to-Fri (or Wed when prioritizeEarly) so we preserve the
+  // pre-existing test expectations verbatim instead of routing
+  // through the generic redistribution code.
+  if (monLocked === null && wedLocked === null && friLocked === null) {
+    if (!includeMonday) {
+      const wed = Math.round(total * w.wed / (w.wed + w.fri));
+      const fri = Math.max(0, total - wed);
+      return { mon: 0, wed, fri };
+    }
+    if (prioritizeEarly) {
+      let mon = Math.round(total * (3 / 7));
+      let wed = Math.round(total * (2 / 7));
+      let fri = total - mon - wed;
+      if (mon < 0) mon = 0;
+      if (wed < 0) wed = 0;
+      if (fri < 0) fri = 0;
+      return { mon, wed, fri };
+    }
+    let mon = Math.round(total * (2 / 7));
     let wed = Math.round(total * (2 / 7));
     let fri = total - mon - wed;
+    if (fri < wed) {
+      const diff = wed - fri;
+      const give = Math.ceil(diff / 2);
+      wed -= give;
+      fri += give;
+    }
     if (mon < 0) mon = 0;
     if (wed < 0) wed = 0;
     if (fri < 0) fri = 0;
     return { mon, wed, fri };
   }
 
-  let mon = Math.round(total * (2 / 7));
-  let wed = Math.round(total * (2 / 7));
-  let fri = total - mon - wed;
-  // Guard against rounding driving fri below the other two (e.g. for
-  // very small weekly qty): if fri < wed, redistribute one unit.
-  if (fri < wed) {
-    const diff = wed - fri;
-    const give = Math.ceil(diff / 2);
-    wed -= give;
-    fri += give;
+  // ── Locked path: clamp each locked day to <= total, distribute
+  // the remainder across unlocked days using their relative weights. ──
+  let usedTotal = 0;
+  const out: { mon: number; wed: number; fri: number } = { mon: 0, wed: 0, fri: 0 };
+
+  // includeMonday=false zeros Mon regardless of lock — those items
+  // genuinely don't deliver Mon, even if a stale lock value exists.
+  const monActive = includeMonday;
+  if (monLocked !== null && monActive) {
+    out.mon = Math.max(0, Math.min(Math.round(monLocked), total));
+    usedTotal += out.mon;
   }
-  if (mon < 0) mon = 0;
-  if (wed < 0) wed = 0;
-  if (fri < 0) fri = 0;
-  return { mon, wed, fri };
+  if (wedLocked !== null) {
+    const room = Math.max(0, total - usedTotal);
+    out.wed = Math.max(0, Math.min(Math.round(wedLocked), room));
+    usedTotal += out.wed;
+  }
+  if (friLocked !== null) {
+    const room = Math.max(0, total - usedTotal);
+    out.fri = Math.max(0, Math.min(Math.round(friLocked), room));
+    usedTotal += out.fri;
+  }
+
+  // Distribute remainder across whatever days are still unlocked.
+  const remaining = Math.max(0, total - usedTotal);
+  const unlocked = {
+    mon: monLocked === null && monActive ? w.mon : 0,
+    wed: wedLocked === null ? w.wed : 0,
+    fri: friLocked === null ? w.fri : 0,
+  };
+  const weightSum = unlocked.mon + unlocked.wed + unlocked.fri;
+  if (remaining > 0 && weightSum > 0) {
+    // Round Mon and Wed; send the leftover to whichever unlocked day
+    // sits later in the week so cumulative rounding error doesn't
+    // double-bill the early trucks.
+    if (unlocked.mon > 0) out.mon += Math.round(remaining * (unlocked.mon / weightSum));
+    if (unlocked.wed > 0) out.wed += Math.round(remaining * (unlocked.wed / weightSum));
+    const used = (unlocked.mon > 0 ? Math.round(remaining * (unlocked.mon / weightSum)) : 0)
+               + (unlocked.wed > 0 ? Math.round(remaining * (unlocked.wed / weightSum)) : 0);
+    const leftover = remaining - used;
+    // Drop the leftover on the latest unlocked day, or wed if fri is
+    // locked, or mon if wed+fri are both locked.
+    if (unlocked.fri > 0) out.fri += leftover;
+    else if (unlocked.wed > 0) out.wed += leftover;
+    else if (unlocked.mon > 0) out.mon += leftover;
+  }
+
+  if (out.mon < 0) out.mon = 0;
+  if (out.wed < 0) out.wed = 0;
+  if (out.fri < 0) out.fri = 0;
+  return out;
+}
+
+function isFiniteNum(v: any): boolean {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+function baselineWeights(includeMonday: boolean, prioritizeEarly: boolean): { mon: number; wed: number; fri: number } {
+  if (!includeMonday) {
+    // Wed/Fri only — 2/5 vs 3/5 normally, flipped when prioritizing early.
+    return prioritizeEarly
+      ? { mon: 0, wed: 3, fri: 2 }
+      : { mon: 0, wed: 2, fri: 3 };
+  }
+  return prioritizeEarly
+    ? { mon: 3, wed: 2, fri: 2 }
+    : { mon: 2, wed: 2, fri: 3 };
 }
 
 export interface BakeHausOrderRow {
@@ -337,9 +410,11 @@ export interface BakeHausOrderRow {
   netQty: number;
   /** Mon/Wed/Fri split of netQty. */
   delivery: { mon: number; wed: number; fri: number };
-  /** When the week is locked, the frozen Mon qty for this row. null
-   *  when the week isn't locked or this row was added after lock. */
+  /** Per-day frozen qty for this row when the week is locked. null
+   *  for unlocked days OR rows that pre-date the lock. */
   monLockedQty: number | null;
+  wedLockedQty: number | null;
+  friLockedQty: number | null;
   /** 'food' or 'syrup-sauce', for the order card's section grouping. */
   category: 'food' | 'syrup-sauce' | 'custom';
   /** Whether this item delivers on Monday. false → Wed/Fri only. */
@@ -367,13 +442,31 @@ export interface BakeHausWeekReport {
   inventoryByStore: Record<string, Record<string, number>>;
   /** When the inventory snapshot was fetched (ms epoch). */
   inventoryFetchedAt: number;
-  /** Set when the week's Monday delivery has been locked. After this,
-   *  any qty edits flow into Wed/Fri only — Mon stays frozen at the
-   *  per-row mon_locked_qty snapshot taken at lock time. */
+  /** Set when the week's Monday delivery has been locked. Preserved
+   *  for backwards compatibility with clients that haven't migrated
+   *  to `weekLocked`/`dayLocks` yet. New code should use `weekLocked`. */
   monLock: {
     lockedAt: number;
     lockedBy: string | null;
   } | null;
+  /** True when all three delivery days are frozen (the week-wide lock
+   *  introduced Wed 2026-05-20 for Chef Maggie's bake-target stability).
+   *  When true, the save endpoint rejects edits from non-allowlist users
+   *  and the UI shows 🔒 on every delivery cell. */
+  weekLocked: boolean;
+  /** Per-day lock metadata. Each day's `lockedAt` is the timestamp the
+   *  snapshot was captured (typically the same value across all three
+   *  for whole-week locks). `lockedBy` is the user who triggered the
+   *  lock (null for the auto-cron-fired version). */
+  dayLocks: {
+    mon: { lockedAt: number; lockedBy: string | null } | null;
+    wed: { lockedAt: number; lockedBy: string | null } | null;
+    fri: { lockedAt: number; lockedBy: string | null } | null;
+  };
+  /** 'manual' (someone pressed Lock) or 'auto' (Mon 23:59 cron fired).
+   *  Null when no lock exists. Surfaced in the UI so a manual unlock
+   *  doesn't kick the auto-cron-fired lock back on the next Monday. */
+  lockSource: 'manual' | 'auto' | null;
 }
 
 interface DbRow {
@@ -383,6 +476,8 @@ interface DbRow {
   weekly_qty: number;
   notes: string | null;
   mon_locked_qty: number | null;
+  wed_locked_qty: number | null;
+  fri_locked_qty: number | null;
 }
 
 /** Sort items by the catalog order; unknown items go to the bottom. */
@@ -393,19 +488,26 @@ function itemSortKey(name: string): number {
 
 export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekReport> {
   const rows = db.prepare(
-    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, mon_locked_qty
+    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes,
+            mon_locked_qty, wed_locked_qty, fri_locked_qty
      FROM bake_haus_orders
      WHERE week_start_iso = ?`,
   ).all(weekStartIso) as DbRow[];
 
-  // Week-level Mon lock state. When present, the per-row mon_locked_qty
-  // snapshots are authoritative for Monday's delivery.
+  // Week-level lock state. When present, the per-row *_locked_qty
+  // snapshots are authoritative for every delivery day where they're
+  // non-null. The `lock_source` distinguishes manual locks from the
+  // Mon 23:59 cron-fired auto-lock.
   const lockRow = db.prepare(
-    'SELECT mon_locked_at, locked_by FROM bake_haus_week_locks WHERE week_start_iso = ?',
-  ).get(weekStartIso) as { mon_locked_at: number; locked_by: string | null } | undefined;
+    'SELECT mon_locked_at, locked_by, lock_source FROM bake_haus_week_locks WHERE week_start_iso = ?',
+  ).get(weekStartIso) as { mon_locked_at: number; locked_by: string | null; lock_source: string | null } | undefined;
+  const weekLocked = !!lockRow;
   const monLock = lockRow
     ? { lockedAt: lockRow.mon_locked_at, lockedBy: lockRow.locked_by ?? null }
     : null;
+  const lockSource = (lockRow?.lock_source === 'auto' || lockRow?.lock_source === 'manual')
+    ? lockRow.lock_source as 'manual' | 'auto'
+    : (lockRow ? 'manual' : null);
 
   // Pull current Dripos inventory in parallel with everything else. Cache
   // protects us if Dripos is slow/down — falls back to empty map.
@@ -438,17 +540,28 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
     // Out-of-stock at this store → prioritize the earliest delivery
     // so the next truck gets the bigger chunk.
     const prioritizeEarly = onHand === 0 && netQty > 0;
-    // Lock semantics: when the week is locked AND this item gets a
-    // Monday delivery, use the row's snapshot (or the unlocked
-    // computed Mon as a fallback if snapshot is NULL). For items
-    // that skip Monday (most syrups), the lock is irrelevant.
-    let lockedMonQty: number | null = null;
-    if (monLock && includeMonday) {
-      lockedMonQty = r.mon_locked_qty != null
-        ? r.mon_locked_qty
-        : splitForDeliveries(netQty, null, true).mon;
+    // Lock semantics: when the week is locked, every per-row
+    // *_locked_qty value that's non-null is authoritative for its
+    // day. If the lock exists but a particular column is NULL (e.g.,
+    // legacy rows that pre-date the Wed/Fri columns), compute that
+    // day's value from the unlocked split as a fallback.
+    let monLockedQty: number | null = null;
+    let wedLockedQty: number | null = null;
+    let friLockedQty: number | null = null;
+    if (weekLocked) {
+      const unlockedSplit = splitForDeliveries(netQty, null, includeMonday, prioritizeEarly);
+      if (includeMonday) {
+        monLockedQty = r.mon_locked_qty != null ? r.mon_locked_qty : unlockedSplit.mon;
+      }
+      wedLockedQty = r.wed_locked_qty != null ? r.wed_locked_qty : unlockedSplit.wed;
+      friLockedQty = r.fri_locked_qty != null ? r.fri_locked_qty : unlockedSplit.fri;
     }
-    const split = splitForDeliveries(netQty, lockedMonQty, includeMonday, prioritizeEarly);
+    const split = splitForDeliveries(
+      netQty,
+      { mon: monLockedQty, wed: wedLockedQty, fri: friLockedQty },
+      includeMonday,
+      prioritizeEarly,
+    );
     const row: BakeHausOrderRow = {
       weekStartIso: r.week_start_iso,
       storeLabel: r.store_label,
@@ -458,7 +571,9 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
       onHand,
       netQty,
       delivery: split,
-      monLockedQty: lockedMonQty,
+      monLockedQty,
+      wedLockedQty,
+      friLockedQty,
       category,
       includeMonday,
     };
@@ -487,6 +602,12 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
   for (const store of STORES) savedAtByStore[store.label] = null;
   for (const r of savedRows) savedAtByStore[r.store_label] = r.saved_at;
 
+  // Per-day lock metadata. All three days share the same timestamp
+  // for a whole-week lock (Mon = the canonical "week locked at" value).
+  const dayLockEntry = monLock
+    ? { lockedAt: monLock.lockedAt, lockedBy: monLock.lockedBy }
+    : null;
+
   return {
     weekStartIso,
     savedAtByStore,
@@ -495,60 +616,239 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
     inventoryByStore,
     inventoryFetchedAt: inventoryMapCache?.fetchedAt ?? Date.now(),
     monLock,
+    weekLocked,
+    dayLocks: {
+      mon: dayLockEntry,
+      wed: dayLockEntry,
+      fri: dayLockEntry,
+    },
+    lockSource,
   };
 }
 
-/** Lock the week's Monday delivery — flips the week-lock flag, and
- *  backfills mon_locked_qty for any row that doesn't have a baseline
- *  snapshot yet. Rows that DO have a snapshot are preserved as-is
- *  (they were captured at the last "update everything" save and
- *  represent the user's intended freeze point). */
-export async function lockWeekMonday(
+/** Lock all three delivery days for the week — snapshots each row's
+ *  current Mon/Wed/Fri split into the per-day `*_locked_qty` columns
+ *  and creates/updates the `bake_haus_week_locks` row. After this,
+ *  inventory drift and qty edits leave the locked qtys untouched
+ *  (subject to the save-endpoint allowlist gate enforced in routes).
+ *
+ *  When `asOfMs` is provided, the onHand used to compute the lock
+ *  snapshot is reconstructed to that past timestamp by adding back
+ *  any sales that occurred between then and now. This is how the
+ *  current-week "Lock now using last night's data" flow avoids
+ *  capturing mid-Wednesday inventory drift in the Wed/Fri snapshots. */
+export async function lockWeek(
   weekStartIso: string,
   lockedBy: string | null = null,
-): Promise<void> {
+  source: 'manual' | 'auto' = 'manual',
+  asOfMs?: number | null,
+): Promise<{ rowsSnapshotted: number; mode: 'live' | 'reconstructed' }> {
   const rows = db.prepare(
-    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, mon_locked_qty
+    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes,
+            mon_locked_qty, wed_locked_qty, fri_locked_qty
      FROM bake_haus_orders
-     WHERE week_start_iso = ? AND mon_locked_qty IS NULL`,
+     WHERE week_start_iso = ?`,
   ).all(weekStartIso) as DbRow[];
 
-  // Only fetch inventory if we have rows to backfill (saves a network
-  // call when every row already has a snapshot).
-  const inventoryByStore = rows.length > 0
-    ? await getBakeHausInventoryByStore().catch(() => ({} as Record<string, Record<string, number>>))
-    : {};
+  // Pick the onHand source: live Dripos inventory, OR a reconstructed
+  // snapshot from `asOfMs`. Reconstruction adds back any units sold
+  // between asOfMs and now so the result reflects yesterday-night state.
+  const useReconstruction = asOfMs != null && Number.isFinite(asOfMs) && asOfMs < Date.now() - 60_000;
+  const inventoryByStore = useReconstruction
+    ? await reconstructOnHandAt(asOfMs!).catch(async () => {
+        console.warn('[bake-haus] reconstructOnHandAt failed; falling back to live inventory for lock');
+        return getBakeHausInventoryByStore().catch(() => ({} as Record<string, Record<string, number>>));
+      })
+    : await getBakeHausInventoryByStore().catch(() => ({} as Record<string, Record<string, number>>));
+
+  // Catalog lookup so we know which items skip Monday — locked Mon
+  // qty stays 0 for those items even after the lock action runs.
+  const catalogByName = new Map<string, BakeHausCatalogItem>();
+  for (const c of getMergedCatalog()) catalogByName.set(c.name, c);
 
   const updateRow = db.prepare(
-    `UPDATE bake_haus_orders SET mon_locked_qty = ?
-      WHERE week_start_iso = ? AND store_label = ? AND item_name = ?`,
+    `UPDATE bake_haus_orders SET
+       mon_locked_qty = ?,
+       wed_locked_qty = ?,
+       fri_locked_qty = ?
+     WHERE week_start_iso = ? AND store_label = ? AND item_name = ?`,
   );
   const insertLock = db.prepare(
-    `INSERT INTO bake_haus_week_locks (week_start_iso, mon_locked_at, locked_by)
-     VALUES (?, ?, ?)
+    `INSERT INTO bake_haus_week_locks (week_start_iso, mon_locked_at, locked_by, lock_source)
+     VALUES (?, ?, ?, ?)
      ON CONFLICT(week_start_iso) DO UPDATE SET
        mon_locked_at = excluded.mon_locked_at,
-       locked_by = COALESCE(excluded.locked_by, bake_haus_week_locks.locked_by)`,
+       locked_by = COALESCE(excluded.locked_by, bake_haus_week_locks.locked_by),
+       lock_source = excluded.lock_source`,
   );
 
+  const lockedAt = Date.now();
   const txn = db.transaction(() => {
     for (const r of rows) {
       const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
       const netQty = Math.max(0, r.weekly_qty - onHand);
-      const split = splitForDeliveries(netQty, null);
-      updateRow.run(split.mon, r.week_start_iso, r.store_label, r.item_name);
+      const catEntry = catalogByName.get(r.item_name);
+      const includeMonday = catEntry?.includeMonday ?? true;
+      const prioritizeEarly = onHand === 0 && netQty > 0;
+      // Preserve any value that's already been snapshotted — locks
+      // are additive, not destructive. A Mon-only legacy lock keeps
+      // its Mon qty when the week-wide lock fires.
+      const split = splitForDeliveries(netQty, null, includeMonday, prioritizeEarly);
+      const monSnap = r.mon_locked_qty != null
+        ? r.mon_locked_qty
+        : (includeMonday ? split.mon : 0);
+      const wedSnap = r.wed_locked_qty != null ? r.wed_locked_qty : split.wed;
+      const friSnap = r.fri_locked_qty != null ? r.fri_locked_qty : split.fri;
+      updateRow.run(monSnap, wedSnap, friSnap, r.week_start_iso, r.store_label, r.item_name);
     }
-    insertLock.run(weekStartIso, Date.now(), lockedBy);
+    insertLock.run(weekStartIso, lockedAt, lockedBy, source);
   });
   txn();
+
+  return { rowsSnapshotted: rows.length, mode: useReconstruction ? 'reconstructed' : 'live' };
 }
 
-export function unlockWeekMonday(weekStartIso: string): void {
+export function unlockWeek(weekStartIso: string): void {
   db.prepare('DELETE FROM bake_haus_week_locks WHERE week_start_iso = ?').run(weekStartIso);
-  // Note: mon_locked_qty per-row snapshots are intentionally NOT
-  // cleared on unlock. They represent the baseline at the last
-  // non-locking save; they'll be refreshed on the next non-locking
-  // save (via snapshotMonForStoreWeek).
+  // Clear per-row snapshots so the next lock captures fresh values
+  // (otherwise stale Wed/Fri qtys from an earlier lock would carry
+  // forward and we'd snapshot pre-lock state on the next freeze).
+  db.prepare(
+    `UPDATE bake_haus_orders
+        SET mon_locked_qty = NULL,
+            wed_locked_qty = NULL,
+            fri_locked_qty = NULL
+      WHERE week_start_iso = ?`,
+  ).run(weekStartIso);
+}
+
+/** Returns true when the week is fully locked. Cheap — single index lookup. */
+export function isWeekLocked(weekStartIso: string): boolean {
+  const row = db.prepare(
+    'SELECT 1 FROM bake_haus_week_locks WHERE week_start_iso = ? LIMIT 1',
+  ).get(weekStartIso);
+  return !!row;
+}
+
+/** Allowlist gate for unlock + post-lock edits. Reads
+ *  BAKE_HAUS_UNLOCK_EMAILS (comma-separated) and accepts admins listed
+ *  in ADMIN_EMAILS as a backstop. Comparison is case-insensitive
+ *  because email entry in the wild is inconsistent. */
+export function isUserAllowedToUnlock(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const target = email.trim().toLowerCase();
+  if (!target) return false;
+  const allowlist = (process.env.BAKE_HAUS_UNLOCK_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (allowlist.includes(target)) return true;
+  const adminBackstop = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return adminBackstop.includes(target);
+}
+
+/** Per-store, per-item inventory at a past timestamp, reconstructed
+ *  from current Dripos on-hand + units sold between `asOfMs` and now.
+ *  Used by `lockWeek` so a mid-week manual lock captures last-night's
+ *  state instead of today's (post-customer-traffic) state.
+ *
+ *  Sales data comes from Dripos /report/productsales for the
+ *  [asOfMs, now] window. Item-name matching mirrors the live
+ *  inventory map: fuzzy token match for food (LINE_ITEM_NAME →
+ *  canonical name from BAKE_HAUS_ITEMS), exact ID match for syrups
+ *  (PRODUCT_ID → dripos_product_id). The returned shape is
+ *  API-compatible with `getBakeHausInventoryByStore`. */
+export async function reconstructOnHandAt(
+  asOfMs: number,
+): Promise<Record<string, Record<string, number>>> {
+  const live = await getBakeHausInventoryByStore();
+  const sales = await getBakeHausSalesByStoreSince(asOfMs);
+  const reconstructed: Record<string, Record<string, number>> = {};
+  for (const [storeLabel, byItem] of Object.entries(live)) {
+    reconstructed[storeLabel] = {};
+    for (const [itemName, currentOnHand] of Object.entries(byItem)) {
+      const soldSince = sales[storeLabel]?.[itemName] ?? 0;
+      reconstructed[storeLabel][itemName] = currentOnHand + soldSince;
+    }
+  }
+  return reconstructed;
+}
+
+/** Pull units sold per (store, canonical item name) for the time
+ *  window [sinceMs, now]. Aggregates across all platforms (POS,
+ *  Mobile, Web, Kiosk, etc.) and translates Dripos product names
+ *  to bake-haus catalog names using the same matchers as the
+ *  inventory map. Falls back to an empty map on Dripos failure
+ *  (no token, API error) — caller decides how to degrade. */
+async function getBakeHausSalesByStoreSince(
+  sinceMs: number,
+): Promise<Record<string, Record<string, number>>> {
+  const out: Record<string, Record<string, number>> = {};
+  for (const store of STORES) out[store.label] = {};
+
+  const syrups = listSyrups(false);
+  const syrupByDriposId = new Map<number, SyrupRow>();
+  for (const s of syrups) syrupByDriposId.set(s.driposProductId, s);
+
+  await Promise.all(
+    STORES.map(async (store) => {
+      try {
+        const rows = await fetchProductSales([store.locationId], sinceMs, Date.now());
+        // Aggregate ORDER_COUNT per LINE_ITEM_NAME for food and
+        // per PRODUCT_ID for syrups. Then map both into canonical
+        // bake-haus catalog names.
+        const byLineName = new Map<string, number>();
+        const byProductId = new Map<number, number>();
+        for (const r of rows) {
+          if (!Number.isFinite(r.ORDER_COUNT) || r.ORDER_COUNT <= 0) continue;
+          const lineKey = String(r.LINE_ITEM_NAME || '').trim();
+          if (lineKey) byLineName.set(lineKey, (byLineName.get(lineKey) ?? 0) + r.ORDER_COUNT);
+          const pid = Number(r.PRODUCT_ID);
+          if (Number.isFinite(pid)) byProductId.set(pid, (byProductId.get(pid) ?? 0) + r.ORDER_COUNT);
+        }
+
+        // Food items: fuzzy match LINE_ITEM_NAME → catalog item name.
+        const lineCandidates = Array.from(byLineName.keys()).map((name) => ({ NAME: name, ARCHIVED: 0 }));
+        for (const item of BAKE_HAUS_ITEMS) {
+          const matched = findProductForCatalogItem(item, lineCandidates);
+          if (matched) {
+            const units = byLineName.get(matched.NAME) ?? 0;
+            if (units > 0) out[store.label][item.name] = (out[store.label][item.name] ?? 0) + units;
+          }
+        }
+        // Syrups: exact PRODUCT_ID match.
+        for (const [pid, units] of byProductId.entries()) {
+          const syrup = syrupByDriposId.get(pid);
+          if (!syrup) continue;
+          out[store.label][syrup.displayName] = (out[store.label][syrup.displayName] ?? 0) + units;
+        }
+      } catch (err) {
+        console.warn(
+          `[bake-haus] sales-since-${sinceMs} fetch for ${store.label} failed:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }),
+  );
+  return out;
+}
+
+// ── Backwards-compat shims for the existing Mon-only lock routes ─────
+// `lockWeekMonday` and `unlockWeekMonday` delegate to the new week-wide
+// functions so the existing `/lock-monday` endpoint keeps working until
+// the frontend deploys. New code should call `lockWeek` / `unlockWeek`
+// directly.
+export async function lockWeekMonday(
+  weekStartIso: string,
+  lockedBy: string | null = null,
+): Promise<void> {
+  await lockWeek(weekStartIso, lockedBy, 'manual', null);
+}
+export function unlockWeekMonday(weekStartIso: string): void {
+  unlockWeek(weekStartIso);
 }
 
 /** Snapshot each row's current Mon qty into mon_locked_qty for one

@@ -11,8 +11,19 @@ interface User {
   role: string;
 }
 
+interface Permissions {
+  /** True when the current user is allowed to unlock a Bake Haus week
+   *  and edit qtys after the Monday-night auto-lock. Driven by the
+   *  server's BAKE_HAUS_UNLOCK_EMAILS env (Chef Maggie + backup admin
+   *  emails). Used by the Bake Haus UI to show the Unlock button. */
+  canUnlockBakeHaus: boolean;
+}
+
+const DEFAULT_PERMISSIONS: Permissions = { canUnlockBakeHaus: false };
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
+  const [permissions, setPermissions] = useState<Permissions>(DEFAULT_PERMISSIONS);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,7 +39,10 @@ export function useAuth() {
     }
 
     api.get('/api/auth/me')
-      .then(data => setUser(data.user))
+      .then(data => {
+        setUser(data.user);
+        if (data.permissions) setPermissions(data.permissions);
+      })
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
@@ -44,5 +58,5 @@ export function useAuth() {
     setUser(null);
   };
 
-  return { user, loading, logout };
+  return { user, permissions, loading, logout };
 }

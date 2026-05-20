@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useAuth } from '../hooks/useAuth';
 
 interface OrderRow {
   weekStartIso: string;
@@ -11,6 +12,8 @@ interface OrderRow {
   netQty: number;
   delivery: { mon: number; wed: number; fri: number };
   monLockedQty: number | null;
+  wedLockedQty: number | null;
+  friLockedQty: number | null;
   category: 'food' | 'syrup-sauce' | 'custom';
   includeMonday: boolean;
 }
@@ -45,6 +48,13 @@ interface WeekReport {
   inventoryByStore: Record<string, Record<string, number>>;
   inventoryFetchedAt: number;
   monLock: { lockedAt: number; lockedBy: string | null } | null;
+  weekLocked: boolean;
+  dayLocks: {
+    mon: { lockedAt: number; lockedBy: string | null } | null;
+    wed: { lockedAt: number; lockedBy: string | null } | null;
+    fri: { lockedAt: number; lockedBy: string | null } | null;
+  };
+  lockSource: 'manual' | 'auto' | null;
 }
 
 interface CatalogItem {
@@ -101,7 +111,15 @@ function shiftWeeks(weekIso: string, weeks: number): string {
 
 export default function BakeHaus() {
   const isMobile = useIsMobile();
+  const { permissions } = useAuth();
+  const canUnlock = permissions.canUnlockBakeHaus;
   const [tab, setTab] = useState<Tab>('current');
+  // When set, the locked-edit modal is showing — fired by a 403 from
+  // any qty-mutating endpoint while the week is locked. Cleared on
+  // dismiss. Carries the message the server sent so the wording
+  // stays in sync with whatever Chef Maggie's allowlist says.
+  const [lockedEditMsg, setLockedEditMsg] = useState<string | null>(null);
+  const [weekLockBusy, setWeekLockBusy] = useState(false);
   const [weekIso, setWeekIso] = useState<string>(isoMondayOf(new Date()));
   const [report, setReport] = useState<WeekReport | null>(null);
   const [stores, setStores] = useState<string[]>(['G1', 'G2', 'G3', 'G4']);
@@ -203,6 +221,63 @@ export default function BakeHaus() {
     }
   };
 
+  /** Lock the entire week's deliveries (Mon/Wed/Fri). When called
+   *  mid-week, `useLastNightData` reconstructs Tue-night inventory
+   *  by adding today's Dripos sales back to current on-hand — so the
+   *  lock snapshot reflects what Chef Maggie planned production
+   *  against, not the live mid-Wednesday number. */
+  const lockWeekDeliveries = async (useLastNightData: boolean): Promise<void> => {
+    setWeekLockBusy(true);
+    setError(null);
+    try {
+      const asOfMs = useLastNightData
+        ? new Date(new Date().setHours(0, 0, 0, 0)).getTime() - 1  // 23:59:59.999 yesterday local
+        : null;
+      const r = await fetch('/api/bake-haus/lock-week', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ week: weekIso, asOfMs }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.message || body.error || 'Lock failed');
+      await loadWeek(weekIso);
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      setWeekLockBusy(false);
+    }
+  };
+
+  /** Clear the week-wide lock. Allowlist-gated on the server; the
+   *  button this calls is hidden for users without permission. */
+  const unlockWeekDeliveries = async (): Promise<void> => {
+    setWeekLockBusy(true);
+    setError(null);
+    try {
+      const r = await fetch('/api/bake-haus/lock-week', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ week: weekIso }),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        // The server returns 403 with a user-facing message when a
+        // non-allowlist user tries to unlock — surface it as the
+        // locked-edit modal too so the wording stays consistent.
+        if (r.status === 403) {
+          setLockedEditMsg(body.message || 'Only Chef Maggie can unlock this week.');
+          return;
+        }
+        throw new Error(body.message || body.error || 'Unlock failed');
+      }
+      await loadWeek(weekIso);
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      setWeekLockBusy(false);
+    }
+  };
+
   /** Click handler for the per-store Save button. If this store has
    *  already been saved this week, opens the update confirm modal
    *  (so the user picks Wed+Fri-only vs. update-everything). First-time
@@ -269,6 +344,15 @@ export default function BakeHaus() {
       });
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
+        // 403 = the week is locked and the current user isn't on the
+        // unlock allowlist. Pop the explanatory modal instead of a
+        // raw error toast; also refresh so the cell snaps back to
+        // the locked value the user just tried to override.
+        if (r.status === 403 && body.error === 'week_locked') {
+          setLockedEditMsg(body.message || 'Bake quantities for this week are locked.');
+          await loadWeek(weekIso);
+          return;
+        }
         throw new Error(body.message || body.error || 'Save failed');
       }
       await loadWeek(weekIso);
@@ -284,7 +368,15 @@ export default function BakeHaus() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ week: weekIso, store, item }),
       });
-      if (!r.ok) throw new Error('delete_failed');
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        if (r.status === 403 && body.error === 'week_locked') {
+          setLockedEditMsg(body.message || 'Bake quantities for this week are locked.');
+          await loadWeek(weekIso);
+          return;
+        }
+        throw new Error('delete_failed');
+      }
       await loadWeek(weekIso);
     } catch (err: any) {
       setError(err.message || String(err));
@@ -446,27 +538,95 @@ export default function BakeHaus() {
             catalog={catalog}
           />
 
-          {/* Read-only Monday lock status — the lock itself is now
-              toggled from the per-store Save dialog (Wed+Fri only
-              vs. update everything). This banner just surfaces the
-              current state so it's visible on the schedule tab. */}
-          {report.monLock && (
+          {/* Week-lock banner. When locked, all three delivery days are
+              frozen and qty edits are rejected for everyone except
+              users on the bakery email allowlist. When unlocked, the
+              banner shows a "Lock this week" button so Maggie can
+              manually freeze if she's ready before Mon 11:59pm CT
+              (when the cron auto-fires). */}
+          {report.weekLocked && report.monLock && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '10px 14px', borderRadius: 10, marginTop: 14,
               background: 'rgba(202, 138, 4, 0.07)',
               border: '1px solid rgba(202, 138, 4, 0.25)',
               fontSize: 13,
+              flexWrap: 'wrap',
             }}>
-              <strong style={{ color: '#a16207' }}>🔒 Monday delivery locked</strong>
+              <strong style={{ color: '#a16207' }}>🔒 Week locked</strong>
               <span style={{ color: 'rgba(0,0,0,0.55)' }}>
-                locked {new Date(report.monLock.lockedAt).toLocaleString([], {
+                Mon/Wed/Fri qtys frozen
+                {report.lockSource === 'auto' && <> · auto-lock fired Mon 11:59pm</>}
+                {report.lockSource === 'manual' && report.monLock.lockedBy && <> by {report.monLock.lockedBy}</>}
+                {' · '}
+                {new Date(report.monLock.lockedAt).toLocaleString([], {
                   month: 'short', day: 'numeric',
                   hour: 'numeric', minute: '2-digit',
                 })}
-                {report.monLock.lockedBy && <> by {report.monLock.lockedBy}</>}
-                . Qty edits flow into <strong>Wed + Fri</strong> only.
               </span>
+              {canUnlock && (
+                <button
+                  onClick={() => {
+                    if (confirm('Unlock this week and allow qty edits again? Kitchen will need to adjust production if numbers change.')) {
+                      void unlockWeekDeliveries();
+                    }
+                  }}
+                  disabled={weekLockBusy}
+                  style={{
+                    marginLeft: 'auto',
+                    padding: '4px 10px', borderRadius: 6,
+                    border: '1px solid rgba(202, 138, 4, 0.4)',
+                    background: '#fff',
+                    color: '#a16207',
+                    fontSize: 12, fontWeight: 600,
+                    cursor: weekLockBusy ? 'wait' : 'pointer',
+                  }}
+                >
+                  {weekLockBusy ? 'Unlocking…' : 'Unlock'}
+                </button>
+              )}
+            </div>
+          )}
+          {!report.weekLocked && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 14px', borderRadius: 10, marginTop: 14,
+              background: 'rgba(0,0,0,0.02)',
+              border: '1px solid rgba(0,0,0,0.08)',
+              fontSize: 13,
+              flexWrap: 'wrap',
+            }}>
+              <span style={{ color: 'rgba(0,0,0,0.55)' }}>
+                Deliveries are <strong>live</strong> — qtys recompute as inventory changes.
+                Auto-locks Monday 11:59pm CT.
+              </span>
+              <button
+                onClick={() => {
+                  // Mid-week manual lock — reconstruct last-night's
+                  // inventory so we don't freeze post-customer-traffic
+                  // numbers. Mondays use live state.
+                  const today = new Date().getDay();
+                  const useLastNight = today !== 1; // not Monday
+                  const confirmMsg = useLastNight
+                    ? "Lock this week's deliveries using last night's inventory + orders?\n\nMon/Wed/Fri qtys will freeze. Today's sales won't affect what gets baked."
+                    : "Lock this week's deliveries now?\n\nMon/Wed/Fri qtys will freeze at their current values.";
+                  if (confirm(confirmMsg)) {
+                    void lockWeekDeliveries(useLastNight);
+                  }
+                }}
+                disabled={weekLockBusy}
+                style={{
+                  marginLeft: 'auto',
+                  padding: '6px 14px', borderRadius: 8,
+                  border: '1px solid rgba(0,0,0,0.12)',
+                  background: '#1a1a1a',
+                  color: '#fff',
+                  fontSize: 12, fontWeight: 600,
+                  cursor: weekLockBusy ? 'wait' : 'pointer',
+                }}
+              >
+                {weekLockBusy ? 'Locking…' : 'Lock this week'}
+              </button>
             </div>
           )}
 
@@ -548,6 +708,17 @@ export default function BakeHaus() {
         />
       )}
 
+      {/* Locked-edit explainer modal — fires when any qty-mutating
+          endpoint returns 403 (week is locked + user not on the
+          unlock allowlist). The wording comes from the server so it
+          stays in sync with the current allowlist setup. */}
+      {lockedEditMsg && (
+        <LockedEditModal
+          message={lockedEditMsg}
+          onClose={() => setLockedEditMsg(null)}
+        />
+      )}
+
       {/* Print-only layout. Hidden on screen, rendered when the user
           hits Export PDF and the browser print dialog kicks in. */}
       {report && (
@@ -559,6 +730,56 @@ export default function BakeHaus() {
           catalog={catalog}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Locked-edit modal ────────────────────────────────────────────────
+// Shown when someone who isn't on the bake-haus unlock allowlist tries
+// to change a qty after the Monday-night lock. The message is whatever
+// the server returned (so the contact email stays driven by env, not
+// hardcoded in the client).
+function LockedEditModal({ message, onClose }: { message: string; onClose: () => void }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: 'rgba(0,0,0,0.4)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 14,
+          padding: '24px 26px',
+          maxWidth: 440,
+          width: '100%',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <span style={{ fontSize: 20 }}>🔒</span>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>This week is locked</h3>
+        </div>
+        <p style={{
+          fontSize: 14, lineHeight: 1.55, color: 'rgba(0,0,0,0.65)',
+          margin: '8px 0 18px',
+        }}>{message}</p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '8px 18px', borderRadius: 8,
+              border: 0, background: '#1a1a1a', color: '#fff',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            }}
+          >Got it</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1610,8 +1831,8 @@ function CartRowEditor({
           </div>
           <div style={{ flex: 1, display: 'flex', gap: 6, minWidth: 0 }}>
             {dayCell('Mon', row?.delivery.mon ?? 0, row?.monLockedQty != null)}
-            {dayCell('Wed', row?.delivery.wed ?? 0)}
-            {dayCell('Fri', row?.delivery.fri ?? 0)}
+            {dayCell('Wed', row?.delivery.wed ?? 0, row?.wedLockedQty != null)}
+            {dayCell('Fri', row?.delivery.fri ?? 0, row?.friLockedQty != null)}
           </div>
         </div>
       )}

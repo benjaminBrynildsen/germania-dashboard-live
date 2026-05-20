@@ -868,7 +868,7 @@ export interface PlatformSalesRow {
   nonPosPct: number | null;
 }
 
-interface ProductSalesRow {
+export interface ProductSalesRow {
   LINE_ITEM_TYPE: string;
   LINE_ITEM_NAME: string;
   LOCATION_ID: number;
@@ -891,7 +891,7 @@ const PRODUCT_SALES_PLATFORMS: Array<{ name: string; third: boolean }> = [
   { name: 'THIRD', third: true },
 ];
 
-async function fetchProductSales(
+export async function fetchProductSales(
   locationIds: number[],
   startMs: number,
   endMs: number,

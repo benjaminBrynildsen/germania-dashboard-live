@@ -13,12 +13,16 @@ import {
   getCatalogImageMap,
   getMergedCatalog,
   getWeekReport,
+  isUserAllowedToUnlock,
+  isWeekLocked,
   listSavedOrders,
   listSyrups,
+  lockWeek,
   lockWeekMonday,
   markOrderSaved,
   mondayOfWeek,
   snapshotMonForStoreWeek,
+  unlockWeek,
   unlockWeekMonday,
   unmarkOrderSaved,
   updateSyrup,
@@ -172,6 +176,17 @@ router.put('/bake-haus/item', requireAuth, (req: AuthRequest, res: Response) => 
     res.status(400).json({ error: 'invalid_item' });
     return;
   }
+  // Locked-week gate: once the week is locked, only Chef Maggie (and
+  // emails listed in BAKE_HAUS_UNLOCK_EMAILS / ADMIN_EMAILS) can edit
+  // quantities. Everyone else gets a 403 with the user-facing message
+  // the frontend turns into a modal.
+  if (isWeekLocked(week) && !isUserAllowedToUnlock(req.user?.email ?? null)) {
+    res.status(403).json({
+      error: 'week_locked',
+      message: 'Bake quantities for this week were locked Monday night. Contact Chef Maggie to request a change.',
+    });
+    return;
+  }
   const weeklyQty = Number(rawQty);
   if (!Number.isFinite(weeklyQty) || weeklyQty < 0 || weeklyQty > 100000) {
     res.status(400).json({ error: 'invalid_qty', message: 'Must be a non-negative number under 100000.' });
@@ -205,12 +220,18 @@ router.post('/bake-haus/save', requireAuth, async (req: AuthRequest, res: Respon
     res.status(400).json({ error: 'invalid_store' });
     return;
   }
+  // The "saved" marker is a per-store finalization signal that doesn't
+  // touch qtys, so the lock allowlist is enforced at the per-item PUT
+  // (where edits actually happen) rather than here. Saving an unchanged
+  // order after lock is harmless and keeps the saved-orders tab accurate.
   const savedBy = req.user?.name ?? null;
   // Snapshot the per-row Mon qty before marking saved, so future
   // "Lock Mon" picks have this baseline to fall back to. Only fired
   // on baseline saves (initial save + "update everything") — not
   // when the user is actively asking to LOCK Mon at the current value.
-  if (snapshotMon) {
+  // Skip the snapshot when the week is already locked — the per-row
+  // *_locked_qty values are authoritative and shouldn't be overwritten.
+  if (snapshotMon && !isWeekLocked(week)) {
     await snapshotMonForStoreWeek(week, store);
   }
   markOrderSaved(week, store, savedBy);
@@ -233,8 +254,63 @@ router.delete('/bake-haus/save', requireAuth, (req: AuthRequest, res: Response) 
 });
 
 /**
- * Lock the week's Monday delivery — snapshots each row's current
- * Mon qty so subsequent edits flow into Wed/Fri only. Idempotent.
+ * Lock the week's deliveries — snapshots each row's current Mon/Wed/Fri
+ * split into the per-day `*_locked_qty` columns. After this, edits are
+ * blocked for users not on the unlock allowlist (BAKE_HAUS_UNLOCK_EMAILS).
+ *
+ * Body params:
+ *   week: YYYY-MM-DD (required) — Monday of the week to lock
+ *   asOfMs: number (optional) — when set and in the past, reconstructs
+ *           inventory at that timestamp using Dripos sales between asOfMs
+ *           and now, so a mid-week lock captures last-night's state
+ *           instead of post-customer-traffic state. Omit for live lock.
+ *   source: 'manual' | 'auto' (default 'manual')
+ *
+ * Idempotent: re-locking a locked week is safe and updates the lock
+ * timestamp. Per-row snapshots are preserved on re-lock.
+ */
+router.post('/bake-haus/lock-week', requireAuth, async (req: AuthRequest, res: Response) => {
+  const week = String(req.body?.week ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
+    res.status(400).json({ error: 'invalid_week' });
+    return;
+  }
+  const asOfMs = req.body?.asOfMs;
+  const asOf = (typeof asOfMs === 'number' && Number.isFinite(asOfMs) && asOfMs > 0) ? asOfMs : null;
+  const source = req.body?.source === 'auto' ? 'auto' : 'manual';
+  try {
+    const result = await lockWeek(week, req.user?.name ?? null, source, asOf);
+    res.json({ ok: true, lockedAt: Date.now(), ...result });
+  } catch (err) {
+    console.error('[bake-haus-lock-week] failed:', err);
+    res.status(500).json({
+      error: 'lock_failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+router.delete('/bake-haus/lock-week', requireAuth, (req: AuthRequest, res: Response) => {
+  const week = String(req.body?.week ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
+    res.status(400).json({ error: 'invalid_week' });
+    return;
+  }
+  if (!isUserAllowedToUnlock(req.user?.email ?? null)) {
+    res.status(403).json({
+      error: 'unlock_not_allowed',
+      message: 'Only the bakery email can unlock a week. Contact Chef Maggie if you need a change.',
+    });
+    return;
+  }
+  unlockWeek(week);
+  res.json({ ok: true });
+});
+
+/**
+ * Legacy Mon-only lock — preserved so existing frontends keep working
+ * during deploy. New code should call /lock-week instead. Delegates
+ * to lockWeek under the hood (snapshots all three days, not just Mon).
  */
 router.post('/bake-haus/lock-monday', requireAuth, async (req: AuthRequest, res: Response) => {
   const week = String(req.body?.week ?? '').trim();
@@ -252,6 +328,13 @@ router.delete('/bake-haus/lock-monday', requireAuth, (req: AuthRequest, res: Res
     res.status(400).json({ error: 'invalid_week' });
     return;
   }
+  if (!isUserAllowedToUnlock(req.user?.email ?? null)) {
+    res.status(403).json({
+      error: 'unlock_not_allowed',
+      message: 'Only the bakery email can unlock a week.',
+    });
+    return;
+  }
   unlockWeekMonday(week);
   res.json({ ok: true });
 });
@@ -262,6 +345,13 @@ router.delete('/bake-haus/item', requireAuth, (req: AuthRequest, res: Response) 
   const item = String(req.body?.item ?? '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week) || !STORES.some((s) => s.label === store) || !item) {
     res.status(400).json({ error: 'invalid_request' });
+    return;
+  }
+  if (isWeekLocked(week) && !isUserAllowedToUnlock(req.user?.email ?? null)) {
+    res.status(403).json({
+      error: 'week_locked',
+      message: 'Bake quantities for this week were locked Monday night. Contact Chef Maggie to request a change.',
+    });
     return;
   }
   deleteOrderItem(week, store, item);
