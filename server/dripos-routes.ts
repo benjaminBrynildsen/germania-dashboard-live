@@ -4,6 +4,7 @@
  */
 import { Router, Response } from 'express';
 import { requireAuth, AuthRequest } from './auth.js';
+import { requireRole } from './auth.js';
 import {
   AuthExpired,
   NoToken,
@@ -11,6 +12,7 @@ import {
   buildHiringNeedsReport,
   buildReport,
   buildTicketTimeReport,
+  callApi,
   clearToken,
   clearWeekCache,
   clearWeeklyCache,
@@ -275,6 +277,58 @@ router.post('/dripos/sync-daily', requireAuth, async (req: AuthRequest, res: Res
     console.error('[dripos-sync-daily] failed:', err);
     res.status(500).json({
       error: 'sync_failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// ── Dripos API probe (admin-only) ──────────────────────────────────
+// One-shot debugging endpoints for figuring out whether a given Dripos
+// path returns the data we want. The current driver of this is the
+// pastry/drink co-occurrence analysis Ben asked for 2026-05-20 —
+// we know aggregated endpoints don't expose ticket-level joins, so
+// we're checking whether patron-detail or an order-detail path does.
+//
+// Each probe just calls Dripos and dumps the raw response. NEVER use
+// these in production traffic — they're diagnostic only and bypass
+// the cache layer.
+router.get('/dripos/probe/:path(*)', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response) => {
+  const path = '/' + req.params.path;
+  const locationId = req.query.locationId ? Number(req.query.locationId) : STORES[0].locationId;
+  try {
+    const body = await callApi<unknown>(path, { locationId });
+    res.json({ ok: true, path, locationId, response: body });
+  } catch (err) {
+    if (err instanceof NoToken || err instanceof AuthExpired) {
+      res.status(401).json({ error: 'dripos_auth_required', message: err.message });
+      return;
+    }
+    res.status(500).json({
+      error: 'probe_failed',
+      path,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+router.post('/dripos/probe/:path(*)', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response) => {
+  const path = '/' + req.params.path;
+  const locationId = Number(req.body?.locationId ?? STORES[0].locationId);
+  try {
+    const body = await callApi<unknown>(path, {
+      method: 'POST',
+      locationId,
+      body: req.body?.body ?? {},
+    });
+    res.json({ ok: true, path, locationId, response: body });
+  } catch (err) {
+    if (err instanceof NoToken || err instanceof AuthExpired) {
+      res.status(401).json({ error: 'dripos_auth_required', message: err.message });
+      return;
+    }
+    res.status(500).json({
+      error: 'probe_failed',
+      path,
       message: err instanceof Error ? err.message : String(err),
     });
   }
