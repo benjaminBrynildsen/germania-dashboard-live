@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useAuth } from '../hooks/useAuth';
 import { TICKET_WEEKS } from '../data/ticketData';
 
 const TICKET_HOURS = ['6AM','7AM','8AM','9AM','10AM','11AM','12PM','1PM','2PM','3PM','4PM','5PM'];
@@ -378,14 +379,20 @@ interface ReviewsResponse {
   reviews: ReviewRow[];
   distribution: { stars: number; count: number }[];
   source?: string;
+  lastSyncedAt?: string | null;
+  location?: { googlePlaceId?: string | null };
 }
 
 function ReviewsTab({ locId }: { locId: string }) {
+  const { user } = useAuth();
+  const canSync = user?.role === 'admin' || user?.role === 'manager';
   const [data, setData] = useState<ReviewsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadReviews = () => {
     setLoading(true);
     setError(null);
     fetch(`/api/locations/${locId}/reviews`, { cache: 'no-store' })
@@ -396,7 +403,35 @@ function ReviewsTab({ locId }: { locId: string }) {
       })
       .catch(e => setError(e.message || String(e)))
       .finally(() => setLoading(false));
-  }, [locId]);
+  };
+
+  useEffect(loadReviews, [locId]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const r = await fetch(`/api/locations/${locId}/sync-reviews`, {
+        method: 'POST',
+        cache: 'no-store',
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.message || j.error || `HTTP ${r.status}`);
+      // Server returns { synced: N, error?: string }
+      if (j.error) {
+        setSyncMsg(`Sync error: ${j.error}`);
+      } else {
+        setSyncMsg(`Synced ${j.synced} review${j.synced === 1 ? '' : 's'} from Google.`);
+      }
+      // Reload the reviews list whether or not the sync wrote new rows —
+      // lastSyncedAt always updates if at least one upsert touched the table.
+      loadReviews();
+    } catch (e: any) {
+      setSyncMsg(`Sync failed: ${e.message || String(e)}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   if (loading) return <SectionLoading label="Loading reviews…" />;
   if (error) return <SectionError msg={error} />;
@@ -407,6 +442,59 @@ function ReviewsTab({ locId }: { locId: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Sync status + manual trigger (admin-only) */}
+      <div style={{
+        background: 'rgba(255,255,255,0.80)',
+        border: '1px solid rgba(0,0,0,0.07)',
+        backdropFilter: 'blur(20px)',
+        borderRadius: 12,
+        padding: '12px 18px',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>
+            {data.lastSyncedAt ? (
+              <>Last synced from Google: <strong style={{ color: '#111' }}>{fmtTimeAgo(data.lastSyncedAt)}</strong></>
+            ) : (
+              <span style={{ color: 'rgba(0,0,0,0.4)' }}>Never synced from Google (demo data)</span>
+            )}
+            {data.location?.googlePlaceId == null && (
+              <span style={{ marginLeft: 10, padding: '2px 8px', borderRadius: 6, background: '#fef3c7', color: '#92400e', fontSize: 10, fontWeight: 700 }}>NO PLACE_ID</span>
+            )}
+          </div>
+          {canSync && (
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 8,
+                border: '1px solid rgba(0,0,0,0.12)',
+                background: syncing ? 'rgba(0,0,0,0.04)' : '#111',
+                color: syncing ? 'rgba(0,0,0,0.4)' : '#fff',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: syncing ? 'wait' : 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              {syncing ? 'Syncing…' : 'Sync now'}
+            </button>
+          )}
+        </div>
+        {syncMsg && (
+          <div style={{ fontSize: 12, color: syncMsg.startsWith('Sync error') || syncMsg.startsWith('Sync failed') ? '#b91c1c' : '#166534' }}>
+            {syncMsg}
+          </div>
+        )}
+        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', lineHeight: 1.5 }}>
+          Google Places API returns the <strong>5 most recent reviews</strong> per location per call (hard cap). New reviews append to the DB on each sync; old ones are kept.
+        </div>
+      </div>
+
       {/* Distribution */}
       <div style={{
         background: 'rgba(255,255,255,0.80)',
@@ -626,6 +714,24 @@ const tdStyleRight: React.CSSProperties = { ...tdStyle, textAlign: 'right', font
 
 function fmtMoney(cents: number): string {
   return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+function fmtTimeAgo(dateStr: string): string {
+  // The fetched_at column is SQLite's CURRENT_TIMESTAMP, stored without a
+  // timezone marker — it's UTC by sqlite default. Parse defensively so older
+  // rows that may have been written with various formats still work.
+  const ts = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr.replace(' ', 'T') + 'Z');
+  const ms = Date.now() - ts.getTime();
+  if (!Number.isFinite(ms) || ms < 0) return dateStr;
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return ts.toLocaleDateString();
 }
 
 function fmtTenure(weeks: number | null): string {

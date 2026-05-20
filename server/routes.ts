@@ -353,6 +353,13 @@ router.get('/locations/:id/reviews', requireAuth, (req: AuthRequest, res: Respon
     { month: 'Mar', avg: Math.round((rating + 0.1) * 10) / 10, count: 12 },
   ];
 
+  // Most-recent fetched_at across this location's review rows tells us when
+  // the daily sync last successfully touched any of these. NULL means demo
+  // mode or the row never had a sync timestamp written (legacy).
+  const lastSync = db.prepare(
+    'SELECT MAX(fetched_at) as ts FROM google_reviews WHERE location_id = ?'
+  ).get(req.params.id) as { ts: string | null } | undefined;
+
   res.json({
     location: {
       id: loc.id,
@@ -361,11 +368,13 @@ router.get('/locations/:id/reviews', requireAuth, (req: AuthRequest, res: Respon
       googleRating: loc.google_rating,
       reviewCount: loc.review_count,
       googleMapsUrl: loc.google_maps_url,
+      googlePlaceId: loc.google_place_id,
     },
     reviews,
     distribution,
     monthlyAvg,
     source: dbReviews.length > 0 ? 'google_places_api' : 'demo',
+    lastSyncedAt: lastSync?.ts ?? null,
   });
 });
 
