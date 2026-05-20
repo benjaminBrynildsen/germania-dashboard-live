@@ -2175,8 +2175,11 @@ function WeeklyTotalsCard({
 /** Off-screen container that renders the delivery schedule in a
  *  print-friendly layout. Hidden during normal browsing; the
  *  @media print rules in the embedded <style> tag take over the
- *  page when the user triggers window.print(), giving Maggie a
- *  one-day-per-page PDF with a summary cover page on top. */
+ *  page when the user triggers window.print().
+ *
+ *  Output: one page per delivery day (Mon/Wed/Fri). Each page carries
+ *  a small "week at a glance" header with totals + WoW delta so Maggie
+ *  has context without a separate cover page that overflowed. */
 function PrintableSchedule({
   weekIso, report, prevReport, stores, catalog,
 }: {
@@ -2186,47 +2189,28 @@ function PrintableSchedule({
   stores: string[];
   catalog: CatalogItem[];
 }) {
-  // Aggregate this week + last week into per-item totals so the
-  // cover page can show a comparison column.
-  const summary = useMemo(() => {
+  // Week-level totals used in each day-page header banner.
+  const totals = useMemo(() => {
     const sum = (ds: WeekReport['deliverySummary']) => {
-      const m = new Map<string, number>();
       let grand = 0;
       for (const day of ['mon', 'wed', 'fri'] as const) {
         const dayMap = ds[day] ?? {};
-        for (const [item, perStore] of Object.entries(dayMap)) {
-          for (const q of Object.values(perStore)) {
-            m.set(item, (m.get(item) ?? 0) + q);
-            grand += q;
-          }
+        for (const perStore of Object.values(dayMap)) {
+          for (const q of Object.values(perStore)) grand += q;
         }
       }
-      return { byItem: m, grand };
+      return grand;
     };
     const cur = sum(report.deliverySummary);
     const prev = prevReport ? sum(prevReport.deliverySummary) : null;
-    const itemSet = new Set<string>([
-      ...cur.byItem.keys(),
-      ...(prev ? Array.from(prev.byItem.keys()) : []),
-    ]);
-    const rows = Array.from(itemSet).map((name) => ({
-      name,
-      cur:  cur.byItem.get(name)  ?? 0,
-      prev: prev?.byItem.get(name) ?? 0,
-    }));
-    rows.sort((a, b) => {
-      const ai = catalog.find((c) => c.name === a.name)?.sort ?? 1000;
-      const bi = catalog.find((c) => c.name === b.name)?.sort ?? 1000;
-      return ai - bi || a.name.localeCompare(b.name);
-    });
-    return { rows, curTotal: cur.grand, prevTotal: prev?.grand ?? 0, hasPrev: prev != null };
-  }, [report, prevReport, catalog]);
+    return { cur, prev, hasPrev: prev != null };
+  }, [report, prevReport]);
 
   const curRange = fmtDateRange(weekIso);
   const prevRange = fmtDateRange(shiftWeeks(weekIso, -1));
-  const deltaTotal = summary.curTotal - summary.prevTotal;
-  const deltaTotalPct = summary.prevTotal > 0
-    ? Math.round((deltaTotal / summary.prevTotal) * 100)
+  const deltaTotal = totals.cur - (totals.prev ?? 0);
+  const deltaTotalPct = totals.prev && totals.prev > 0
+    ? Math.round((deltaTotal / totals.prev) * 100)
     : null;
 
   return (
@@ -2282,90 +2266,10 @@ function PrintableSchedule({
         }
       `}</style>
 
-      {/* Cover page: summary + comparison */}
-      <div className="bh-print-page">
-        <div style={{ fontSize: '9pt', color: '#888', letterSpacing: '0.5pt', textTransform: 'uppercase' }}>
-          Bake Haus · Delivery schedule
-        </div>
-        <h1 className="bh-print-title">Week of {curRange}</h1>
-        <p className="bh-print-sub">
-          Production totals across all four stores and three delivery days.
-          {summary.hasPrev && <> Last week ({prevRange}) shown for comparison.</>}
-        </p>
-
-        <div className="bh-print-pillrow">
-          <div className="bh-print-pill">
-            This week
-            <strong>{summary.curTotal.toLocaleString()} units</strong>
-          </div>
-          {summary.hasPrev && (
-            <>
-              <div className="bh-print-pill">
-                Last week
-                <strong>{summary.prevTotal.toLocaleString()} units</strong>
-              </div>
-              <div className="bh-print-pill">
-                Δ vs last week
-                <strong className={
-                  deltaTotal > 0 ? 'bh-delta-up'
-                  : deltaTotal < 0 ? 'bh-delta-down'
-                  : 'bh-delta-flat'
-                }>
-                  {deltaTotal > 0 ? '+' : ''}{deltaTotal.toLocaleString()}
-                  {deltaTotalPct != null && (
-                    <> ({deltaTotal > 0 ? '+' : ''}{deltaTotalPct}%)</>
-                  )}
-                </strong>
-              </div>
-            </>
-          )}
-        </div>
-
-        <table className="bh-print-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th className="num">This week</th>
-              {summary.hasPrev && <th className="num">Last week</th>}
-              {summary.hasPrev && <th className="num">Δ</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {summary.rows.map((r) => {
-              const delta = r.cur - r.prev;
-              const cls = delta > 0 ? 'bh-delta-up' : delta < 0 ? 'bh-delta-down' : 'bh-delta-flat';
-              return (
-                <tr key={r.name}>
-                  <td>{r.name}</td>
-                  <td className="num">{r.cur > 0 ? r.cur.toLocaleString() : '—'}</td>
-                  {summary.hasPrev && (
-                    <td className="num" style={{ color: '#888' }}>
-                      {r.prev > 0 ? r.prev.toLocaleString() : '—'}
-                    </td>
-                  )}
-                  {summary.hasPrev && (
-                    <td className={`num ${cls}`}>
-                      {delta === 0 ? '—' : `${delta > 0 ? '+' : ''}${delta}`}
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-            <tr className="total">
-              <td>Total</td>
-              <td className="num">{summary.curTotal.toLocaleString()}</td>
-              {summary.hasPrev && <td className="num">{summary.prevTotal.toLocaleString()}</td>}
-              {summary.hasPrev && (
-                <td className={`num ${deltaTotal > 0 ? 'bh-delta-up' : deltaTotal < 0 ? 'bh-delta-down' : 'bh-delta-flat'}`}>
-                  {deltaTotal === 0 ? '—' : `${deltaTotal > 0 ? '+' : ''}${deltaTotal}`}
-                </td>
-              )}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* One page per delivery day. */}
+      {/* One page per delivery day. The week-level totals + WoW delta
+          ride along in each page's header so Maggie has context
+          without a separate cover sheet (which kept overflowing the
+          per-item comparison table onto a second page). */}
       {([
         { label: 'Monday',    data: report.deliverySummary.mon },
         { label: 'Wednesday', data: report.deliverySummary.wed },
@@ -2378,6 +2282,12 @@ function PrintableSchedule({
           stores={stores}
           catalog={catalog}
           weekRange={curRange}
+          weekTotal={totals.cur}
+          prevTotal={totals.prev}
+          hasPrev={totals.hasPrev}
+          prevRange={prevRange}
+          deltaTotal={deltaTotal}
+          deltaTotalPct={deltaTotalPct}
         />
       ))}
     </div>
@@ -2386,12 +2296,19 @@ function PrintableSchedule({
 
 function PrintableDayPage({
   day, items, stores, catalog, weekRange,
+  weekTotal, prevTotal, hasPrev, prevRange, deltaTotal, deltaTotalPct,
 }: {
   day: string;
   items: Record<string, Record<string, number>>;
   stores: string[];
   catalog: CatalogItem[];
   weekRange: string;
+  weekTotal: number;
+  prevTotal: number | null;
+  hasPrev: boolean;
+  prevRange: string;
+  deltaTotal: number;
+  deltaTotalPct: number | null;
 }) {
   const sortedItems = Object.keys(items).sort((a, b) => {
     const ai = catalog.find((c) => c.name === a)?.sort ?? 1000;
@@ -2414,10 +2331,41 @@ function PrintableDayPage({
   return (
     <div className="bh-print-page">
       <div style={{ fontSize: '9pt', color: '#888', letterSpacing: '0.5pt', textTransform: 'uppercase' }}>
-        Bake Haus · {weekRange}
+        Bake Haus · Week of {weekRange}
       </div>
       <h1 className="bh-print-title">{day} delivery</h1>
-      <p className="bh-print-sub">{grand.toLocaleString()} units total · {sortedItems.length} item{sortedItems.length === 1 ? '' : 's'}</p>
+      <p className="bh-print-sub">{grand.toLocaleString()} units to make for {day} · {sortedItems.length} item{sortedItems.length === 1 ? '' : 's'}</p>
+
+      {/* Week-at-a-glance banner — replaces the standalone cover page.
+          Keeps the WoW context in front of Maggie on every printed
+          day, so she's not flipping back to a summary sheet. */}
+      <div className="bh-print-pillrow">
+        <div className="bh-print-pill">
+          Week total
+          <strong>{weekTotal.toLocaleString()} units</strong>
+        </div>
+        {hasPrev && (
+          <>
+            <div className="bh-print-pill">
+              Last week ({prevRange})
+              <strong>{(prevTotal ?? 0).toLocaleString()} units</strong>
+            </div>
+            <div className="bh-print-pill">
+              Δ vs last week
+              <strong className={
+                deltaTotal > 0 ? 'bh-delta-up'
+                : deltaTotal < 0 ? 'bh-delta-down'
+                : 'bh-delta-flat'
+              }>
+                {deltaTotal > 0 ? '+' : ''}{deltaTotal.toLocaleString()}
+                {deltaTotalPct != null && (
+                  <> ({deltaTotal > 0 ? '+' : ''}{deltaTotalPct}%)</>
+                )}
+              </strong>
+            </div>
+          </>
+        )}
+      </div>
 
       {sortedItems.length === 0 ? (
         <p style={{ fontSize: '11pt', color: '#888', marginTop: '20pt' }}>
