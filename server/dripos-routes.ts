@@ -289,11 +289,17 @@ router.post('/dripos/sync-daily', requireAuth, async (req: AuthRequest, res: Res
 // we know aggregated endpoints don't expose ticket-level joins, so
 // we're checking whether patron-detail or an order-detail path does.
 //
-// Each probe just calls Dripos and dumps the raw response. NEVER use
-// these in production traffic — they're diagnostic only and bypass
-// the cache layer.
-router.get('/dripos/probe/:path(*)', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response) => {
-  const path = '/' + req.params.path;
+// Path is passed as a query param (`?path=/patron/123`) because Express
+// 5's wildcard params don't accept the legacy `:path(*)` syntax — this
+// also keeps the routing surface tiny. Diagnostic only; bypasses the
+// dripos cache layer.
+router.get('/dripos/probe', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response) => {
+  const rawPath = String(req.query.path ?? '').trim();
+  if (!rawPath) {
+    res.status(400).json({ error: 'path_required', hint: 'Pass ?path=/some/dripos/path' });
+    return;
+  }
+  const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
   const locationId = req.query.locationId ? Number(req.query.locationId) : STORES[0].locationId;
   try {
     const body = await callApi<unknown>(path, { locationId });
@@ -311,8 +317,13 @@ router.get('/dripos/probe/:path(*)', requireAuth, requireRole('admin'), async (r
   }
 });
 
-router.post('/dripos/probe/:path(*)', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response) => {
-  const path = '/' + req.params.path;
+router.post('/dripos/probe', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response) => {
+  const rawPath = String(req.body?.path ?? '').trim();
+  if (!rawPath) {
+    res.status(400).json({ error: 'path_required', hint: 'POST body { path: "/some/dripos/path", body: {...} }' });
+    return;
+  }
+  const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
   const locationId = Number(req.body?.locationId ?? STORES[0].locationId);
   try {
     const body = await callApi<unknown>(path, {
