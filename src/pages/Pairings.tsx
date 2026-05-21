@@ -44,6 +44,13 @@ interface SyncStatus {
   withDetails: number;
 }
 
+interface WeekStatus {
+  weekStartIso: string;
+  ticketCount: number;
+  detailCount: number;
+  failedCount: number;
+}
+
 const STORE_OPTIONS = ['All', 'G1', 'G2', 'G3', 'G4'];
 const DAY_OPTIONS = [
   { value: 30, label: '30 days' },
@@ -65,6 +72,8 @@ export default function Pairings() {
   const [store, setStore] = useState('All');
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [backfillingDays, setBackfillingDays] = useState<number | null>(null);
+  const [weeks, setWeeks] = useState<WeekStatus[]>([]);
+  const [showWeekPicker, setShowWeekPicker] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,6 +95,14 @@ export default function Pairings() {
 
   useEffect(() => { load(); }, [load]);
 
+  const fetchWeeks = useCallback(async () => {
+    try {
+      const r = await fetch('/api/tickets/weeks?weeks=26', { cache: 'no-store' });
+      const body = await r.json();
+      if (r.ok) setWeeks(body.weeks ?? []);
+    } catch { /* non-fatal */ }
+  }, []);
+
   // Poll sync status while a backfill is running so the page reflects
   // progress without a manual refresh.
   useEffect(() => {
@@ -97,9 +114,16 @@ export default function Pairings() {
       } catch { /* non-fatal */ }
     };
     fetchStatus();
-    const id = setInterval(fetchStatus, 4000);
+    fetchWeeks();
+    const id = setInterval(() => {
+      fetchStatus();
+      // Only re-fetch the per-week table while a sync is running (or
+      // the week-picker is open) — otherwise the counts don't change.
+      if (status?.inProgress || showWeekPicker) fetchWeeks();
+    }, 4000);
     return () => clearInterval(id);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status?.inProgress, showWeekPicker]);
 
   // Auto-reload data when a backfill finishes so new pairings show up.
   useEffect(() => {
@@ -126,6 +150,22 @@ export default function Pairings() {
       setError(err.message || String(err));
     } finally {
       setBackfillingDays(null);
+    }
+  };
+
+  const syncWeek = async (weekStartIso: string) => {
+    try {
+      const r = await fetch('/api/tickets/sync-week', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ week: weekStartIso }),
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.message || body.error || 'Week sync failed');
+      // Trigger an immediate status fetch so the badge flips fast.
+      await fetchWeeks();
+    } catch (err: any) {
+      setError(err.message || String(err));
     }
   };
 
@@ -168,23 +208,45 @@ export default function Pairings() {
         <div style={{ flex: 1 }} />
         <SyncBadge status={status} />
         {isAdmin && (
-          <button
-            onClick={() => startBackfill(90)}
-            disabled={!!backfillingDays || status?.inProgress}
-            style={{
-              padding: '7px 12px', borderRadius: 8,
-              border: '1px solid rgba(0,0,0,0.12)',
-              background: status?.inProgress ? 'rgba(0,0,0,0.05)' : '#1a1a1a',
-              color: status?.inProgress ? 'rgba(0,0,0,0.4)' : '#fff',
-              fontSize: 12, fontWeight: 600,
-              cursor: status?.inProgress ? 'wait' : 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            {status?.inProgress ? 'Backfilling…' : 'Backfill 90 days'}
-          </button>
+          <>
+            <button
+              onClick={() => startBackfill(30)}
+              disabled={!!backfillingDays || status?.inProgress}
+              style={{
+                padding: '7px 12px', borderRadius: 8,
+                border: '1px solid rgba(0,0,0,0.12)',
+                background: status?.inProgress ? 'rgba(0,0,0,0.05)' : '#1a1a1a',
+                color: status?.inProgress ? 'rgba(0,0,0,0.4)' : '#fff',
+                fontSize: 12, fontWeight: 600,
+                cursor: status?.inProgress ? 'wait' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {status?.inProgress ? 'Syncing…' : 'Backfill 30 days'}
+            </button>
+            <button
+              onClick={() => setShowWeekPicker((v) => !v)}
+              style={{
+                padding: '7px 12px', borderRadius: 8,
+                border: '1px solid rgba(0,0,0,0.12)',
+                background: '#fff', color: '#1a1a1a',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {showWeekPicker ? 'Hide weeks' : 'Pull historical week →'}
+            </button>
+          </>
         )}
       </div>
+
+      {isAdmin && showWeekPicker && (
+        <WeekPicker
+          weeks={weeks}
+          syncing={!!status?.inProgress}
+          onSync={syncWeek}
+        />
+      )}
 
       {loading && !data && (
         <div style={{ color: 'rgba(0,0,0,0.3)', padding: 40, textAlign: 'center' }}>Loading pairings…</div>
@@ -281,6 +343,89 @@ function PastryCard({ pastry }: { pastry: PastryRow }) {
       )}
     </div>
   );
+}
+
+function WeekPicker({
+  weeks, syncing, onSync,
+}: {
+  weeks: WeekStatus[];
+  syncing: boolean;
+  onSync: (weekStartIso: string) => void;
+}) {
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1px solid rgba(0,0,0,0.08)',
+      borderRadius: 12,
+      padding: '14px 18px',
+      marginBottom: 16,
+      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Historical week sync</div>
+      <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginBottom: 12 }}>
+        Each week is Mon-Sun. Pulling a week adds those tickets to the DB; they accumulate over time and feed the analysis above. ~4 min per week.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {weeks.map((w) => {
+          const range = formatWeekRange(w.weekStartIso);
+          const hasData = w.ticketCount > 0;
+          const hasDetails = w.detailCount > 0;
+          const allDetails = hasData && w.detailCount === w.ticketCount;
+          return (
+            <div key={w.weekStartIso} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 0', borderBottom: '1px solid rgba(0,0,0,0.04)',
+            }}>
+              <div style={{ flex: '0 0 180px', fontSize: 13 }}>
+                {range}
+              </div>
+              <div style={{ flex: 1, fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>
+                {hasData ? (
+                  <>
+                    <strong style={{ color: '#1a1a1a' }}>{w.ticketCount.toLocaleString()}</strong> tickets
+                    {hasDetails && (
+                      <> · <span style={{ color: allDetails ? '#166534' : '#a16207' }}>
+                        {w.detailCount.toLocaleString()} with items
+                      </span></>
+                    )}
+                    {w.failedCount > 0 && (
+                      <> · <span style={{ color: '#b91c1c' }}>{w.failedCount} failed</span></>
+                    )}
+                  </>
+                ) : (
+                  <span style={{ color: 'rgba(0,0,0,0.3)' }}>—</span>
+                )}
+              </div>
+              <button
+                onClick={() => onSync(w.weekStartIso)}
+                disabled={syncing}
+                style={{
+                  padding: '4px 10px', borderRadius: 6,
+                  border: '1px solid rgba(0,0,0,0.12)',
+                  background: syncing ? 'rgba(0,0,0,0.04)' : '#fff',
+                  color: syncing ? 'rgba(0,0,0,0.4)' : '#1a1a1a',
+                  fontSize: 11, fontWeight: 600,
+                  cursor: syncing ? 'wait' : 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {hasData ? 'Re-pull' : 'Pull'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function formatWeekRange(weekStartIso: string): string {
+  const mon = new Date(weekStartIso + 'T00:00:00');
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const year = sun.getFullYear() !== new Date().getFullYear() ? `, ${sun.getFullYear()}` : '';
+  return `${fmt(mon)} – ${fmt(sun)}${year}`;
 }
 
 function SyncBadge({ status }: { status: SyncStatus | null }) {

@@ -362,6 +362,23 @@ router.get('/tickets/sync-status', requireAuth, async (_req: AuthRequest, res: R
   res.json({ ok: true, status: getBackfillStatus() });
 });
 
+router.get('/tickets/weeks', requireAuth, async (req: AuthRequest, res: Response) => {
+  const weeks = Math.max(4, Math.min(104, Number(req.query.weeks) || 26));
+  const { listWeekStatus } = await import('./dripos-tickets.js');
+  res.json({ ok: true, weeks: listWeekStatus(weeks) });
+});
+
+router.post('/tickets/sync-week', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response) => {
+  const week = String(req.body?.week ?? '').trim();
+  try {
+    const { startWeekSync } = await import('./dripos-tickets.js');
+    startWeekSync(week);
+    res.json({ ok: true, week, started: true });
+  } catch (err: any) {
+    res.status(409).json({ error: 'sync_failed', message: err?.message || String(err) });
+  }
+});
+
 router.post('/tickets/sync-yesterday', requireAuth, requireRole('admin'), async (_req: AuthRequest, res: Response) => {
   try {
     const { syncYesterday } = await import('./dripos-tickets.js');

@@ -379,6 +379,142 @@ export function startBackfill(daysBack: number): void {
   })();
 }
 
+/**
+ * Sync a specific Sun-Sat week. Mon `weekStartIso` is the convention
+ * the rest of the dashboard uses (matches mondayOfWeek() in
+ * bake-haus.ts). One week = ~10k tickets across all four stores =
+ * ~4 minutes of work. Uses the same backfill_in_progress lock as the
+ * historical backfill — only one sync at a time.
+ */
+export function startWeekSync(weekStartIso: string): void {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStartIso)) {
+    throw new Error('weekStartIso must be YYYY-MM-DD');
+  }
+  const meta = db.prepare('SELECT backfill_in_progress FROM tickets_sync_meta WHERE id = 1').get() as any;
+  if (meta?.backfill_in_progress) {
+    throw new Error('A sync is already in progress');
+  }
+  // Mon 00:00 CT → Sun 23:59:59 CT. Anchored to America/Chicago so
+  // the week boundary matches what the Dripos UI shows.
+  const fromMs = chicagoMsAt(weekStartIso, 0, 0, 0);
+  const toMs = fromMs + 7 * 86400_000 - 1;
+  db.prepare(`
+    UPDATE tickets_sync_meta
+       SET backfill_in_progress = 1,
+           backfill_started_at = ?,
+           backfill_progress_pct = 0,
+           backfill_message = ?
+     WHERE id = 1
+  `).run(Date.now(), `Pulling week of ${weekStartIso}...`);
+  void (async () => {
+    try {
+      const result = await syncTicketsForRange(fromMs, toMs, (msg) => {
+        db.prepare(`UPDATE tickets_sync_meta SET backfill_message = ? WHERE id = 1`).run(msg);
+      });
+      db.prepare(`
+        UPDATE tickets_sync_meta
+           SET backfill_in_progress = 0,
+               backfill_progress_pct = 100,
+               backfill_message = ?
+         WHERE id = 1
+      `).run(`Week of ${weekStartIso} complete (${result.fetched} items fetched)`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[tickets-week-sync ${weekStartIso}] failed:`, err);
+      db.prepare(`
+        UPDATE tickets_sync_meta
+           SET backfill_in_progress = 0,
+               last_sync_status = 'failed',
+               last_sync_error = ?,
+               backfill_message = ?
+         WHERE id = 1
+      `).run(msg, `Failed week ${weekStartIso}: ${msg}`);
+    }
+  })();
+}
+
+/** Anchor a YYYY-MM-DD calendar date to a specific time-of-day in
+ *  America/Chicago, return UTC ms. Used for week boundary calcs so
+ *  Mon 00:00 CT and Sun 23:59 CT mean what the user thinks. */
+function chicagoMsAt(dateIso: string, hour: number, minute: number, second: number): number {
+  // Build a tz-naive date string then re-interpret in Chicago. We use
+  // the offset trick: format any date in CT, find the resulting tz
+  // shift vs UTC, and apply it.
+  const [y, m, d] = dateIso.split('-').map(Number);
+  // Start with UTC midnight of the date and shift back by Chicago's
+  // current offset (-5 or -6 depending on DST). Easier: build a Date
+  // assuming local, then find the CT-vs-local offset and adjust.
+  const utcNoonProbe = Date.UTC(y, m - 1, d, 12, 0, 0); // pick noon to be safely on the right calendar day in any tz
+  const ctMidnightLabel = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(new Date(utcNoonProbe));
+  // ctMidnightLabel looks like "2026-05-21, 07:00:00" — at noon UTC,
+  // CT shows 7am (UTC-5 in daylight time). So CT-vs-UTC offset is -5h.
+  // We can extract it precisely by computing the difference.
+  const partsArr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(new Date(utcNoonProbe));
+  const get = (t: string) => Number(partsArr.find((p) => p.type === t)?.value ?? 0);
+  const ctEquivUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  const offsetMs = utcNoonProbe - ctEquivUtc;
+  // Now compute CT-midnight-of-date as UTC ms:
+  const ctMidnightAsUtc = Date.UTC(y, m - 1, d, hour, minute, second) + offsetMs;
+  return ctMidnightAsUtc;
+}
+
+/**
+ * Per-week summary of what's currently in the tickets table. Used by
+ * the Pairings UI to show which weeks have data and which still need
+ * to be pulled. Bucketed by Mon-Sun in America/Chicago. Returns the
+ * most recent `weeks` weeks (default 26).
+ */
+export function listWeekStatus(weeks = 26): Array<{
+  weekStartIso: string;
+  ticketCount: number;
+  detailCount: number;
+  failedCount: number;
+}> {
+  // Find current Monday (Chicago). Walk back `weeks` Mondays. For
+  // each Mon, count tickets where date_created_ms falls in [Mon, next Mon).
+  const tzNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+  // JS weekday: 0=Sun, 1=Mon. daysSinceMon = (today - 1 + 7) % 7
+  const daysSinceMon = (tzNow.getDay() + 6) % 7;
+  const thisMonday = new Date(tzNow);
+  thisMonday.setDate(tzNow.getDate() - daysSinceMon);
+  thisMonday.setHours(0, 0, 0, 0);
+
+  const out: Array<{ weekStartIso: string; ticketCount: number; detailCount: number; failedCount: number }> = [];
+  for (let i = 0; i < weeks; i++) {
+    const monLocal = new Date(thisMonday);
+    monLocal.setDate(thisMonday.getDate() - 7 * i);
+    const y = monLocal.getFullYear();
+    const m = String(monLocal.getMonth() + 1).padStart(2, '0');
+    const d = String(monLocal.getDate()).padStart(2, '0');
+    const iso = `${y}-${m}-${d}`;
+    const fromMs = chicagoMsAt(iso, 0, 0, 0);
+    const toMs = fromMs + 7 * 86400_000;
+    const row = db.prepare(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN detail_status = 'full' THEN 1 ELSE 0 END) AS withDetails,
+        SUM(CASE WHEN detail_status = 'failed' THEN 1 ELSE 0 END) AS failed
+      FROM tickets
+      WHERE date_created_ms >= ? AND date_created_ms < ?
+    `).get(fromMs, toMs) as { total: number; withDetails: number; failed: number };
+    out.push({
+      weekStartIso: iso,
+      ticketCount: row.total ?? 0,
+      detailCount: row.withDetails ?? 0,
+      failedCount: row.failed ?? 0,
+    });
+  }
+  return out;
+}
+
 export function getBackfillStatus(): {
   inProgress: boolean;
   startedAt: number | null;
