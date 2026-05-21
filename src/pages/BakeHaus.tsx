@@ -2238,18 +2238,25 @@ function PrintableSchedule({
             padding: 0 0 12pt 0;
           }
           .bh-print-page:last-child { page-break-after: auto; }
-          .bh-print-title { font-size: 22pt; font-weight: 700; margin: 0 0 4pt; letter-spacing: -0.3pt; }
-          .bh-print-sub   { font-size: 11pt; color: #555; margin: 0 0 14pt; }
-          .bh-print-pillrow { display: flex; gap: 10pt; margin: 0 0 16pt; flex-wrap: wrap; }
+          /* Header tighter so the 18-item + Total table fits on one page.
+             Before this change the Total row overflowed onto page 2 for
+             every delivery day (3 pages → 6 PDF pages). */
+          .bh-print-title { font-size: 20pt; font-weight: 700; margin: 0 0 2pt; letter-spacing: -0.3pt; }
+          .bh-print-sub   { font-size: 10pt; color: #555; margin: 0 0 10pt; }
+          .bh-print-pillrow { display: flex; gap: 8pt; margin: 0 0 12pt; flex-wrap: wrap; }
           .bh-print-pill {
             border: 1pt solid #ddd; border-radius: 6pt;
-            padding: 6pt 12pt; font-size: 10pt;
+            padding: 4pt 10pt; font-size: 9pt;
           }
-          .bh-print-pill strong { font-size: 14pt; display: block; margin-top: 2pt; }
-          .bh-print-table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+          .bh-print-pill strong { font-size: 12pt; display: block; margin-top: 1pt; }
+          /* Table: keep the entire body together so the rounding-off
+             Total row never gets pushed to a new page. page-break-inside
+             on table is honored by both Chromium and webkit print
+             engines. */
+          .bh-print-table { width: 100%; border-collapse: collapse; font-size: 10pt; page-break-inside: avoid; }
           .bh-print-table th, .bh-print-table td {
             border-bottom: 0.5pt solid #ddd;
-            padding: 6pt 10pt; text-align: left;
+            padding: 4pt 10pt; text-align: left;
           }
           .bh-print-table th {
             font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5pt;
@@ -2257,6 +2264,8 @@ function PrintableSchedule({
           }
           .bh-print-table td.num,
           .bh-print-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+          .bh-print-table tr { page-break-inside: avoid; }
+          .bh-print-table tr.total { page-break-before: avoid; }
           .bh-print-table tr.total td {
             border-top: 1pt solid #333; font-weight: 700; background: #f7f7f7;
           }
