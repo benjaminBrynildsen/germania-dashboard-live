@@ -11,8 +11,10 @@ import {
   deleteOrderItem,
   deleteSyrup,
   getCatalogImageMap,
+  getDeliverySnapshot,
   getMergedCatalog,
   getWeekReport,
+  listDeliverySnapshots,
   isUserAllowedToUnlock,
   isWeekLocked,
   listSavedOrders,
@@ -234,7 +236,7 @@ router.post('/bake-haus/save', requireAuth, async (req: AuthRequest, res: Respon
   if (snapshotMon && !isWeekLocked(week)) {
     await snapshotMonForStoreWeek(week, store);
   }
-  markOrderSaved(week, store, savedBy);
+  await markOrderSaved(week, store, savedBy);
   res.json({ ok: true, savedAt: Date.now() });
 });
 
@@ -337,6 +339,31 @@ router.delete('/bake-haus/lock-monday', requireAuth, (req: AuthRequest, res: Res
   }
   unlockWeekMonday(week);
   res.json({ ok: true });
+});
+
+// ── Delivery-schedule snapshots ─────────────────────────────────────
+// Captured automatically when all 4 stores have saved their orders
+// for a week. The snapshot is a frozen copy of the delivery summary
+// so Maggie can refer back to "what was ordered" even if anyone edits
+// a qty later.
+router.get('/bake-haus/snapshots', requireAuth, (_req: AuthRequest, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, snapshots: listDeliverySnapshots(52) });
+});
+
+router.get('/bake-haus/snapshot', requireAuth, (req: AuthRequest, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  const week = String(req.query.week ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
+    res.status(400).json({ error: 'invalid_week' });
+    return;
+  }
+  const snap = getDeliverySnapshot(week);
+  if (!snap) {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
+  res.json({ ok: true, snapshot: snap });
 });
 
 router.delete('/bake-haus/item', requireAuth, (req: AuthRequest, res: Response) => {

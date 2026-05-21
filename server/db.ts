@@ -375,6 +375,21 @@ db.exec(`
   -- had production rows worth migrating.
   DROP TABLE IF EXISTS bake_haus_saved_weeks;
 
+  -- Snapshot of the delivery schedule (per-day, per-store, per-item
+  -- map) taken when all 4 stores have saved their weekly orders. This
+  -- captures the schedule as-of-that-moment so even if someone edits
+  -- a qty later, Maggie can still reference the "as ordered" version.
+  -- Auto-created in markOrderSaved when the 4th store saves; surfaced
+  -- in the Saved Orders tab with a "View / Print" action.
+  CREATE TABLE IF NOT EXISTS bake_haus_delivery_snapshots (
+    week_start_iso TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,                   -- JSON: deliverySummary + week totals + stores list
+    week_total INTEGER NOT NULL,             -- denormalized for the list view
+    saved_at INTEGER NOT NULL,
+    saved_by TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_bake_haus_delivery_snapshots_date ON bake_haus_delivery_snapshots(saved_at);
+
   -- Per-ticket transaction data from Dripos. Powers the pastry/drink
   -- pairing analysis: we need to know which items appeared on the same
   -- customer transaction. /report/productsales aggregates across

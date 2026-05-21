@@ -922,11 +922,11 @@ export interface SavedOrderSummary {
   totalQty: number;
 }
 
-export function markOrderSaved(
+export async function markOrderSaved(
   weekStartIso: string,
   storeLabel: string,
   savedBy: string | null = null,
-): void {
+): Promise<void> {
   db.prepare(
     `INSERT INTO bake_haus_saved_orders (week_start_iso, store_label, saved_at, saved_by)
      VALUES (?, ?, ?, ?)
@@ -934,6 +934,101 @@ export function markOrderSaved(
        saved_at = excluded.saved_at,
        saved_by = COALESCE(excluded.saved_by, bake_haus_saved_orders.saved_by)`,
   ).run(weekStartIso, storeLabel, Date.now(), savedBy);
+  // After the 4th store saves we have the full picture of what's
+  // headed where. Capture a snapshot of the delivery schedule so it's
+  // retrievable later from the Saved Orders tab even if someone edits
+  // a qty after the fact.
+  await maybeSnapshotDeliverySchedule(weekStartIso, savedBy).catch((err) => {
+    console.warn('[bake-haus snapshot] failed:', err instanceof Error ? err.message : err);
+  });
+}
+
+/** Create a delivery-schedule snapshot for the week once ALL stores
+ *  have saved their orders. Idempotent: if a snapshot already exists
+ *  for the week, this is a no-op. The snapshot payload is a JSON
+ *  serialization of the per-day delivery summary + store list + week
+ *  totals — same shape the printable schedule consumes. */
+async function maybeSnapshotDeliverySchedule(
+  weekStartIso: string,
+  savedBy: string | null,
+): Promise<void> {
+  const existing = db.prepare(
+    'SELECT week_start_iso FROM bake_haus_delivery_snapshots WHERE week_start_iso = ?',
+  ).get(weekStartIso);
+  if (existing) return;
+
+  const savedRow = db.prepare(
+    'SELECT COUNT(DISTINCT store_label) AS storeCount FROM bake_haus_saved_orders WHERE week_start_iso = ?',
+  ).get(weekStartIso) as { storeCount: number };
+  if ((savedRow?.storeCount ?? 0) < STORES.length) return;
+
+  // Pull the current report — this captures the live delivery split at
+  // the moment all 4 stores finalized. Subsequent edits don't touch
+  // the snapshot.
+  const report = await getWeekReport(weekStartIso);
+  let weekTotal = 0;
+  for (const day of ['mon', 'wed', 'fri'] as const) {
+    const dayMap = report.deliverySummary[day] ?? {};
+    for (const perStore of Object.values(dayMap)) {
+      for (const q of Object.values(perStore)) weekTotal += q;
+    }
+  }
+  const payload = JSON.stringify({
+    weekStartIso,
+    deliverySummary: report.deliverySummary,
+    stores: STORES.map((s) => s.label),
+    inventoryFetchedAt: report.inventoryFetchedAt,
+    snapshotAt: Date.now(),
+  });
+  db.prepare(
+    `INSERT INTO bake_haus_delivery_snapshots (week_start_iso, payload, week_total, saved_at, saved_by)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(week_start_iso) DO NOTHING`,
+  ).run(weekStartIso, payload, weekTotal, Date.now(), savedBy);
+}
+
+export interface DeliverySnapshotSummary {
+  weekStartIso: string;
+  weekTotal: number;
+  savedAt: number;
+  savedBy: string | null;
+}
+
+export function listDeliverySnapshots(limit = 52): DeliverySnapshotSummary[] {
+  return db.prepare(
+    `SELECT week_start_iso AS weekStartIso,
+            week_total      AS weekTotal,
+            saved_at        AS savedAt,
+            saved_by        AS savedBy
+       FROM bake_haus_delivery_snapshots
+      ORDER BY saved_at DESC
+      LIMIT ?`,
+  ).all(limit) as DeliverySnapshotSummary[];
+}
+
+export function getDeliverySnapshot(weekStartIso: string): {
+  weekStartIso: string;
+  weekTotal: number;
+  savedAt: number;
+  savedBy: string | null;
+  payload: any;
+} | null {
+  const row = db.prepare(
+    `SELECT week_start_iso AS weekStartIso, week_total AS weekTotal,
+            saved_at AS savedAt, saved_by AS savedBy, payload
+       FROM bake_haus_delivery_snapshots
+      WHERE week_start_iso = ?`,
+  ).get(weekStartIso) as any;
+  if (!row) return null;
+  let payload: any = null;
+  try { payload = JSON.parse(row.payload); } catch { /* malformed row */ }
+  return {
+    weekStartIso: row.weekStartIso,
+    weekTotal: row.weekTotal,
+    savedAt: row.savedAt,
+    savedBy: row.savedBy,
+    payload,
+  };
 }
 
 export function unmarkOrderSaved(weekStartIso: string, storeLabel: string): void {

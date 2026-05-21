@@ -65,6 +65,27 @@ interface CatalogItem {
   includeMonday?: boolean;
 }
 
+interface DeliverySnapshotSummary {
+  weekStartIso: string;
+  weekTotal: number;
+  savedAt: number;
+  savedBy: string | null;
+}
+
+interface DeliverySnapshotPayload {
+  weekStartIso: string;
+  weekTotal: number;
+  savedAt: number;
+  savedBy: string | null;
+  payload: {
+    weekStartIso: string;
+    deliverySummary: WeekReport['deliverySummary'];
+    stores: string[];
+    inventoryFetchedAt: number;
+    snapshotAt: number;
+  };
+}
+
 /** Per-store city labels shown next to the G1/G2/G3/G4 code. */
 const STORE_CITIES: Record<string, string> = {
   G1: 'Alton',
@@ -109,6 +130,26 @@ function shiftWeeks(weekIso: string, weeks: number): string {
   return isoMondayOf(d);
 }
 
+/** True when `weekIso` (a Monday) is the current or a past week AND
+ *  it's now past Monday 23:59 America/Chicago. Used by the schedule
+ *  banner to surface a "week didn't auto-lock" warning loud enough
+ *  for managers to act on. Future weeks are never overdue (Maggie
+ *  legitimately hasn't locked yet because Monday hasn't happened). */
+function isWeekOverdueForLock(weekIso: string): boolean {
+  // Compute "now in Chicago" + "Monday 23:59:59 CT of the displayed week"
+  // and compare. Comparing UTC ms works once both anchors are in the
+  // same offset frame.
+  const now = new Date();
+  const nowCt = new Date(now.toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+  const monLocal = new Date(weekIso + 'T00:00:00');
+  // 23:59:59 of Monday in CT — we built monLocal as a "calendar date"
+  // in the browser's local zone, but the comparison is tz-agnostic
+  // because we coerce nowCt into the same wall-clock space.
+  const monEnd = new Date(monLocal);
+  monEnd.setHours(23, 59, 59, 999);
+  return nowCt.getTime() > monEnd.getTime();
+}
+
 export default function BakeHaus() {
   const isMobile = useIsMobile();
   const { permissions } = useAuth();
@@ -132,6 +173,13 @@ export default function BakeHaus() {
   const [activeStore, setActiveStore] = useState<string>('G1');
   const [printPrevReport, setPrintPrevReport] = useState<WeekReport | null>(null);
   const [printing, setPrinting] = useState(false);
+  // List of delivery-schedule snapshots (one per finalized week). Loaded
+  // lazily when the user opens the Saved Orders tab.
+  const [snapshots, setSnapshots] = useState<DeliverySnapshotSummary[]>([]);
+  // When non-null, we're about to print a saved snapshot rather than
+  // the live week. Swaps which printable mounts in the DOM so the print
+  // dialog sees the snapshot's data, not today's.
+  const [snapshotToPrint, setSnapshotToPrint] = useState<DeliverySnapshotPayload | null>(null);
 
   const exportPdf = useCallback(async () => {
     if (!report) return;
@@ -200,9 +248,43 @@ export default function BakeHaus() {
     } catch {/* non-fatal */}
   }, []);
 
+  const loadSnapshots = useCallback(async () => {
+    try {
+      const r = await fetch('/api/bake-haus/snapshots', { cache: 'no-store' });
+      const body = await r.json();
+      if (r.ok) setSnapshots(body.snapshots ?? []);
+    } catch {/* non-fatal */}
+  }, []);
+
   useEffect(() => {
-    if (tab === 'saved') loadSavedOrders();
-  }, [tab, loadSavedOrders]);
+    if (tab === 'saved') {
+      loadSavedOrders();
+      loadSnapshots();
+    }
+  }, [tab, loadSavedOrders, loadSnapshots]);
+
+  /** Fetch a stored delivery-schedule snapshot and fire window.print()
+   *  against it. Swaps which printable mounts so the print dialog sees
+   *  the snapshot's data instead of the current week's. */
+  const printSnapshot = async (weekIso: string) => {
+    setError(null);
+    try {
+      const r = await fetch(`/api/bake-haus/snapshot?week=${weekIso}`, { cache: 'no-store' });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.message || body.error || 'Snapshot not found');
+      setSnapshotToPrint(body.snapshot);
+      // Give React a tick to mount the snapshot printable before
+      // the browser print dialog captures the page contents.
+      await new Promise((res) => setTimeout(res, 80));
+      window.print();
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      // Clear after the print dialog closes — small delay so the user
+      // gets a clean confirmation if Print is rejected.
+      setTimeout(() => setSnapshotToPrint(null), 400);
+    }
+  };
 
   // Which store, if any, currently has its update-confirm modal open.
   // null = closed. The modal asks how to apply the save: keep Mon frozen
@@ -587,18 +669,29 @@ export default function BakeHaus() {
               )}
             </div>
           )}
-          {!report.weekLocked && (
+          {!report.weekLocked && (() => {
+            // The week is "overdue" once we're past Monday 23:59 CT for
+            // the displayed weekIso. If the auto-lock cron missed (e.g.
+            // Render restart at the wrong minute, env var trouble), the
+            // numbers in the schedule will start drifting with inventory
+            // and Maggie won't know until production diverges. Surface
+            // it loud so someone clicks Lock by hand.
+            const overdue = isWeekOverdueForLock(weekIso);
+            return (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '10px 14px', borderRadius: 10, marginTop: 14,
-              background: 'rgba(0,0,0,0.02)',
-              border: '1px solid rgba(0,0,0,0.08)',
+              background: overdue ? 'rgba(220, 38, 38, 0.08)' : 'rgba(0,0,0,0.02)',
+              border: overdue ? '1px solid rgba(220, 38, 38, 0.35)' : '1px solid rgba(0,0,0,0.08)',
               fontSize: 13,
               flexWrap: 'wrap',
             }}>
-              <span style={{ color: 'rgba(0,0,0,0.55)' }}>
-                Deliveries are <strong>live</strong> — qtys recompute as inventory changes.
-                Auto-locks Monday 11:59pm CT.
+              <span style={{ color: overdue ? '#b91c1c' : 'rgba(0,0,0,0.55)', fontWeight: overdue ? 600 : 400 }}>
+                {overdue ? (
+                  <>⚠️ <strong>Week not locked.</strong> Monday 11:59pm passed and the auto-lock didn't fire — qtys will drift with inventory. Lock now to freeze them.</>
+                ) : (
+                  <>Deliveries are <strong>live</strong> — qtys recompute as inventory changes. Auto-locks Monday 11:59pm CT.</>
+                )}
               </span>
               <button
                 onClick={() => {
@@ -628,7 +721,8 @@ export default function BakeHaus() {
                 {weekLockBusy ? 'Locking…' : 'Lock this week'}
               </button>
             </div>
-          )}
+            );
+          })()}
 
           {/* Per-day delivery breakdown. */}
           <div style={{
@@ -670,12 +764,14 @@ export default function BakeHaus() {
       {tab === 'saved' && (
         <SavedOrdersList
           orders={savedOrders}
+          snapshots={snapshots}
           isMobile={isMobile}
           onOpen={(iso, store) => {
             setWeekIso(iso);
             setActiveStore(store);
             setTab('current');
           }}
+          onPrintSnapshot={printSnapshot}
         />
       )}
 
@@ -720,8 +816,19 @@ export default function BakeHaus() {
       )}
 
       {/* Print-only layout. Hidden on screen, rendered when the user
-          hits Export PDF and the browser print dialog kicks in. */}
-      {report && (
+          hits Export PDF and the browser print dialog kicks in.
+          When the user prints a stored snapshot, we swap the live
+          report for a synthesized one built from the snapshot payload
+          so the print dialog sees the frozen "as ordered" data. */}
+      {snapshotToPrint ? (
+        <PrintableSchedule
+          weekIso={snapshotToPrint.weekStartIso}
+          report={snapshotToReport(snapshotToPrint)}
+          prevReport={null}
+          stores={snapshotToPrint.payload.stores}
+          catalog={catalog}
+        />
+      ) : report ? (
         <PrintableSchedule
           weekIso={weekIso}
           report={report}
@@ -729,9 +836,29 @@ export default function BakeHaus() {
           stores={stores}
           catalog={catalog}
         />
-      )}
+      ) : null}
     </div>
   );
+}
+
+/** Build a WeekReport-shaped object from a stored snapshot so the
+ *  existing PrintableSchedule can render historical data without
+ *  knowing it's looking at a snapshot. Missing fields default to
+ *  unlocked/empty — only deliverySummary is actually used by the
+ *  print layout, the others are there to satisfy the type. */
+function snapshotToReport(snap: DeliverySnapshotPayload): WeekReport {
+  return {
+    weekStartIso: snap.weekStartIso,
+    savedAtByStore: {},
+    byStore: {},
+    deliverySummary: snap.payload.deliverySummary,
+    inventoryByStore: {},
+    inventoryFetchedAt: snap.payload.inventoryFetchedAt ?? snap.payload.snapshotAt ?? snap.savedAt,
+    monLock: null,
+    weekLocked: true,
+    dayLocks: { mon: null, wed: null, fri: null },
+    lockSource: null,
+  };
 }
 
 // ─── Locked-edit modal ────────────────────────────────────────────────
@@ -1224,23 +1351,74 @@ function SyrupRow({
 }
 
 function SavedOrdersList({
-  orders, onOpen, isMobile,
+  orders, snapshots, onOpen, onPrintSnapshot, isMobile,
 }: {
   orders: SavedOrder[];
+  snapshots: DeliverySnapshotSummary[];
   isMobile: boolean;
   onOpen: (weekIso: string, storeLabel: string) => void;
+  onPrintSnapshot: (weekIso: string) => void;
 }) {
+  const snapshotPanel = snapshots.length > 0 ? (
+    <div style={{
+      background: '#fff', borderRadius: 14,
+      border: '1px solid rgba(0,0,0,0.07)',
+      padding: '16px 18px', marginBottom: 18,
+      boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+        Delivery schedule snapshots
+      </div>
+      <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginBottom: 10 }}>
+        Captured automatically the moment all four stores finalize their orders for a week. Frozen — later edits don't change these.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {snapshots.map((s) => (
+          <div key={s.weekStartIso} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '8px 0', borderBottom: '1px solid rgba(0,0,0,0.04)',
+            flexWrap: 'wrap',
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 600, minWidth: 160 }}>
+              Week of {fmtDateRange(s.weekStartIso)}
+            </div>
+            <div style={{ flex: 1, fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>
+              <strong style={{ color: '#1a1a1a' }}>{s.weekTotal.toLocaleString()}</strong> units
+              <span style={{ color: 'rgba(0,0,0,0.35)' }}> · saved {new Date(s.savedAt).toLocaleDateString()}</span>
+              {s.savedBy && <span style={{ color: 'rgba(0,0,0,0.35)' }}> · by {s.savedBy}</span>}
+            </div>
+            <button
+              onClick={() => onPrintSnapshot(s.weekStartIso)}
+              style={{
+                padding: '5px 12px', borderRadius: 6,
+                border: '1px solid rgba(0,0,0,0.12)',
+                background: '#1a1a1a', color: '#fff',
+                fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              View / Print PDF
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   if (orders.length === 0) {
     return (
-      <div style={{
-        background: '#fff', borderRadius: 14,
-        border: '1px solid rgba(0,0,0,0.07)',
-        padding: '40px 24px', textAlign: 'center',
-        color: 'rgba(0,0,0,0.45)', fontSize: 14,
-      }}>
-        No saved orders yet. Fill out a store's order on the Current Order tab and hit Save on
-        that store's card — it'll show up here for future reference.
-      </div>
+      <>
+        {snapshotPanel}
+        <div style={{
+          background: '#fff', borderRadius: 14,
+          border: '1px solid rgba(0,0,0,0.07)',
+          padding: '40px 24px', textAlign: 'center',
+          color: 'rgba(0,0,0,0.45)', fontSize: 14,
+        }}>
+          No saved orders yet. Fill out a store's order on the Current Order tab and hit Save on
+          that store's card — it'll show up here for future reference.
+        </div>
+      </>
     );
   }
 
@@ -1249,7 +1427,9 @@ function SavedOrdersList({
   // + saved-by line wrap into a single 6-column row.
   if (isMobile) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <>
+        {snapshotPanel}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {orders.map((o) => {
           const theme = getTheme(o.storeLabel);
           return (
@@ -1299,11 +1479,14 @@ function SavedOrdersList({
             </button>
           );
         })}
-      </div>
+        </div>
+      </>
     );
   }
 
   return (
+    <>
+    {snapshotPanel}
     <div style={{
       background: '#fff', borderRadius: 14,
       border: '1px solid rgba(0,0,0,0.07)',
@@ -1372,6 +1555,7 @@ function SavedOrdersList({
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
