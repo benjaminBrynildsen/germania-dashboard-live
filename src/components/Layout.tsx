@@ -26,6 +26,7 @@ const MORE_ITEMS: Array<{ to: string; label: string; exact?: boolean }> = [
   { to: '/patrons', label: 'Patrons' },
   { to: '/launches', label: 'Launches', exact: false },
   { to: '/holidays', label: 'Holidays' },
+  { to: '/pairings', label: 'Pairings' },
   { to: '/cog', label: 'COG Manager' },
   { to: '/weather-closure', label: 'Weather' },
   { to: '/anomalies', label: 'Anomalies' },

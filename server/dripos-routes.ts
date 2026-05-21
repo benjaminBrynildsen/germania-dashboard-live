@@ -345,4 +345,31 @@ router.post('/dripos/probe', requireAuth, requireRole('admin'), async (req: Auth
   }
 });
 
+// ── Tickets sync + pairings analysis ───────────────────────────────
+router.post('/tickets/backfill', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response) => {
+  const days = Math.max(1, Math.min(365, Number(req.body?.days) || 90));
+  try {
+    const { startBackfill } = await import('./dripos-tickets.js');
+    startBackfill(days);
+    res.json({ ok: true, days, started: true });
+  } catch (err: any) {
+    res.status(409).json({ error: 'backfill_failed', message: err?.message || String(err) });
+  }
+});
+
+router.get('/tickets/sync-status', requireAuth, async (_req: AuthRequest, res: Response) => {
+  const { getBackfillStatus } = await import('./dripos-tickets.js');
+  res.json({ ok: true, status: getBackfillStatus() });
+});
+
+router.post('/tickets/sync-yesterday', requireAuth, requireRole('admin'), async (_req: AuthRequest, res: Response) => {
+  try {
+    const { syncYesterday } = await import('./dripos-tickets.js');
+    const result = await syncYesterday();
+    res.json({ ok: true, result });
+  } catch (err: any) {
+    res.status(500).json({ error: 'sync_failed', message: err?.message || String(err) });
+  }
+});
+
 export default router;

@@ -11,6 +11,7 @@ import applicantsRouter from './applicants-routes.js';
 import bakeHausRouter from './bake-haus-routes.js';
 import patronsRouter from './patrons-routes.js';
 import holidayRouter from './holiday-routes.js';
+import pairingsRouter from './pairings-routes.js';
 import { seedHolidaysForYear } from './holidays.js';
 import { startReviewSync } from './places.js';
 
@@ -29,6 +30,7 @@ app.use('/api', applicantsRouter);
 app.use('/api', bakeHausRouter);
 app.use('/api', patronsRouter);
 app.use('/api', holidayRouter);
+app.use('/api', pairingsRouter);
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '..', 'dist');
@@ -147,4 +149,35 @@ app.listen(PORT, () => {
     }
   };
   setInterval(autoLockTick, 60_000);
+
+  // Tickets sync — pulls yesterday's tickets daily at 3 AM America/
+  // Chicago. Aligns with low POS traffic + leaves room for Dripos's
+  // own end-of-day batch processing. The same minute-based polling
+  // pattern as the bake-haus auto-lock; idempotent because the
+  // sync upserts on ticket ID.
+  let lastTicketSyncDay: string | null = null;
+  const ticketSyncTick = async () => {
+    try {
+      const tz = 'America/Chicago';
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      }).formatToParts(new Date());
+      const get = (t: string) => parts.find((p) => p.type === t)?.value || '';
+      const hour = parseInt(get('hour'), 10);
+      const minute = parseInt(get('minute'), 10);
+      const today = `${get('year')}-${get('month')}-${get('day')}`;
+      if (hour !== 3 || minute !== 0) return;
+      if (lastTicketSyncDay === today) return; // dedupe within the same minute window
+      lastTicketSyncDay = today;
+      console.log('[TicketsSync] 3am tick — syncing yesterday');
+      const { syncYesterday } = await import('./dripos-tickets.js');
+      const r = await syncYesterday();
+      console.log(`[TicketsSync] done: scanned=${r.scanned} upserted=${r.upserted} fetched=${r.fetched} failed=${r.failed}`);
+    } catch (err) {
+      console.warn('[TicketsSync] failed:', err instanceof Error ? err.message : err);
+    }
+  };
+  setInterval(ticketSyncTick, 60_000);
 });

@@ -21,6 +21,7 @@ import Staffing from './pages/Staffing';
 import BakeHaus from './pages/BakeHaus';
 import Patrons from './pages/Patrons';
 import HolidayCalendar from './pages/HolidayCalendar';
+import Pairings from './pages/Pairings';
 
 export default function App() {
   const { user, loading, logout } = useAuth();
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="/bake-haus" element={<BakeHaus />} />
         <Route path="/patrons" element={<Patrons />} />
         <Route path="/holidays" element={<HolidayCalendar />} />
+        <Route path="/pairings" element={<Pairings />} />
         {/* Legacy alias so old /hours bookmarks still resolve. */}
         <Route path="/hours" element={<HoursWatch />} />
         <Route path="/privacy" element={<Privacy />} />

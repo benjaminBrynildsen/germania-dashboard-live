@@ -375,6 +375,72 @@ db.exec(`
   -- had production rows worth migrating.
   DROP TABLE IF EXISTS bake_haus_saved_weeks;
 
+  -- Per-ticket transaction data from Dripos. Powers the pastry/drink
+  -- pairing analysis: we need to know which items appeared on the same
+  -- customer transaction. /report/productsales aggregates across
+  -- transactions and gives us totals only — useless for co-occurrence.
+  --
+  -- Each ticket is one customer order; each ticket_items row is one
+  -- line item on that order. unique_id is Dripos's "tick_..." string
+  -- ID (string) and is also stored on the ticket row for round-trip
+  -- lookups against the /ticket/{uid} endpoint.
+  CREATE TABLE IF NOT EXISTS tickets (
+    id INTEGER PRIMARY KEY,
+    unique_id TEXT UNIQUE NOT NULL,
+    location_id INTEGER NOT NULL,
+    date_created_ms INTEGER NOT NULL,
+    date_closed_ms INTEGER,
+    customer_name TEXT,
+    customer_phone TEXT,
+    customer_email TEXT,
+    ticket_number INTEGER,
+    status TEXT,
+    platform TEXT,
+    ticket_type_name TEXT,
+    employee_full_name TEXT,
+    total_cents INTEGER,
+    tip_cents INTEGER,
+    -- Status of the per-ticket detail fetch. 'pending' = list-only
+    -- (header), 'full' = items fetched, 'failed' = detail fetch errored
+    -- and we should retry on next sync.
+    detail_status TEXT NOT NULL DEFAULT 'pending',
+    detail_fetched_at INTEGER,
+    synced_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
+  );
+  CREATE INDEX IF NOT EXISTS idx_tickets_date ON tickets(date_created_ms);
+  CREATE INDEX IF NOT EXISTS idx_tickets_location_date ON tickets(location_id, date_created_ms);
+  CREATE INDEX IF NOT EXISTS idx_tickets_detail_status ON tickets(detail_status);
+
+  CREATE TABLE IF NOT EXISTS ticket_items (
+    id INTEGER PRIMARY KEY,
+    ticket_id INTEGER NOT NULL,
+    ticket_unique_id TEXT NOT NULL,
+    object_id TEXT,
+    name TEXT NOT NULL,
+    type TEXT,
+    quantity INTEGER,
+    amount_cents INTEGER,
+    total_cents INTEGER,
+    FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_ticket_items_ticket ON ticket_items(ticket_id);
+  CREATE INDEX IF NOT EXISTS idx_ticket_items_name ON ticket_items(name);
+  CREATE INDEX IF NOT EXISTS idx_ticket_items_object_id ON ticket_items(object_id);
+
+  -- Sync state for the tickets backfill / nightly cron. Single row.
+  CREATE TABLE IF NOT EXISTS tickets_sync_meta (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    last_synced_at INTEGER,
+    last_sync_count INTEGER,
+    last_sync_status TEXT,
+    last_sync_error TEXT,
+    backfill_in_progress INTEGER NOT NULL DEFAULT 0,
+    backfill_started_at INTEGER,
+    backfill_progress_pct INTEGER NOT NULL DEFAULT 0,
+    backfill_message TEXT
+  );
+  INSERT OR IGNORE INTO tickets_sync_meta (id) VALUES (1);
+
   -- Holiday calendar — Germania-wide special-hours decisions per date.
   -- Chain-wide (one row per holiday, not per store) matching how the
   -- existing voting spreadsheet works. Per-store divergences go in the
