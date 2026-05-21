@@ -10,7 +10,6 @@
  */
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useIsMobile } from '../hooks/useIsMobile';
-import { useAuth } from '../hooks/useAuth';
 
 interface Pairing {
   name: string;
@@ -62,9 +61,9 @@ const DAY_OPTIONS = [
 
 export default function Pairings() {
   const isMobile = useIsMobile();
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
-
+  // Sync controls used to be admin-gated; opened to all authed users
+  // 2026-05-21 per Ben — too much friction otherwise. Server-side
+  // requireAuth is still in place, so anon traffic still can't fire it.
   const [data, setData] = useState<PairingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -207,40 +206,36 @@ export default function Pairings() {
         <Select value={store} onChange={setStore} options={STORE_OPTIONS.map((s) => ({ value: s, label: s }))} />
         <div style={{ flex: 1 }} />
         <SyncBadge status={status} />
-        {isAdmin && (
-          <>
-            <button
-              onClick={() => startBackfill(30)}
-              disabled={!!backfillingDays || status?.inProgress}
-              style={{
-                padding: '7px 12px', borderRadius: 8,
-                border: '1px solid rgba(0,0,0,0.12)',
-                background: status?.inProgress ? 'rgba(0,0,0,0.05)' : '#1a1a1a',
-                color: status?.inProgress ? 'rgba(0,0,0,0.4)' : '#fff',
-                fontSize: 12, fontWeight: 600,
-                cursor: status?.inProgress ? 'wait' : 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              {status?.inProgress ? 'Syncing…' : 'Backfill 30 days'}
-            </button>
-            <button
-              onClick={() => setShowWeekPicker((v) => !v)}
-              style={{
-                padding: '7px 12px', borderRadius: 8,
-                border: '1px solid rgba(0,0,0,0.12)',
-                background: '#fff', color: '#1a1a1a',
-                fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              {showWeekPicker ? 'Hide weeks' : 'Pull historical week →'}
-            </button>
-          </>
-        )}
+        <button
+          onClick={() => startBackfill(30)}
+          disabled={!!backfillingDays || status?.inProgress}
+          style={{
+            padding: '7px 12px', borderRadius: 8,
+            border: '1px solid rgba(0,0,0,0.12)',
+            background: status?.inProgress ? 'rgba(0,0,0,0.05)' : '#1a1a1a',
+            color: status?.inProgress ? 'rgba(0,0,0,0.4)' : '#fff',
+            fontSize: 12, fontWeight: 600,
+            cursor: status?.inProgress ? 'wait' : 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          {status?.inProgress ? 'Syncing…' : 'Backfill 30 days'}
+        </button>
+        <button
+          onClick={() => setShowWeekPicker((v) => !v)}
+          style={{
+            padding: '7px 12px', borderRadius: 8,
+            border: '1px solid rgba(0,0,0,0.12)',
+            background: '#fff', color: '#1a1a1a',
+            fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          {showWeekPicker ? 'Hide weeks' : 'Pull historical week →'}
+        </button>
       </div>
 
-      {isAdmin && showWeekPicker && (
+      {showWeekPicker && (
         <WeekPicker
           weeks={weeks}
           syncing={!!status?.inProgress}
@@ -258,9 +253,7 @@ export default function Pairings() {
           background: 'rgba(0,0,0,0.02)', borderRadius: 12,
         }}>
           No pairing data yet.{' '}
-          {isAdmin
-            ? <button onClick={() => startBackfill(90)} style={{ background: 'none', border: 0, color: '#1a1a1a', textDecoration: 'underline', cursor: 'pointer' }}>Run a backfill →</button>
-            : 'Ask an admin to run the backfill from this page.'}
+          <button onClick={() => startBackfill(30)} style={{ background: 'none', border: 0, color: '#1a1a1a', textDecoration: 'underline', cursor: 'pointer' }}>Run a backfill →</button>
         </div>
       )}
 

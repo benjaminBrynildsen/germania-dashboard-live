@@ -346,7 +346,7 @@ router.post('/dripos/probe', requireAuth, requireRole('admin'), async (req: Auth
 });
 
 // ── Tickets sync + pairings analysis ───────────────────────────────
-router.post('/tickets/backfill', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response) => {
+router.post('/tickets/backfill', requireAuth, async (req: AuthRequest, res: Response) => {
   const days = Math.max(1, Math.min(365, Number(req.body?.days) || 90));
   try {
     const { startBackfill } = await import('./dripos-tickets.js');
@@ -368,7 +368,7 @@ router.get('/tickets/weeks', requireAuth, async (req: AuthRequest, res: Response
   res.json({ ok: true, weeks: listWeekStatus(weeks) });
 });
 
-router.post('/tickets/sync-week', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response) => {
+router.post('/tickets/sync-week', requireAuth, async (req: AuthRequest, res: Response) => {
   const week = String(req.body?.week ?? '').trim();
   try {
     const { startWeekSync } = await import('./dripos-tickets.js');
@@ -379,7 +379,7 @@ router.post('/tickets/sync-week', requireAuth, requireRole('admin'), async (req:
   }
 });
 
-router.post('/tickets/sync-yesterday', requireAuth, requireRole('admin'), async (_req: AuthRequest, res: Response) => {
+router.post('/tickets/sync-yesterday', requireAuth, async (_req: AuthRequest, res: Response) => {
   try {
     const { syncYesterday } = await import('./dripos-tickets.js');
     const result = await syncYesterday();
