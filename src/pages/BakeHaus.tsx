@@ -103,7 +103,71 @@ interface SavedOrder {
   totalQty: number;
 }
 
-type Tab = 'current' | 'schedule' | 'saved' | 'manage';
+type Tab = 'current' | 'production' | 'schedule' | 'saved' | 'manage';
+
+type ItemMap = Record<string, Record<string, number>>;
+
+interface ProductionSummary {
+  mon: ItemMap;
+  tue: ItemMap;
+  wed: ItemMap;
+  thu: ItemMap;
+  fri: ItemMap;
+}
+
+/**
+ * Map delivery-day quantities into production-day quantities.
+ *
+ *   - Food (BAKE HAUS FOOD): made same day as delivered. Mon→Mon, Wed→Wed,
+ *     Fri→Fri.
+ *   - Syrups + sauces: made the day BEFORE delivery. Mon→Mon (only Haus
+ *     Vanilla delivers Mon as a syrup, so its Mon production goes to
+ *     Mon delivery same-day), Wed→Tue, Fri→Thu.
+ *
+ * Catalog drives the routing — `category` distinguishes food from
+ * syrup-sauce; `includeMonday` flags the Vanilla case. Items not in
+ * the catalog (custom additions Joe/Tristan typed in manually) default
+ * to food cadence so they don't get silently dropped.
+ */
+function computeProductionSummary(
+  delivery: WeekReport['deliverySummary'],
+  catalog: CatalogItem[],
+): ProductionSummary {
+  const byName = new Map<string, CatalogItem>();
+  for (const c of catalog) byName.set(c.name, c);
+  const out: ProductionSummary = { mon: {}, tue: {}, wed: {}, thu: {}, fri: {} };
+
+  const route = (deliveryDay: 'mon' | 'wed' | 'fri', isFood: boolean): keyof ProductionSummary => {
+    if (isFood) return deliveryDay;
+    // syrup-sauce path: Mon delivery → Mon production (Haus Vanilla
+    // case, made same day), Wed delivery → Tue production, Fri
+    // delivery → Thu production.
+    if (deliveryDay === 'mon') return 'mon';
+    if (deliveryDay === 'wed') return 'tue';
+    return 'thu';
+  };
+
+  const addToBucket = (bucket: ItemMap, item: string, store: string, qty: number) => {
+    if (qty <= 0) return;
+    if (!bucket[item]) bucket[item] = {};
+    bucket[item][store] = (bucket[item][store] ?? 0) + qty;
+  };
+
+  for (const day of ['mon', 'wed', 'fri'] as const) {
+    const dayMap = delivery[day] ?? {};
+    for (const [itemName, perStore] of Object.entries(dayMap)) {
+      const catEntry = byName.get(itemName);
+      // Unknown items default to food cadence so legacy custom items
+      // aren't silently dropped from the production schedule.
+      const isFood = (catEntry?.category ?? 'food') === 'food';
+      const prodDay = route(day, isFood);
+      for (const [storeLabel, qty] of Object.entries(perStore)) {
+        addToBucket(out[prodDay], itemName, storeLabel, qty);
+      }
+    }
+  }
+  return out;
+}
 
 function fmtDateRange(weekStartIso: string): string {
   const start = new Date(weekStartIso + 'T00:00:00');
@@ -180,6 +244,14 @@ export default function BakeHaus() {
   // the live week. Swaps which printable mounts in the DOM so the print
   // dialog sees the snapshot's data, not today's.
   const [snapshotToPrint, setSnapshotToPrint] = useState<DeliverySnapshotPayload | null>(null);
+
+  // Production-day breakdown derived from the delivery summary +
+  // catalog. Drives both the Production Schedule tab UI and the extra
+  // 5 production pages in the printable PDF.
+  const productionSummary = useMemo(
+    () => (report ? computeProductionSummary(report.deliverySummary, catalog) : null),
+    [report, catalog],
+  );
 
   const exportPdf = useCallback(async () => {
     if (!report) return;
@@ -501,9 +573,10 @@ export default function BakeHaus() {
         overflowX: 'auto',
       }}>
         {([
-          { id: 'current',  label: 'Current Order',     short: 'Order' },
-          { id: 'schedule', label: 'Delivery Schedule', short: 'Schedule' },
-          { id: 'saved',    label: 'Saved Orders',      short: 'Saved' },
+          { id: 'current',    label: 'Current Order',       short: 'Order' },
+          { id: 'production', label: 'Production Schedule', short: 'Production' },
+          { id: 'schedule',   label: 'Delivery Schedule',   short: 'Schedule' },
+          { id: 'saved',      label: 'Saved Orders',        short: 'Saved' },
           { id: 'manage',   label: 'Manage Syrups & Sauces', short: 'Manage' },
         ] as Array<{ id: Tab; label: string; short: string }>).map((t) => {
           const active = tab === t.id;
@@ -534,7 +607,7 @@ export default function BakeHaus() {
         }}>{error}</div>
       )}
 
-      {(tab === 'current' || tab === 'schedule') && (
+      {(tab === 'current' || tab === 'schedule' || tab === 'production') && (
         <>
           {/* Week selector — shared by Current Order + Delivery Schedule
               since both views read off the same weekly report. */}
@@ -606,6 +679,43 @@ export default function BakeHaus() {
               onSave={(item, qty) => saveItem(activeStore, item, qty)}
               onDelete={(item) => deleteItem(activeStore, item)}
             />
+          </div>
+        </>
+      )}
+
+      {tab === 'production' && report && productionSummary && (
+        <>
+          <div style={{
+            display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+            gap: 12, marginTop: 12, marginBottom: 12, flexWrap: 'wrap',
+          }}>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
+              Production schedule
+            </h2>
+            <button onClick={exportPdf} disabled={printing}
+              style={{
+                ...primaryBtn,
+                opacity: printing ? 0.6 : 1,
+                cursor: printing ? 'wait' : 'pointer',
+              }}>
+              {printing ? 'Preparing…' : 'Export PDF'}
+            </button>
+          </div>
+          <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13, marginBottom: 14 }}>
+            What to make each day. <strong>Food</strong> is made the day it's delivered (Mon/Wed/Fri).
+            <strong> Syrups & sauces</strong> are made the day before (Tue for Wed delivery, Thu for Fri).
+            <strong> Haus Vanilla</strong> is made Mon, Tue, and Thu.
+          </p>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(540px, 1fr))',
+            gap: 12,
+          }}>
+            <DeliveryCard day="Monday"    items={productionSummary.mon} stores={stores} catalog={catalog} />
+            <DeliveryCard day="Tuesday"   items={productionSummary.tue} stores={stores} catalog={catalog} />
+            <DeliveryCard day="Wednesday" items={productionSummary.wed} stores={stores} catalog={catalog} />
+            <DeliveryCard day="Thursday"  items={productionSummary.thu} stores={stores} catalog={catalog} />
+            <DeliveryCard day="Friday"    items={productionSummary.fri} stores={stores} catalog={catalog} />
           </div>
         </>
       )}
@@ -2481,8 +2591,43 @@ function PrintableSchedule({
           prevRange={prevRange}
           deltaTotal={deltaTotal}
           deltaTotalPct={deltaTotalPct}
+          kind="delivery"
         />
       ))}
+
+      {/* One page per production day. Always 5 pages (Mon–Fri) even
+          when a day has zero items — keeps the page count predictable
+          so Maggie always gets the same packet structure. Routes data
+          from delivery days to production days via the catalog
+          (food = same day, syrups = day-before, Vanilla = mixed). */}
+      {(() => {
+        const prod = computeProductionSummary(report.deliverySummary, catalog);
+        const days = [
+          { label: 'Monday',    data: prod.mon, deliveryFor: 'Mon delivery' },
+          { label: 'Tuesday',   data: prod.tue, deliveryFor: 'Wed delivery' },
+          { label: 'Wednesday', data: prod.wed, deliveryFor: 'Wed delivery' },
+          { label: 'Thursday',  data: prod.thu, deliveryFor: 'Fri delivery' },
+          { label: 'Friday',    data: prod.fri, deliveryFor: 'Fri delivery' },
+        ] as const;
+        return days.map((day) => (
+          <PrintableDayPage
+            key={`prod-${day.label}`}
+            day={day.label}
+            items={day.data}
+            stores={stores}
+            catalog={catalog}
+            weekRange={curRange}
+            weekTotal={totals.cur}
+            prevTotal={totals.prev}
+            hasPrev={totals.hasPrev}
+            prevRange={prevRange}
+            deltaTotal={deltaTotal}
+            deltaTotalPct={deltaTotalPct}
+            kind="production"
+            deliveryFor={day.deliveryFor}
+          />
+        ));
+      })()}
     </div>
   );
 }
@@ -2490,6 +2635,7 @@ function PrintableSchedule({
 function PrintableDayPage({
   day, items, stores, catalog, weekRange,
   weekTotal, prevTotal, hasPrev, prevRange, deltaTotal, deltaTotalPct,
+  kind = 'delivery', deliveryFor,
 }: {
   day: string;
   items: Record<string, Record<string, number>>;
@@ -2502,6 +2648,12 @@ function PrintableDayPage({
   prevRange: string;
   deltaTotal: number;
   deltaTotalPct: number | null;
+  /** 'delivery' page = "{day} delivery" title; 'production' = "{day}
+   *  production" with a sub-label that says which delivery it feeds. */
+  kind?: 'delivery' | 'production';
+  /** For kind='production', what delivery day this batch feeds (e.g.,
+   *  Tuesday production → "Wed delivery"). Unused for delivery pages. */
+  deliveryFor?: string;
 }) {
   const sortedItems = Object.keys(items).sort((a, b) => {
     const ai = catalog.find((c) => c.name === a)?.sort ?? 1000;
@@ -2526,8 +2678,12 @@ function PrintableDayPage({
       <div style={{ fontSize: '9pt', color: '#888', letterSpacing: '0.5pt', textTransform: 'uppercase' }}>
         Bake Haus · Week of {weekRange}
       </div>
-      <h1 className="bh-print-title">{day} delivery</h1>
-      <p className="bh-print-sub">{grand.toLocaleString()} units to make for {day} · {sortedItems.length} item{sortedItems.length === 1 ? '' : 's'}</p>
+      <h1 className="bh-print-title">{day} {kind}</h1>
+      <p className="bh-print-sub">
+        {grand.toLocaleString()} units {kind === 'production' ? 'to make' : 'to deliver'} on {day}
+        {kind === 'production' && deliveryFor && <> · for {deliveryFor}</>}
+        {' '}· {sortedItems.length} item{sortedItems.length === 1 ? '' : 's'}
+      </p>
 
       {/* Week-at-a-glance banner — replaces the standalone cover page.
           Keeps the WoW context in front of Maggie on every printed
@@ -2562,7 +2718,7 @@ function PrintableDayPage({
 
       {sortedItems.length === 0 ? (
         <p style={{ fontSize: '11pt', color: '#888', marginTop: '20pt' }}>
-          No deliveries scheduled for {day}.
+          {kind === 'production' ? `No items to make for ${day}.` : `No deliveries scheduled for ${day}.`}
         </p>
       ) : (
         <table className="bh-print-table">
