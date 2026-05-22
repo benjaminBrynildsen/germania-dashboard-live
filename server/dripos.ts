@@ -1011,22 +1011,25 @@ function bucketCompletions(
 }
 
 // /report/salessummary with EXECUTE_REPORTS:['HOUR'] returns a parallel HOUR
-// array of per-hour buckets. Each row has the same shape as TIMESPAN rows
-// plus a HOUR (epoch-ms) marker, so we can bucket per (hour-of-day, day-of-
-// week) in America/Chicago and surface it alongside completion times.
+// array of per-hour buckets. Important quirk: when called with a multi-day
+// range, the HOUR array aggregates by hour-of-day across the whole range
+// and tags every bucket with an epoch that maps to the LAST day in the
+// range — so trying to bucket per (day, hour) from a single week-long call
+// lands everything in Saturday. To get a real per-day breakdown we have to
+// fetch one day at a time; each call's HOUR array is then that day's
+// hourly rollup, cached forever past days.
 interface HourlySalesRow extends SalesSummaryRow {
   HOUR: number;
 }
 
-export async function fetchHourlySales(
+export async function fetchDailyHourlySales(
   locationId: number,
-  sun: Date,
-  sat: Date,
+  day: Date,
 ): Promise<HourlySalesRow[]> {
-  const start = startOfDayMs(sun);
-  const end = endOfDayMs(sat);
+  const start = startOfDayMs(day);
+  const end = endOfDayMs(day);
   return cached(
-    `report/salessummary-hour|${locationId}|${start}|${end}`,
+    `report/salessummary-hour-day|${locationId}|${start}|${end}`,
     end,
     async () => {
       const body = await callApi<{ HOUR?: HourlySalesRow[] }>(
@@ -1048,25 +1051,6 @@ export async function fetchHourlySales(
   );
 }
 
-function bucketHourlySales(
-  rows: HourlySalesRow[],
-): Record<string, (number | null)[]> {
-  const grid: Record<string, (number | null)[]> = {};
-  for (const lbl of TICKET_HOUR_LABELS) {
-    grid[lbl] = [null, null, null, null, null, null, null];
-  }
-  for (const r of rows) {
-    if (typeof r.HOUR !== 'number') continue;
-    const gross = r.GROSS_SALES ?? 0;
-    if (!gross) continue;
-    const lbl = chicagoHourLabel(r.HOUR);
-    const di = chicagoDayIndex(r.HOUR);
-    if (!grid[lbl] || di < 0) continue;
-    grid[lbl][di] = gross;
-  }
-  return grid;
-}
-
 export interface TicketTimeWeek {
   weekNum: number;
   dates: string[];
@@ -1081,14 +1065,35 @@ export async function buildTicketTimeReport(
   referenceDate: Date = new Date(),
 ): Promise<TicketTimeWeek> {
   const [sun, sat] = weekBounds(referenceDate, 0);
+  const dayList: Date[] = [];
+  for (let i = 0; i < 7; i++) dayList.push(addDays(sun, i));
   const perStore = await Promise.all(
     STORES.map(async (s) => {
-      const [hours, hourlySales] = await Promise.all([
+      const [hours, dailyHourlySales] = await Promise.all([
         fetchCompletion(s.locationId, sun, sat),
-        fetchHourlySales(s.locationId, sun, sat),
+        Promise.all(dayList.map((d) => fetchDailyHourlySales(s.locationId, d))),
       ]);
       const { times, tickets } = bucketCompletions(hours);
-      const salesCents = bucketHourlySales(hourlySales);
+      // Build salesCents grid by hour-label × day-index. We trust the
+      // iteration index `i` (rather than chicagoDayIndex(r.HOUR)) because
+      // Dripos's hourly rollup tags rows with epochs that may not map
+      // cleanly to the day we requested — but since each call's range is
+      // already a single day, every row in dailyHourlySales[i] belongs
+      // to that day.
+      const salesCents: Record<string, (number | null)[]> = {};
+      for (const lbl of TICKET_HOUR_LABELS) {
+        salesCents[lbl] = [null, null, null, null, null, null, null];
+      }
+      for (let i = 0; i < 7; i++) {
+        for (const r of dailyHourlySales[i] ?? []) {
+          if (typeof r.HOUR !== 'number') continue;
+          const gross = r.GROSS_SALES ?? 0;
+          if (!gross) continue;
+          const lbl = chicagoHourLabel(r.HOUR);
+          if (!salesCents[lbl]) continue;
+          salesCents[lbl][i] = (salesCents[lbl][i] ?? 0) + gross;
+        }
+      }
       return [s.label, { hours: times, tickets, salesCents }] as const;
     }),
   );
