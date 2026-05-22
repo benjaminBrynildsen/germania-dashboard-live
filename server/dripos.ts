@@ -992,17 +992,77 @@ function chicagoDayIndex(epochMs: number): number {
 
 function bucketCompletions(
   hours: CompletionHour[],
-): Record<string, (number | null)[]> {
-  const grid: Record<string, (number | null)[]> = {};
+): { times: Record<string, (number | null)[]>; tickets: Record<string, (number | null)[]> } {
+  const times: Record<string, (number | null)[]> = {};
+  const tickets: Record<string, (number | null)[]> = {};
   for (const lbl of TICKET_HOUR_LABELS) {
-    grid[lbl] = [null, null, null, null, null, null, null];
+    times[lbl] = [null, null, null, null, null, null, null];
+    tickets[lbl] = [null, null, null, null, null, null, null];
   }
   for (const h of hours) {
     if (!h.TICKET_COUNT) continue;
     const lbl = chicagoHourLabel(h.HOUR);
     const di = chicagoDayIndex(h.HOUR);
+    if (!times[lbl] || di < 0) continue;
+    times[lbl][di] = h.AVG_COMPLETION_TIME;
+    tickets[lbl][di] = h.TICKET_COUNT;
+  }
+  return { times, tickets };
+}
+
+// /report/salessummary with EXECUTE_REPORTS:['HOUR'] returns a parallel HOUR
+// array of per-hour buckets. Each row has the same shape as TIMESPAN rows
+// plus a HOUR (epoch-ms) marker, so we can bucket per (hour-of-day, day-of-
+// week) in America/Chicago and surface it alongside completion times.
+interface HourlySalesRow extends SalesSummaryRow {
+  HOUR: number;
+}
+
+export async function fetchHourlySales(
+  locationId: number,
+  sun: Date,
+  sat: Date,
+): Promise<HourlySalesRow[]> {
+  const start = startOfDayMs(sun);
+  const end = endOfDayMs(sat);
+  return cached(
+    `report/salessummary-hour|${locationId}|${start}|${end}`,
+    end,
+    async () => {
+      const body = await callApi<{ HOUR?: HourlySalesRow[] }>(
+        '/report/salessummary',
+        {
+          method: 'POST',
+          locationId,
+          body: {
+            START_EPOCH: start,
+            END_EPOCH: end,
+            LOCATION_ID_ARRAY: [locationId],
+            EXECUTE_REPORTS: ['HOUR'],
+            POPULATE_MISSING_DATES: false,
+          },
+        },
+      );
+      return body.data?.HOUR ?? [];
+    },
+  );
+}
+
+function bucketHourlySales(
+  rows: HourlySalesRow[],
+): Record<string, (number | null)[]> {
+  const grid: Record<string, (number | null)[]> = {};
+  for (const lbl of TICKET_HOUR_LABELS) {
+    grid[lbl] = [null, null, null, null, null, null, null];
+  }
+  for (const r of rows) {
+    if (typeof r.HOUR !== 'number') continue;
+    const gross = r.GROSS_SALES ?? 0;
+    if (!gross) continue;
+    const lbl = chicagoHourLabel(r.HOUR);
+    const di = chicagoDayIndex(r.HOUR);
     if (!grid[lbl] || di < 0) continue;
-    grid[lbl][di] = h.AVG_COMPLETION_TIME;
+    grid[lbl][di] = gross;
   }
   return grid;
 }
@@ -1010,7 +1070,11 @@ function bucketCompletions(
 export interface TicketTimeWeek {
   weekNum: number;
   dates: string[];
-  data: Record<string, { hours: Record<string, (number | null)[]> }>;
+  data: Record<string, {
+    hours: Record<string, (number | null)[]>;
+    tickets: Record<string, (number | null)[]>;
+    salesCents: Record<string, (number | null)[]>;
+  }>;
 }
 
 export async function buildTicketTimeReport(
@@ -1019,8 +1083,13 @@ export async function buildTicketTimeReport(
   const [sun, sat] = weekBounds(referenceDate, 0);
   const perStore = await Promise.all(
     STORES.map(async (s) => {
-      const hours = await fetchCompletion(s.locationId, sun, sat);
-      return [s.label, { hours: bucketCompletions(hours) }] as const;
+      const [hours, hourlySales] = await Promise.all([
+        fetchCompletion(s.locationId, sun, sat),
+        fetchHourlySales(s.locationId, sun, sat),
+      ]);
+      const { times, tickets } = bucketCompletions(hours);
+      const salesCents = bucketHourlySales(hourlySales);
+      return [s.label, { hours: times, tickets, salesCents }] as const;
     }),
   );
   const dates: string[] = [];

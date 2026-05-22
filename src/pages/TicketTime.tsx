@@ -15,7 +15,18 @@ const LOCS = ['G1','G2','G3','G4'];
 interface TicketWeek {
   weekNum: number;
   dates: string[];
-  data: Record<string, { hours: Record<string, (number | null)[]> }>;
+  data: Record<string, {
+    hours: Record<string, (number | null)[]>;
+    tickets?: Record<string, (number | null)[]>;
+    salesCents?: Record<string, (number | null)[]>;
+  }>;
+}
+
+function fmtMoneyShort(cents: number | null): string {
+  if (cents === null || cents === undefined) return '—';
+  const dollars = cents / 100;
+  if (dollars >= 1000) return `$${(dollars / 1000).toFixed(1)}k`;
+  return `$${Math.round(dollars)}`;
 }
 
 function avg(arr: (number | null)[]): number | null {
@@ -61,6 +72,7 @@ export default function TicketTime() {
   const [prevWeek, setPrevWeek] = useState<TicketWeek | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hoverCell, setHoverCell] = useState<{ hour: string; day: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -262,16 +274,34 @@ export default function TicketTime() {
                 <tbody>
                   {HOURS.map((hour) => {
                     const vals = (locData.hours || {})[hour] || [];
+                    const tickVals = (locData.tickets || {})[hour] || [];
+                    const salesVals = (locData.salesCents || {})[hour] || [];
                     const hourAvg = avg(vals);
                     return (
                       <tr key={hour} style={{ borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
                         <td style={{ padding: '8px 16px', fontSize: 12, fontWeight: 500, color: 'rgba(0,0,0,0.45)' }}>{hour}</td>
                         {Array.from({ length: 7 }, (_, i) => {
                           const v = i < vals.length ? vals[i] : null;
+                          const tc = i < tickVals.length ? tickVals[i] : null;
+                          const sc = i < salesVals.length ? salesVals[i] : null;
+                          const hovered = hoverCell?.hour === hour && hoverCell?.day === i;
+                          const showSwap = hovered && v !== null && (tc !== null || sc !== null);
                           return (
                             <td key={i} style={{ padding: 4, textAlign: 'center' }}>
-                              <div style={{ borderRadius: 8, padding: '8px 4px', fontSize: 14, ...cellStyle(v), transition: 'transform 0.15s' }}>
-                                {fmt(v)}
+                              <div
+                                onMouseEnter={() => setHoverCell({ hour, day: i })}
+                                onMouseLeave={() => setHoverCell((c) => (c?.hour === hour && c?.day === i ? null : c))}
+                                style={{
+                                  borderRadius: 8,
+                                  padding: '8px 4px',
+                                  fontSize: showSwap ? 12 : 14,
+                                  ...cellStyle(v),
+                                  transition: 'transform 0.15s',
+                                  cursor: v !== null ? 'default' : undefined,
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {showSwap ? `${fmtMoneyShort(sc)} · ${tc ?? 0}` : fmt(v)}
                               </div>
                             </td>
                           );
