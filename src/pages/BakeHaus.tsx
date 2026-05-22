@@ -2532,6 +2532,12 @@ function PrintableSchedule({
             padding: 0 0 12pt 0;
           }
           .bh-print-page:last-child { page-break-after: auto; }
+          /* Defensive: every page block also asks for a page break
+             BEFORE itself (except the first). When a preceding page's
+             content overflows, page-break-after lands at the wrong
+             spot — page-break-before on the next block guarantees the
+             new section starts on a fresh physical page either way. */
+          .bh-print-page + .bh-print-page { page-break-before: always; }
           /* Header tighter so the 18-item + Total table fits on one page.
              Before this change the Total row overflowed onto page 2 for
              every delivery day (3 pages → 6 PDF pages). */
@@ -2543,11 +2549,15 @@ function PrintableSchedule({
             padding: 4pt 10pt; font-size: 9pt;
           }
           .bh-print-pill strong { font-size: 12pt; display: block; margin-top: 1pt; }
-          /* Table: keep the entire body together so the rounding-off
-             Total row never gets pushed to a new page. page-break-inside
-             on table is honored by both Chromium and webkit print
-             engines. */
-          .bh-print-table { width: 100%; border-collapse: collapse; font-size: 10pt; page-break-inside: avoid; }
+          /* Table: rows stay intact (no row split across pages) but
+             the table itself can flow across pages. The older
+             page-break-inside: avoid on .bh-print-table caused tables
+             that didn't fit cleanly below the banner to push wholesale
+             to a new page — leaving the title alone on the previous
+             page and cascading to drop a later production page
+             entirely. tr.total page-break-before: avoid still keeps
+             the Total row attached to the body. */
+          .bh-print-table { width: 100%; border-collapse: collapse; font-size: 10pt; }
           .bh-print-table th, .bh-print-table td {
             border-bottom: 0.5pt solid #ddd;
             padding: 4pt 10pt; text-align: left;
