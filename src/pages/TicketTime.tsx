@@ -22,6 +22,8 @@ interface TicketWeek {
   }>;
 }
 
+type ViewMode = 'time' | 'transactions' | 'sales';
+
 function fmtMoneyShort(cents: number | null): string {
   if (cents === null || cents === undefined) return '—';
   const dollars = cents / 100;
@@ -35,6 +37,12 @@ function avg(arr: (number | null)[]): number | null {
   return valid.reduce((a, b) => a + b, 0) / valid.length;
 }
 
+function sum(arr: (number | null)[]): number | null {
+  const valid = arr.filter((v): v is number => v !== null);
+  if (!valid.length) return null;
+  return valid.reduce((a, b) => a + b, 0);
+}
+
 function cellStyle(val: number | null): React.CSSProperties {
   if (val === null) return { background: 'rgba(0,0,0,0.03)', color: 'rgba(0,0,0,0.2)' };
   if (val > 20) return { background: '#f3e8ff', color: '#7c3aed', fontWeight: 700 };
@@ -43,10 +51,27 @@ function cellStyle(val: number | null): React.CSSProperties {
   return { background: '#dcfce7', color: '#15803d', fontWeight: 600 };
 }
 
+// Heatmap for transactions/sales: ramps blue→orange based on intensity.
+// `t` is 0..1; null returns the muted empty-cell style.
+function heatStyle(val: number | null, max: number): React.CSSProperties {
+  if (val === null || val === 0) return { background: 'rgba(0,0,0,0.03)', color: 'rgba(0,0,0,0.2)' };
+  const t = max > 0 ? Math.min(1, val / max) : 0;
+  // Low = cool blue, mid = green, high = warm orange. Keep text dark enough.
+  if (t >= 0.75) return { background: '#fde68a', color: '#92400e', fontWeight: 700 };
+  if (t >= 0.5)  return { background: '#dcfce7', color: '#15803d', fontWeight: 700 };
+  if (t >= 0.25) return { background: '#e0f2fe', color: '#0369a1', fontWeight: 600 };
+  return { background: '#f1f5f9', color: '#475569', fontWeight: 500 };
+}
+
 function fmt(val: number | null): string {
   if (val === null) return '—';
   if (val > 20) return `${val.toFixed(0)}⚠`;
   return val.toFixed(1);
+}
+
+function fmtInt(val: number | null): string {
+  if (val === null || val === 0) return '—';
+  return String(Math.round(val));
 }
 
 function getWeekAvg(week: TicketWeek | null, loc: string): number | null {
@@ -72,7 +97,7 @@ export default function TicketTime() {
   const [prevWeek, setPrevWeek] = useState<TicketWeek | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hoverCell, setHoverCell] = useState<{ hour: string; day: number } | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('time');
 
   useEffect(() => {
     let cancelled = false;
@@ -146,16 +171,56 @@ export default function TicketTime() {
 
   const locData = week?.data[activeLoc] ?? { hours: {} };
 
+  // Per-mode pull of the right grid. Time mode keeps the original
+  // `hours` (avg completion minutes). Transactions/Sales use the new
+  // tickets/salesCents grids the server now ships.
+  const modeGrid = useMemo(() => {
+    if (viewMode === 'transactions') return locData.tickets || {};
+    if (viewMode === 'sales') return locData.salesCents || {};
+    return locData.hours || {};
+  }, [locData, viewMode]);
+
+  // For the heatmap modes (transactions/sales) we color cells by
+  // intensity against the week's peak hour. Time mode keeps the
+  // fixed 0–4 / 5–7 / 8+ thresholds.
+  const maxCellVal = useMemo(() => {
+    if (viewMode === 'time') return 0;
+    let m = 0;
+    for (const h of HOURS) {
+      for (const v of modeGrid[h] || []) {
+        if (typeof v === 'number' && v > m) m = v;
+      }
+    }
+    return m;
+  }, [modeGrid, viewMode]);
+
+  // Per-day arrays of cell values, used for the bottom totals row.
   const dailyTotals = useMemo(() => {
     return DAYS.map((_, i) => {
       const vals: number[] = [];
       HOURS.forEach((h) => {
-        const v = ((locData.hours || {})[h] || [])[i];
+        const v = (modeGrid[h] || [])[i];
         if (v !== null && v !== undefined) vals.push(v);
       });
       return vals;
     });
-  }, [locData]);
+  }, [modeGrid]);
+
+  const renderCell = (v: number | null) => {
+    if (viewMode === 'time') return { text: fmt(v), style: cellStyle(v) };
+    if (viewMode === 'transactions') return { text: fmtInt(v), style: heatStyle(v, maxCellVal) };
+    return { text: fmtMoneyShort(v), style: heatStyle(v, maxCellVal) };
+  };
+
+  const rowSummary = (vals: (number | null)[]): number | null =>
+    viewMode === 'time' ? avg(vals) : sum(vals);
+
+  const summaryLabel = viewMode === 'time' ? 'Avg/Hr' : 'Total';
+  const dayLabel = viewMode === 'time' ? 'Avg/Day' : 'Day Total';
+  const subhead =
+    viewMode === 'transactions' ? 'Tickets by hour'
+    : viewMode === 'sales' ? 'Gross sales by hour'
+    : 'Average drink completion times by hour';
 
   return (
     <div>
@@ -164,7 +229,7 @@ export default function TicketTime() {
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>Ticket Time</h1>
           <p style={{ color: 'rgba(0,0,0,0.4)', fontSize: 14, marginTop: 4 }}>
-            Average drink completion times by hour
+            {subhead}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -251,9 +316,40 @@ export default function TicketTime() {
             ))}
           </div>
 
-          {/* Date range */}
-          <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
-            Week {week.weekNum} — {week.dates[0]} to {week.dates[6]} · {LOC_NAMES[activeLoc]}
+          {/* Date range + view-mode toggle */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+            <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>
+              Week {week.weekNum} — {week.dates[0]} to {week.dates[6]} · {LOC_NAMES[activeLoc]}
+            </div>
+            <div style={{ display: 'inline-flex', background: '#f1f5f9', borderRadius: 10, padding: 3, gap: 2 }}>
+              {([
+                { id: 'time' as ViewMode, label: 'Time' },
+                { id: 'transactions' as ViewMode, label: 'Transactions' },
+                { id: 'sales' as ViewMode, label: 'Sales' },
+              ]).map((opt) => {
+                const active = viewMode === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => setViewMode(opt.id)}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: active ? '#fff' : 'transparent',
+                      color: active ? '#1a1a1a' : 'rgba(0,0,0,0.55)',
+                      fontWeight: active ? 700 : 500,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      boxShadow: active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Grid */}
@@ -268,68 +364,68 @@ export default function TicketTime() {
                         {d}<br /><span style={{ fontWeight: 400, fontSize: 10, opacity: 0.6 }}>{week.dates[i]}</span>
                       </th>
                     ))}
-                    <th style={{ textAlign: 'center', padding: '12px 8px', fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Avg/Hr</th>
+                    <th style={{ textAlign: 'center', padding: '12px 8px', fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{summaryLabel}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {HOURS.map((hour) => {
-                    const vals = (locData.hours || {})[hour] || [];
-                    const tickVals = (locData.tickets || {})[hour] || [];
-                    const salesVals = (locData.salesCents || {})[hour] || [];
-                    const hourAvg = avg(vals);
+                    const vals = (modeGrid[hour] || []) as (number | null)[];
+                    const rowTotal = rowSummary(vals);
+                    const rowCell = renderCell(rowTotal);
                     return (
                       <tr key={hour} style={{ borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
                         <td style={{ padding: '8px 16px', fontSize: 12, fontWeight: 500, color: 'rgba(0,0,0,0.45)' }}>{hour}</td>
                         {Array.from({ length: 7 }, (_, i) => {
                           const v = i < vals.length ? vals[i] : null;
-                          const tc = i < tickVals.length ? tickVals[i] : null;
-                          const sc = i < salesVals.length ? salesVals[i] : null;
-                          const hovered = hoverCell?.hour === hour && hoverCell?.day === i;
-                          const showSwap = hovered && v !== null && (tc !== null || sc !== null);
+                          const { text, style } = renderCell(v);
                           return (
                             <td key={i} style={{ padding: 4, textAlign: 'center' }}>
-                              <div
-                                onMouseEnter={() => setHoverCell({ hour, day: i })}
-                                onMouseLeave={() => setHoverCell((c) => (c?.hour === hour && c?.day === i ? null : c))}
-                                style={{
-                                  borderRadius: 8,
-                                  padding: '8px 4px',
-                                  fontSize: showSwap ? 12 : 14,
-                                  ...cellStyle(v),
-                                  transition: 'transform 0.15s',
-                                  cursor: v !== null ? 'default' : undefined,
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {showSwap ? `${fmtMoneyShort(sc)} · ${tc ?? 0}` : fmt(v)}
+                              <div style={{ borderRadius: 8, padding: '8px 4px', fontSize: 14, ...style, transition: 'transform 0.15s', whiteSpace: 'nowrap' }}>
+                                {text}
                               </div>
                             </td>
                           );
                         })}
                         <td style={{ padding: 4, textAlign: 'center' }}>
-                          <div style={{ borderRadius: 8, padding: '8px 4px', fontSize: 14, fontWeight: 700, ...cellStyle(hourAvg) }}>
-                            {fmt(hourAvg)}
+                          <div style={{ borderRadius: 8, padding: '8px 4px', fontSize: 14, fontWeight: 700, ...rowCell.style, whiteSpace: 'nowrap' }}>
+                            {rowCell.text}
                           </div>
                         </td>
                       </tr>
                     );
                   })}
                   <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
-                    <td style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: '#1a1a1a', textTransform: 'uppercase', letterSpacing: 0.5 }}>Avg/Day</td>
+                    <td style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: '#1a1a1a', textTransform: 'uppercase', letterSpacing: 0.5 }}>{dayLabel}</td>
                     {dailyTotals.map((arr, i) => {
-                      const a = avg(arr);
+                      const dayTotal = viewMode === 'time' ? avg(arr) : sum(arr);
+                      // Day-total row gets neutral styling — we don't recolor
+                      // by the same heatmap (totals would dominate the scale).
+                      const text =
+                        viewMode === 'time' ? fmt(dayTotal)
+                        : viewMode === 'transactions' ? fmtInt(dayTotal)
+                        : fmtMoneyShort(dayTotal);
                       return (
                         <td key={i} style={{ padding: 4, textAlign: 'center' }}>
-                          <div style={{ borderRadius: 8, padding: '8px 4px', fontSize: 14, fontWeight: 700, ...cellStyle(a) }}>
-                            {fmt(a)}
+                          <div style={{ borderRadius: 8, padding: '8px 4px', fontSize: 14, fontWeight: 700, background: 'rgba(0,0,0,0.06)', color: '#1a1a1a', whiteSpace: 'nowrap' }}>
+                            {text}
                           </div>
                         </td>
                       );
                     })}
                     <td style={{ padding: 4, textAlign: 'center' }}>
-                      <div style={{ borderRadius: 8, padding: '8px 4px', fontSize: 14, fontWeight: 700, background: 'rgba(0,0,0,0.06)' }}>
-                        {fmt(avg(dailyTotals.flat()))}
-                      </div>
+                      {(() => {
+                        const flat = dailyTotals.flat();
+                        const grand = viewMode === 'time' ? avg(flat) : sum(flat);
+                        const text =
+                          viewMode === 'time' ? fmt(grand)
+                          : viewMode === 'transactions' ? fmtInt(grand)
+                          : fmtMoneyShort(grand);
+                        return (
+                          <div style={{ borderRadius: 8, padding: '8px 4px', fontSize: 14, fontWeight: 700, background: 'rgba(0,0,0,0.06)', whiteSpace: 'nowrap' }}>
+                            {text}
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 </tbody>
@@ -339,10 +435,22 @@ export default function TicketTime() {
 
           {/* Legend */}
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 16, fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: '#dcfce7', display: 'inline-block' }} /> ≤4 min</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: '#fef9c3', display: 'inline-block' }} /> 5–7 min</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: '#fee2e2', display: 'inline-block' }} /> 8+ min</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: '#f3e8ff', display: 'inline-block' }} /> ⚠ Not swiped (20+)</span>
+            {viewMode === 'time' ? (
+              <>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: '#dcfce7', display: 'inline-block' }} /> ≤4 min</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: '#fef9c3', display: 'inline-block' }} /> 5–7 min</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: '#fee2e2', display: 'inline-block' }} /> 8+ min</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: '#f3e8ff', display: 'inline-block' }} /> ⚠ Not swiped (20+)</span>
+              </>
+            ) : (
+              <>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: '#f1f5f9', display: 'inline-block' }} /> Low</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: '#e0f2fe', display: 'inline-block' }} /> </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: '#dcfce7', display: 'inline-block' }} /> </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: '#fde68a', display: 'inline-block' }} /> Peak</span>
+                <span style={{ opacity: 0.7 }}>Shaded against the busiest hour this week</span>
+              </>
+            )}
           </div>
 
           {/* Long-range ticket time vs daily sales correlation for the
