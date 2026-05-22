@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useSearchParams } from 'react-router-dom';
 import TicketVsSalesCard from '../components/TicketVsSalesCard';
@@ -98,6 +98,51 @@ export default function TicketTime() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('time');
+  // Rectangle selection: hour-index pair × day-index pair.
+  // null = no selection; both corners equal = single-cell selection.
+  const [selection, setSelection] = useState<{
+    startHour: number;
+    startDay: number;
+    endHour: number;
+    endDay: number;
+  } | null>(null);
+  const draggingRef = useRef(false);
+  const gridContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Reset selection whenever the underlying data the grid is showing
+  // changes — selection coordinates are meaningless against a different
+  // location or week.
+  useEffect(() => { setSelection(null); }, [activeLoc, weekOffset]);
+
+  // Release the drag state on mouseup anywhere on the page (so a drag
+  // that ends outside the grid still commits cleanly) and clear the
+  // selection on Escape.
+  useEffect(() => {
+    const onUp = () => { draggingRef.current = false; };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelection(null);
+    };
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  // Click outside the grid container clears the selection. mousedown
+  // listener so a fresh drag inside the grid doesn't immediately fire
+  // this and wipe its own freshly-set selection.
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const root = gridContainerRef.current;
+      if (!root) return;
+      if (e.target instanceof Node && root.contains(e.target)) return;
+      setSelection(null);
+    };
+    window.addEventListener('mousedown', onDown);
+    return () => window.removeEventListener('mousedown', onDown);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -222,6 +267,45 @@ export default function TicketTime() {
     : viewMode === 'sales' ? 'Gross sales by hour'
     : 'Average drink completion times by hour';
 
+  const selectionBounds = useMemo(() => {
+    if (!selection) return null;
+    return {
+      minH: Math.min(selection.startHour, selection.endHour),
+      maxH: Math.max(selection.startHour, selection.endHour),
+      minD: Math.min(selection.startDay, selection.endDay),
+      maxD: Math.max(selection.startDay, selection.endDay),
+    };
+  }, [selection]);
+
+  // Aggregate the cells inside the selection rectangle. Time → avg,
+  // transactions/sales → sum. `dataCells` counts cells that actually
+  // had data so we can show "of N" when the box is mostly empty.
+  const selectionStats = useMemo(() => {
+    if (!selectionBounds) return null;
+    const { minH, maxH, minD, maxD } = selectionBounds;
+    const vals: number[] = [];
+    for (let h = minH; h <= maxH; h++) {
+      const arr = modeGrid[HOURS[h]] || [];
+      for (let d = minD; d <= maxD; d++) {
+        const v = arr[d];
+        if (typeof v === 'number') vals.push(v);
+      }
+    }
+    const cellCount = (maxH - minH + 1) * (maxD - minD + 1);
+    const value = viewMode === 'time' ? avg(vals) : sum(vals);
+    return { value, cellCount, dataCells: vals.length };
+  }, [selectionBounds, modeGrid, viewMode]);
+
+  // Format the active card's central value for any of the three modes.
+  const formatCardValue = (val: number | null): { num: string; unit: string } => {
+    if (val === null || val === undefined) return { num: '—', unit: '' };
+    if (viewMode === 'time') return { num: val.toFixed(1), unit: 'min' };
+    if (viewMode === 'transactions') return { num: String(Math.round(val)), unit: 'tickets' };
+    const dollars = val / 100;
+    if (dollars >= 1000) return { num: `$${(dollars / 1000).toFixed(1)}k`, unit: '' };
+    return { num: `$${Math.round(dollars)}`, unit: '' };
+  };
+
   return (
     <div>
       {/* Header */}
@@ -292,28 +376,49 @@ export default function TicketTime() {
         <>
           {/* Location summary cards */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
-            {summaries.map(({ loc, weekAvg, diff }) => (
-              <div key={loc} onClick={() => setActiveLoc(loc)}
-                style={{
-                  background: '#fff', borderRadius: 14, padding: '18px 20px', cursor: 'pointer',
-                  border: activeLoc === loc ? '2px solid #1a1a1a' : '1px solid rgba(0,0,0,0.08)',
-                  boxShadow: activeLoc === loc ? '0 2px 12px rgba(0,0,0,0.08)' : '0 1px 4px rgba(0,0,0,0.04)',
-                  transition: 'all 0.2s',
-                }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.4)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  {LOC_NAMES[loc]}
-                </div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a' }}>
-                  {weekAvg !== null ? weekAvg.toFixed(1) : '—'}
-                  <span style={{ fontSize: 14, fontWeight: 400, color: 'rgba(0,0,0,0.35)', marginLeft: 4 }}>min</span>
-                </div>
-                {diff !== null && (
-                  <div style={{ fontSize: 12, marginTop: 4, color: diff < 0 ? '#15803d' : '#dc2626', fontWeight: 600 }}>
-                    {diff < 0 ? '↓' : '↑'} {Math.abs(diff).toFixed(1)} min vs prev week
+            {summaries.map(({ loc, weekAvg, diff }) => {
+              const isActive = activeLoc === loc;
+              const showSelection = isActive && selectionStats !== null;
+              const cardValue = showSelection
+                ? formatCardValue(selectionStats!.value)
+                : (weekAvg !== null
+                    ? { num: weekAvg.toFixed(1), unit: 'min' }
+                    : { num: '—', unit: '' });
+              return (
+                <div key={loc} onClick={() => setActiveLoc(loc)}
+                  style={{
+                    background: '#fff', borderRadius: 14, padding: '18px 20px', cursor: 'pointer',
+                    border: isActive ? '2px solid #1a1a1a' : '1px solid rgba(0,0,0,0.08)',
+                    boxShadow: isActive ? '0 2px 12px rgba(0,0,0,0.08)' : '0 1px 4px rgba(0,0,0,0.04)',
+                    transition: 'all 0.2s',
+                  }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.4)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {LOC_NAMES[loc]}
                   </div>
-                )}
-              </div>
-            ))}
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a' }}>
+                    {cardValue.num}
+                    {cardValue.unit && (
+                      <span style={{ fontSize: 14, fontWeight: 400, color: 'rgba(0,0,0,0.35)', marginLeft: 4 }}>{cardValue.unit}</span>
+                    )}
+                  </div>
+                  {showSelection ? (
+                    <div style={{ fontSize: 12, marginTop: 4, color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>Selection · {selectionStats!.dataCells}/{selectionStats!.cellCount} cells</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSelection(null); }}
+                        style={{ border: 'none', background: 'transparent', color: '#2563eb', cursor: 'pointer', fontSize: 12, padding: 0, textDecoration: 'underline' }}
+                      >Clear</button>
+                    </div>
+                  ) : (
+                    diff !== null && (
+                      <div style={{ fontSize: 12, marginTop: 4, color: diff < 0 ? '#15803d' : '#dc2626', fontWeight: 600 }}>
+                        {diff < 0 ? '↓' : '↑'} {Math.abs(diff).toFixed(1)} min vs prev week
+                      </div>
+                    )
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Date range + view-mode toggle */}
@@ -353,7 +458,10 @@ export default function TicketTime() {
           </div>
 
           {/* Grid */}
-          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid rgba(0,0,0,0.08)', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+          <div
+            ref={gridContainerRef}
+            style={{ background: '#fff', borderRadius: 14, border: '1px solid rgba(0,0,0,0.08)', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', userSelect: 'none' }}
+          >
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
@@ -368,7 +476,7 @@ export default function TicketTime() {
                   </tr>
                 </thead>
                 <tbody>
-                  {HOURS.map((hour) => {
+                  {HOURS.map((hour, hIdx) => {
                     const vals = (modeGrid[hour] || []) as (number | null)[];
                     const rowTotal = rowSummary(vals);
                     const rowCell = renderCell(rowTotal);
@@ -378,9 +486,34 @@ export default function TicketTime() {
                         {Array.from({ length: 7 }, (_, i) => {
                           const v = i < vals.length ? vals[i] : null;
                           const { text, style } = renderCell(v);
+                          const selected = selectionBounds
+                            ? hIdx >= selectionBounds.minH && hIdx <= selectionBounds.maxH
+                              && i >= selectionBounds.minD && i <= selectionBounds.maxD
+                            : false;
                           return (
                             <td key={i} style={{ padding: 4, textAlign: 'center' }}>
-                              <div style={{ borderRadius: 8, padding: '8px 4px', fontSize: 14, ...style, transition: 'transform 0.15s', whiteSpace: 'nowrap' }}>
+                              <div
+                                onMouseDown={(e) => {
+                                  // Prevent native text-selection during a drag.
+                                  e.preventDefault();
+                                  draggingRef.current = true;
+                                  setSelection({ startHour: hIdx, startDay: i, endHour: hIdx, endDay: i });
+                                }}
+                                onMouseEnter={() => {
+                                  if (!draggingRef.current) return;
+                                  setSelection((s) => (s ? { ...s, endHour: hIdx, endDay: i } : s));
+                                }}
+                                style={{
+                                  borderRadius: 8,
+                                  padding: '8px 4px',
+                                  fontSize: 14,
+                                  ...style,
+                                  transition: 'transform 0.15s',
+                                  whiteSpace: 'nowrap',
+                                  cursor: 'crosshair',
+                                  boxShadow: selected ? 'inset 0 0 0 2px #1a1a1a' : undefined,
+                                }}
+                              >
                                 {text}
                               </div>
                             </td>
