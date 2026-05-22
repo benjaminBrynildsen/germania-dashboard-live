@@ -2527,17 +2527,31 @@ function PrintableSchedule({
             font-family: var(--font-body), Inter, system-ui, sans-serif;
             color: #1a1a1a;
           }
+          /* Belt-and-suspenders page breaks. iOS Safari and some
+             desktop engines silently ignore page-break-after when the
+             prior content overflows even slightly — the only way to
+             reliably get each section on its own physical page is to
+             specify BOTH page-break-before AND page-break-after with
+             BOTH the legacy syntax (page-break-*) and the modern
+             syntax (break-before / break-after: page). First page gets
+             page-break-before: auto so we don't start with a blank
+             sheet; last page gets break-after: auto so we don't trail
+             one. */
           .bh-print-page {
+            page-break-before: always;
             page-break-after: always;
+            break-before: page;
+            break-after: page;
             padding: 0 0 12pt 0;
           }
-          .bh-print-page:last-child { page-break-after: auto; }
-          /* Defensive: every page block also asks for a page break
-             BEFORE itself (except the first). When a preceding page's
-             content overflows, page-break-after lands at the wrong
-             spot — page-break-before on the next block guarantees the
-             new section starts on a fresh physical page either way. */
-          .bh-print-page + .bh-print-page { page-break-before: always; }
+          .bh-print-page:first-child {
+            page-break-before: auto;
+            break-before: auto;
+          }
+          .bh-print-page:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
           /* Header tighter so the 18-item + Total table fits on one page.
              Before this change the Total row overflowed onto page 2 for
              every delivery day (3 pages → 6 PDF pages). */
