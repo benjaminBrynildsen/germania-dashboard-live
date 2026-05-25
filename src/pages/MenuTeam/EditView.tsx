@@ -25,6 +25,13 @@ export default function EditView() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState('');
+  // When on, editing an ingredient name or modifier in one temperature
+  // variant rewrites the matching row in the other variants too — saves
+  // the "type the syrup name three times" tax for drinks like Sunshine
+  // Latte that have iced/frozen/hot all sharing the same syrup.
+  // Matched by current row name; cells stay independent because per-size
+  // quantities differ between iced and hot.
+  const [syncAcrossTemps, setSyncAcrossTemps] = useState(true);
 
   useEffect(() => {
     if (!slug) return;
@@ -79,6 +86,34 @@ export default function EditView() {
       ...s,
       variants: s.variants.map((v) => (v.temperature === temp ? updater(v) : v)),
     }));
+  }
+
+  // Row-level name/modifier edit that optionally syncs the change to the
+  // matching row(s) in other temperature variants. `oldName` is the name
+  // BEFORE the edit so we can find the right rows to mirror it onto;
+  // matching is case-insensitive to tolerate casing drift.
+  function updateRowField(temp: Temperature, idx: number, oldName: string, patch: { name?: string; modifier?: string | null }) {
+    mutate((s) => {
+      const targetVariantIdx = s.variants.findIndex((v) => v.temperature === temp);
+      if (targetVariantIdx === -1) return s;
+      const variants = s.variants.map((v, vi) => {
+        if (vi === targetVariantIdx) {
+          return {
+            ...v,
+            rows: v.rows.map((r, ri) => (ri === idx ? { ...r, ...patch } : r)),
+          };
+        }
+        if (!syncAcrossTemps) return v;
+        // Blank old name → no identity to match on; would otherwise sync
+        // every unnamed custom row to the new value all at once.
+        if (!oldName.trim()) return v;
+        return {
+          ...v,
+          rows: v.rows.map((r) => (r.name.trim().toLowerCase() === oldName.trim().toLowerCase() ? { ...r, ...patch } : r)),
+        };
+      });
+      return { ...s, variants };
+    });
   }
 
   async function handleSave(thenPreview = false) {
@@ -226,6 +261,13 @@ export default function EditView() {
         {sop.variants.length === 0 && (
           <p style={{ marginTop: 12, color: 'rgba(0,0,0,0.5)', fontSize: 13 }}>Pick at least one temperature to start building the recipe.</p>
         )}
+        {sop.variants.length > 1 && (
+          <label style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>
+            <input type="checkbox" checked={syncAcrossTemps} onChange={(e) => setSyncAcrossTemps(e.target.checked)} />
+            Sync ingredient names + modifiers across temperatures
+            <span style={{ color: 'rgba(0,0,0,0.4)', fontSize: 11 }}>(per-size cells stay independent)</span>
+          </label>
+        )}
       </div>
 
       {sop.variants.map((v) => (
@@ -234,13 +276,14 @@ export default function EditView() {
           variant={v}
           presets={presets}
           onChange={(updater) => updateVariant(v.temperature, updater)}
+          onRowField={(idx, oldName, patch) => updateRowField(v.temperature, idx, oldName, patch)}
         />
       ))}
     </div>
   );
 }
 
-function VariantEditor({ variant, presets, onChange }: { variant: SopVariant; presets: SopPreset[]; onChange: (updater: (v: SopVariant) => SopVariant) => void }) {
+function VariantEditor({ variant, presets, onChange, onRowField }: { variant: SopVariant; presets: SopPreset[]; onChange: (updater: (v: SopVariant) => SopVariant) => void; onRowField: (idx: number, oldName: string, patch: { name?: string; modifier?: string | null }) => void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   function setSizeLabel(i: number, label: string) {
@@ -440,10 +483,10 @@ function VariantEditor({ variant, presets, onChange }: { variant: SopVariant; pr
                     </div>
                   </td>
                   <td style={td}>
-                    <input value={r.name} onChange={(e) => updateRow(idx, { name: e.target.value })} style={inputCell} />
+                    <input value={r.name} onChange={(e) => onRowField(idx, r.name, { name: e.target.value })} style={inputCell} />
                   </td>
                   <td style={td}>
-                    <input value={r.modifier || ''} placeholder="(Extra Pump)" onChange={(e) => updateRow(idx, { modifier: e.target.value || null })} style={inputCell} />
+                    <input value={r.modifier || ''} placeholder="(Extra Pump)" onChange={(e) => onRowField(idx, r.name, { modifier: e.target.value || null })} style={inputCell} />
                   </td>
                   {variant.sizeLabels.map((_, ci) => (
                     <td key={ci} style={td}>
