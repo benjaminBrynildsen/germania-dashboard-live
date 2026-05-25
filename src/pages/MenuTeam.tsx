@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { TEMP_LABEL, type Temperature } from '../lib/sop-types';
+import SeasonYearPicker, { buildCollection, defaultCollection } from './MenuTeam/SeasonYearPicker';
 
 type SopListItem = {
   id: number;
@@ -23,7 +24,10 @@ export default function MenuTeam() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newCollection, setNewCollection] = useState('');
+  const [newCollection, setNewCollection] = useState<string | null>(() => {
+    const d = defaultCollection();
+    return buildCollection(d.season, d.year);
+  });
 
   async function load() {
     setLoading(true);
@@ -75,7 +79,7 @@ export default function MenuTeam() {
     try {
       const body = {
         name: newName.trim(),
-        collection: newCollection.trim() || null,
+        collection: newCollection,
         // Default to iced as the first variant; the editor lets you add others.
         variants: [
           {
@@ -119,17 +123,8 @@ export default function MenuTeam() {
             />
           </div>
           <div>
-            <label>Collection / Drop (optional)</label>
-            <input
-              type="text"
-              list="collections-datalist"
-              placeholder="e.g. Spring 2026 Drop"
-              value={newCollection}
-              onChange={(e) => setNewCollection(e.target.value)}
-            />
-            <datalist id="collections-datalist">
-              {collections.map((c) => <option key={c.collection} value={c.collection} />)}
-            </datalist>
+            <label>Season &amp; year</label>
+            <SeasonYearPicker value={newCollection} onChange={setNewCollection} />
           </div>
           <button type="submit" className="btn btn-primary" disabled={creating || !newName.trim()}>
             {creating ? 'Creating…' : '+ New SOP'}

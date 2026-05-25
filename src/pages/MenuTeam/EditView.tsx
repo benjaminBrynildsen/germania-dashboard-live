@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { DEFAULT_SIZE_LABELS, TEMP_LABEL, TEMP_ORDER, type Sop, type SopFootnote, type SopPreset, type SopRow, type SopVariant, type Temperature } from '../../lib/sop-types';
+import SeasonYearPicker from './SeasonYearPicker';
 
 type SopFull = Sop & { id: number };
 
@@ -19,7 +20,6 @@ export default function EditView() {
   const navigate = useNavigate();
   const [sop, setSop] = useState<SopFull | null>(null);
   const [presets, setPresets] = useState<SopPreset[]>([]);
-  const [collections, setCollections] = useState<Array<{ collection: string; count: number }>>([]);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState('');
@@ -29,15 +29,13 @@ export default function EditView() {
     let alive = true;
     (async () => {
       try {
-        const [one, p, c] = await Promise.all([
+        const [one, p] = await Promise.all([
           api.get(`/api/sops/${slug}`),
           api.get('/api/sop-presets'),
-          api.get('/api/sop-collections'),
         ]);
         if (!alive) return;
         setSop(one.sop);
         setPresets(p.presets);
-        setCollections(c.collections);
       } catch (err: any) {
         if (alive) setError(err.message || 'load_failed');
       }
@@ -171,11 +169,8 @@ export default function EditView() {
             <input type="text" value={sop.name} onChange={(e) => setField('name', e.target.value)} />
           </div>
           <div>
-            <label>Collection / Drop</label>
-            <input list="coll-options" type="text" value={sop.collection || ''} onChange={(e) => setField('collection', e.target.value || null)} />
-            <datalist id="coll-options">
-              {collections.map((c) => <option key={c.collection} value={c.collection} />)}
-            </datalist>
+            <label>Season &amp; year</label>
+            <SeasonYearPicker value={sop.collection} onChange={(next) => setField('collection', next)} />
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
