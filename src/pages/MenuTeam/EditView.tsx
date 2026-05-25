@@ -3,17 +3,19 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { DEFAULT_SIZE_LABELS, TEMP_LABEL, TEMP_ORDER, type Sop, type SopFootnote, type SopPreset, type SopRow, type SopVariant, type Temperature } from '../../lib/sop-types';
 import SeasonYearPicker from './SeasonYearPicker';
+import ChipPicker from './ChipPicker';
 
-type SopFull = Sop & { id: number };
-
-const REFRIG_OPTIONS = [
+const DIETARY_TAG_OPTIONS = ['DF', 'GF', 'Vegan', 'Vegetarian'];
+const ALLERGEN_OPTIONS = ['Dairy', 'Soy', 'Gluten', 'Nuts', 'Eggs'];
+const REFRIG_OPTIONS_CHIPS = [
   'Room Temp',
-  'does NOT need refrigeration',
-  'Syrup does NOT need refrigeration',
-  'Needs refrigeration',
   'Refrigerate',
   'Refrigerate or On Ice',
+  'Does NOT need refrigeration',
+  'Syrup does NOT need refrigeration',
 ];
+
+type SopFull = Sop & { id: number };
 
 export default function EditView() {
   const { slug } = useParams<{ slug: string }>();
@@ -187,29 +189,24 @@ export default function EditView() {
             <SeasonYearPicker value={sop.collection} onChange={(next) => setField('collection', next)} />
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-          <div>
-            <label>Dietary tags</label>
-            <input type="text" placeholder="DF, GF, Vegan" value={sop.dietaryTags || ''} onChange={(e) => setField('dietaryTags', e.target.value || null)} />
-            <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 4 }}>Use a single line, or fill the two fields below to split Syrup vs Drink.</p>
-          </div>
-          <div>
-            <label>Refrigeration note</label>
-            <input list="refrig-opts" type="text" placeholder="Room Temp" value={sop.refrigerationNote || ''} onChange={(e) => setField('refrigerationNote', e.target.value || null)} />
-            <datalist id="refrig-opts">
-              {REFRIG_OPTIONS.map((o) => <option key={o} value={o} />)}
-            </datalist>
-          </div>
+        <div style={{ marginTop: 14 }}>
+          <label>Dietary tags</label>
+          <ChipPicker presets={DIETARY_TAG_OPTIONS} value={sop.dietaryTags} onChange={(v) => setField('dietaryTags', v)} placeholder="Custom tag (e.g. Keto)" />
+          <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 4 }}>Picked chips form a single line. Use Syrup vs Drink below if you need to split.</p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
           <div>
             <label>Syrup dietary tags (optional split-line)</label>
-            <input type="text" placeholder="DF, GF, Vegan" value={sop.syrupDietaryTags || ''} onChange={(e) => setField('syrupDietaryTags', e.target.value || null)} />
+            <ChipPicker presets={DIETARY_TAG_OPTIONS} value={sop.syrupDietaryTags} onChange={(v) => setField('syrupDietaryTags', v)} placeholder="Custom" />
           </div>
           <div>
-            <label>Drink Contains (optional)</label>
-            <input type="text" placeholder="Dairy, Soy" value={sop.drinkContains || ''} onChange={(e) => setField('drinkContains', e.target.value || null)} />
+            <label>Drink contains (allergens)</label>
+            <ChipPicker presets={ALLERGEN_OPTIONS} value={sop.drinkContains} onChange={(v) => setField('drinkContains', v)} placeholder="Custom allergen" />
           </div>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <label>Refrigeration note</label>
+          <ChipPicker presets={REFRIG_OPTIONS_CHIPS} value={sop.refrigerationNote} onChange={(v) => setField('refrigerationNote', v)} placeholder="Custom refrigeration note" />
         </div>
       </div>
 
