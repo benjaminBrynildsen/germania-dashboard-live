@@ -7,13 +7,15 @@
  */
 import { Router, Response } from 'express';
 import db from './db.js';
-import { requireAuth, requireRole, AuthRequest } from './auth.js';
+import { requireAuth, AuthRequest } from './auth.js';
 import type { Sop, SopVariant, SopRow, SopFootnote, Temperature } from '../src/lib/sop-types.js';
 import { renderSopsToPdfBuffer } from './sop-pdf.js';
 
 const router = Router();
 
-const WRITE_ROLES = ['admin', 'manager', 'menu_team'];
+// Menu Team SOP tooling is internal to Germania — auth alone (any
+// Germania-domain account) is enough; we don't gate writes by role
+// because the whole team contributes to recipes.
 const TEMPS: Temperature[] = ['iced', 'frozen', 'hot'];
 
 type SopRowDb = { id: number; sop_id: number; slug: string; name: string; collection: string | null; dietary_tags: string | null; syrup_dietary_tags: string | null; drink_contains: string | null; refrigeration_note: string | null; created_at: number; updated_at: number };
@@ -248,7 +250,7 @@ router.get('/sops/:slug', requireAuth, (req: AuthRequest, res: Response) => {
 });
 
 // ---------- create ----------
-router.post('/sops', requireAuth, requireRole(...WRITE_ROLES), (req: AuthRequest, res: Response) => {
+router.post('/sops', requireAuth, (req: AuthRequest, res: Response) => {
   const v = validatePayload(req.body, true);
   if (!v.ok) { res.status(400).json({ error: v.error }); return; }
   const clean = v.clean;
@@ -274,7 +276,7 @@ router.post('/sops', requireAuth, requireRole(...WRITE_ROLES), (req: AuthRequest
 });
 
 // ---------- update ----------
-router.put('/sops/:id', requireAuth, requireRole(...WRITE_ROLES), (req: AuthRequest, res: Response) => {
+router.put('/sops/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
   if (!id) { res.status(400).json({ error: 'invalid_id' }); return; }
   const existing = db.prepare('SELECT id FROM sops WHERE id = ?').get(id) as { id: number } | undefined;
@@ -289,7 +291,7 @@ router.put('/sops/:id', requireAuth, requireRole(...WRITE_ROLES), (req: AuthRequ
 });
 
 // ---------- delete ----------
-router.delete('/sops/:id', requireAuth, requireRole(...WRITE_ROLES), (req: AuthRequest, res: Response) => {
+router.delete('/sops/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
   if (!id) { res.status(400).json({ error: 'invalid_id' }); return; }
   db.prepare('DELETE FROM sops WHERE id = ?').run(id);
@@ -313,7 +315,7 @@ router.get('/sop-presets', requireAuth, (_req, res: Response) => {
   });
 });
 
-router.post('/sop-presets', requireAuth, requireRole(...WRITE_ROLES), (req: AuthRequest, res: Response) => {
+router.post('/sop-presets', requireAuth, (req: AuthRequest, res: Response) => {
   const { name, category, defaultModifier, defaultCells } = req.body || {};
   if (typeof name !== 'string' || !name.trim()) { res.status(400).json({ error: 'name_required' }); return; }
   if (typeof category !== 'string' || !category.trim()) { res.status(400).json({ error: 'category_required' }); return; }
@@ -330,7 +332,7 @@ router.post('/sop-presets', requireAuth, requireRole(...WRITE_ROLES), (req: Auth
   res.status(201).json({ id: Number(result.lastInsertRowid), slug });
 });
 
-router.put('/sop-presets/:id', requireAuth, requireRole(...WRITE_ROLES), (req: AuthRequest, res: Response) => {
+router.put('/sop-presets/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
   if (!id) { res.status(400).json({ error: 'invalid_id' }); return; }
   const { name, category, defaultModifier, defaultCells } = req.body || {};
@@ -346,7 +348,7 @@ router.put('/sop-presets/:id', requireAuth, requireRole(...WRITE_ROLES), (req: A
   res.json({ ok: true });
 });
 
-router.delete('/sop-presets/:id', requireAuth, requireRole(...WRITE_ROLES), (req: AuthRequest, res: Response) => {
+router.delete('/sop-presets/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
   if (!id) { res.status(400).json({ error: 'invalid_id' }); return; }
   db.prepare('DELETE FROM sop_presets WHERE id = ?').run(id);
