@@ -10,6 +10,7 @@ import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
 import type { Sop, SopVariant, SopRow, SopFootnote, Temperature } from '../src/lib/sop-types.js';
 import { renderSopsToPdfBuffer } from './sop-pdf.js';
+import { expandTemplate, listTemplates } from './sop-templates.js';
 
 const router = Router();
 
@@ -268,11 +269,59 @@ router.post('/sops', requireAuth, (req: AuthRequest, res: Response) => {
     now,
   );
   const id = Number(result.lastInsertRowid);
-  if (clean.variants !== undefined) {
-    writeSop(id, { variants: clean.variants });
+  // Template wins over an explicit empty variants array — that's how the
+  // "start from template" picker on the New SOP form works.
+  let variants = clean.variants;
+  if (typeof req.body?.templateSlug === 'string' && req.body.templateSlug) {
+    const expanded = expandTemplate(db, req.body.templateSlug);
+    if (expanded) variants = expanded;
+  }
+  if (variants !== undefined) {
+    writeSop(id, { variants });
   }
   const sop = loadSopById(id);
   res.status(201).json({ sop });
+});
+
+// ---------- duplicate ----------
+router.post('/sops/:id/duplicate', requireAuth, (req: AuthRequest, res: Response) => {
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: 'invalid_id' }); return; }
+  const source = loadSopById(id);
+  if (!source) { res.status(404).json({ error: 'not_found' }); return; }
+  const newName = `${source.name} (copy)`;
+  const newSlug = ensureUniqueSlug(slugify(newName));
+  const now = Date.now();
+  const result = db.prepare(`INSERT INTO sops (slug, name, collection, dietary_tags, syrup_dietary_tags, drink_contains, refrigeration_note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    newSlug,
+    newName,
+    source.collection ?? null,
+    source.dietaryTags ?? null,
+    source.syrupDietaryTags ?? null,
+    source.drinkContains ?? null,
+    source.refrigerationNote ?? null,
+    now,
+    now,
+  );
+  const newId = Number(result.lastInsertRowid);
+  // Strip ids from the source so writeSop creates fresh rows for the copy.
+  const variants = source.variants.map((v) => ({
+    temperature: v.temperature,
+    position: v.position,
+    sizeLabels: [...v.sizeLabels],
+    footnotes: v.footnotes.map((fn) => ({ ...fn })),
+    assemblyBigIdea: v.assemblyBigIdea,
+    assemblySteps: v.assemblySteps ? [...v.assemblySteps] : null,
+    rows: v.rows.map((r) => ({ presetId: r.presetId ?? null, name: r.name, modifier: r.modifier ?? null, cells: [...r.cells] })),
+  }));
+  writeSop(newId, { variants });
+  const sop = loadSopById(newId);
+  res.status(201).json({ sop });
+});
+
+// ---------- templates ----------
+router.get('/sop-templates', requireAuth, (_req, res: Response) => {
+  res.json({ templates: listTemplates() });
 });
 
 // ---------- update ----------

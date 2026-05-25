@@ -15,15 +15,24 @@ type SopListItem = {
   updatedAt: number;
 };
 
+type DrinkTemplateMeta = {
+  slug: string;
+  name: string;
+  description: string;
+  temperatures: Temperature[];
+};
+
 export default function MenuTeam() {
   const navigate = useNavigate();
   const [sops, setSops] = useState<SopListItem[]>([]);
   const [collections, setCollections] = useState<Array<{ collection: string; count: number }>>([]);
+  const [templates, setTemplates] = useState<DrinkTemplateMeta[]>([]);
   const [collectionFilter, setCollectionFilter] = useState<string>('');
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newTemplate, setNewTemplate] = useState<string>('');
   const [newCollection, setNewCollection] = useState<string | null>(() => {
     const d = defaultCollection();
     return buildCollection(d.season, d.year);
@@ -32,12 +41,14 @@ export default function MenuTeam() {
   async function load() {
     setLoading(true);
     try {
-      const [list, colls] = await Promise.all([
+      const [list, colls, tpls] = await Promise.all([
         api.get(`/api/sops${collectionFilter ? `?collection=${encodeURIComponent(collectionFilter)}` : ''}`),
         api.get('/api/sop-collections'),
+        api.get('/api/sop-templates'),
       ]);
       setSops(list.sops);
       setCollections(colls.collections);
+      setTemplates(tpls.templates);
     } catch (err) {
       console.error(err);
     } finally {
@@ -72,25 +83,32 @@ export default function MenuTeam() {
     return `/api/sops/bundle.pdf?ids=${ids}`;
   }
 
+  async function handleDuplicate(s: SopListItem) {
+    try {
+      const out = await api.post(`/api/sops/${s.id}/duplicate`);
+      navigate(`/menu-team/${out.sop.slug}`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to duplicate');
+    }
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      const body = {
+      const body: any = {
         name: newName.trim(),
         collection: newCollection,
-        // Default to iced as the first variant; the editor lets you add others.
-        variants: [
-          {
-            temperature: 'iced',
-            position: 0,
-            sizeLabels: ['Kids', 'R', 'L'],
-            footnotes: [],
-            rows: [],
-          },
-        ],
       };
+      if (newTemplate) {
+        // Server resolves the template into variants + rows; client just
+        // forwards the slug.
+        body.templateSlug = newTemplate;
+      } else {
+        // Empty starter: one iced variant, no rows. Editor lets you add temps + rows.
+        body.variants = [{ temperature: 'iced', position: 0, sizeLabels: ['Kids', 'R', 'L'], footnotes: [], rows: [] }];
+      }
       const out = await api.post('/api/sops', body);
       navigate(`/menu-team/${out.sop.slug}`);
     } catch (err: any) {
@@ -112,7 +130,7 @@ export default function MenuTeam() {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr auto', gap: 10, alignItems: 'end' }}>
+        <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr auto', gap: 10, alignItems: 'end' }}>
           <div>
             <label>New SOP name</label>
             <input
@@ -121,6 +139,18 @@ export default function MenuTeam() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
             />
+          </div>
+          <div>
+            <label>Start from template</label>
+            <select value={newTemplate} onChange={(e) => setNewTemplate(e.target.value)} title={templates.find((t) => t.slug === newTemplate)?.description || ''}>
+              <option value="">— Empty (one iced variant) —</option>
+              {templates.map((t) => (
+                <option key={t.slug} value={t.slug}>{t.name}</option>
+              ))}
+            </select>
+            {newTemplate && (
+              <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', marginTop: 4 }}>{templates.find((t) => t.slug === newTemplate)?.description}</p>
+            )}
           </div>
           <div>
             <label>Season &amp; year</label>
@@ -195,6 +225,7 @@ export default function MenuTeam() {
                   <td style={{ padding: '12px 14px', color: 'rgba(0,0,0,0.6)', fontSize: 13 }}>{s.dietaryTags || '—'}</td>
                   <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                     <a href={`/api/sops/${s.slug}/pdf`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm" style={{ marginRight: 6 }}>PDF</a>
+                    <button onClick={() => handleDuplicate(s)} className="btn btn-secondary btn-sm" style={{ marginRight: 6 }}>Duplicate</button>
                     <Link to={`/menu-team/${s.slug}`} className="btn btn-primary btn-sm">Edit</Link>
                   </td>
                 </tr>

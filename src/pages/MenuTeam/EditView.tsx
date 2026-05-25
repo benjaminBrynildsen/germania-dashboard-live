@@ -130,6 +130,19 @@ export default function EditView() {
     }
   }
 
+  async function handleDuplicate() {
+    if (!sop) return;
+    if (dirty) {
+      if (!confirm('You have unsaved changes — duplicating will use the last-saved version. Continue?')) return;
+    }
+    try {
+      const out = await api.post(`/api/sops/${sop.id}/duplicate`);
+      navigate(`/menu-team/${out.sop.slug}`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to duplicate');
+    }
+  }
+
   if (error && !sop) {
     return (
       <div style={{ maxWidth: 700, margin: '0 auto', padding: 20 }}>
@@ -149,6 +162,7 @@ export default function EditView() {
         <Link to="/menu-team" style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>← All SOPs</Link>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-secondary" onClick={handleDelete}>Delete</button>
+          <button className="btn btn-secondary" onClick={handleDuplicate}>Duplicate</button>
           <a className="btn btn-secondary" href={`/api/sops/${sop.slug}/pdf`} target="_blank" rel="noreferrer">Open PDF</a>
           <button className="btn btn-secondary" disabled={saving} onClick={() => handleSave(true)}>Save & Preview</button>
           <button className="btn btn-primary" disabled={saving || !dirty} onClick={() => handleSave(false)}>
