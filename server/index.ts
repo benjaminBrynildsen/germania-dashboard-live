@@ -12,6 +12,7 @@ import bakeHausRouter from './bake-haus-routes.js';
 import patronsRouter from './patrons-routes.js';
 import holidayRouter from './holiday-routes.js';
 import pairingsRouter from './pairings-routes.js';
+import sopRouter from './sop-routes.js';
 import { seedHolidaysForYear } from './holidays.js';
 import { startReviewSync } from './places.js';
 
@@ -31,6 +32,7 @@ app.use('/api', bakeHausRouter);
 app.use('/api', patronsRouter);
 app.use('/api', holidayRouter);
 app.use('/api', pairingsRouter);
+app.use('/api', sopRouter);
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '..', 'dist');

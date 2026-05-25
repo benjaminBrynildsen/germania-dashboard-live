@@ -22,6 +22,9 @@ import BakeHaus from './pages/BakeHaus';
 import Patrons from './pages/Patrons';
 import HolidayCalendar from './pages/HolidayCalendar';
 import Pairings from './pages/Pairings';
+import MenuTeam from './pages/MenuTeam';
+import MenuTeamEdit from './pages/MenuTeam/EditView';
+import MenuTeamPresets from './pages/MenuTeam/PresetsView';
 
 export default function App() {
   const { user, loading, logout } = useAuth();
@@ -82,6 +85,9 @@ export default function App() {
         <Route path="/patrons" element={<Patrons />} />
         <Route path="/holidays" element={<HolidayCalendar />} />
         <Route path="/pairings" element={<Pairings />} />
+        <Route path="/menu-team" element={<MenuTeam />} />
+        <Route path="/menu-team/presets" element={<MenuTeamPresets />} />
+        <Route path="/menu-team/:slug" element={<MenuTeamEdit />} />
         {/* Legacy alias so old /hours bookmarks still resolve. */}
         <Route path="/hours" element={<HoursWatch />} />
         <Route path="/privacy" element={<Privacy />} />

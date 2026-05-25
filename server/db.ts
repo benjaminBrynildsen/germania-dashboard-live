@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { seedSopPresets } from './sop-presets-seed.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // In prod the SQLite file lives on a Render persistent disk (DB_PATH=/var/data/germania.db).
@@ -478,7 +479,69 @@ db.exec(`
   -- Unique (date, name) makes the seed idempotent — every boot can
   -- safely re-run seedHolidaysForYear without producing duplicates.
   CREATE UNIQUE INDEX IF NOT EXISTS idx_holidays_date_name ON holidays(date, name);
+
+  -- Menu Team SOP builder. Mirrors the legacy Word-doc layout: a drink
+  -- has 1–3 temperature variants (iced/frozen/hot); each variant has a
+  -- size-column header + an ordered list of ingredient rows where every
+  -- cell is free text (matches today's flexibility — "Sprinkle on top
+  -- after pouring", "Fill Cup", "1 pump (20g)"). Footnotes + an optional
+  -- prose Assembly block cover the procedurally complex drinks (Witch's
+  -- Brew, Vietnamese Iced Coffee).
+  CREATE TABLE IF NOT EXISTS sops (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    collection TEXT,
+    dietary_tags TEXT,
+    syrup_dietary_tags TEXT,
+    drink_contains TEXT,
+    refrigeration_note TEXT,
+    created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
+  );
+  CREATE INDEX IF NOT EXISTS idx_sops_collection ON sops(collection);
+
+  CREATE TABLE IF NOT EXISTS sop_variants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sop_id INTEGER NOT NULL REFERENCES sops(id) ON DELETE CASCADE,
+    temperature TEXT NOT NULL CHECK (temperature IN ('iced','frozen','hot')),
+    position INTEGER NOT NULL DEFAULT 0,
+    size_labels_json TEXT NOT NULL DEFAULT '["Kids","R","L"]',
+    footnotes_json TEXT NOT NULL DEFAULT '[]',
+    assembly_big_idea TEXT,
+    assembly_steps_json TEXT,
+    UNIQUE(sop_id, temperature)
+  );
+  CREATE INDEX IF NOT EXISTS idx_sop_variants_sop ON sop_variants(sop_id);
+
+  CREATE TABLE IF NOT EXISTS sop_rows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    variant_id INTEGER NOT NULL REFERENCES sop_variants(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    preset_id INTEGER,
+    name TEXT NOT NULL,
+    modifier TEXT,
+    cells_json TEXT NOT NULL DEFAULT '[]'
+  );
+  CREATE INDEX IF NOT EXISTS idx_sop_rows_variant ON sop_rows(variant_id);
+
+  CREATE TABLE IF NOT EXISTS sop_presets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT UNIQUE NOT NULL,
+    category TEXT NOT NULL,
+    name TEXT NOT NULL,
+    default_modifier TEXT,
+    -- Per-size-profile defaults the user can override per row. Shape:
+    -- {"iced":["1 pump","2 pumps","3 pumps"], "hot":["1.5","2.5","3.5"]}
+    default_cells_json TEXT,
+    is_seeded INTEGER NOT NULL DEFAULT 0,
+    sort INTEGER NOT NULL DEFAULT 100
+  );
+  CREATE INDEX IF NOT EXISTS idx_sop_presets_category ON sop_presets(category);
 `);
+
+// Seed SOP presets on boot (idempotent — keyed by slug).
+seedSopPresets(db);
 
 // Apply additional schema (sales_daily, weather_daily, closure_decisions)
 // kept in a separate .sql file. Used by Sales Anomaly + Weather Closure tabs;
