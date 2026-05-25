@@ -1,7 +1,18 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, renderToBuffer } from '@react-pdf/renderer';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Document, Page, Text, View, StyleSheet, Font, renderToBuffer } from '@react-pdf/renderer';
 import type { Sop, SopVariant } from '../src/lib/sop-types.js';
 import { TEMP_LABEL } from '../src/lib/sop-types.js';
+
+// Decorative title font. Germania One is a Google Font with a single
+// Regular weight — fitting for the drink name only; body stays in
+// Helvetica for legibility on the recipe table.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+Font.register({
+  family: 'Germania One',
+  src: path.join(__dirname, 'fonts', 'GermaniaOne-Regular.ttf'),
+});
 
 // Pure black-and-white SOP layout — matches the look of the Word
 // templates: clean Arial-style typography, thin rules, no fills.
@@ -20,11 +31,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
   },
   title: {
-    fontSize: 28,
-    fontFamily: 'Helvetica-Bold',
+    fontSize: 38,
+    fontFamily: 'Germania One',
     textAlign: 'center',
-    letterSpacing: 0.3,
-    marginBottom: 6,
+    letterSpacing: 0.5,
+    marginBottom: 8,
   },
   tagLine: {
     fontSize: 10.5,
