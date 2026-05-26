@@ -226,7 +226,7 @@ export const TEMPLATES: DrinkTemplate[] = [
   {
     slug: 'cold-foam-latte',
     name: 'Cold Foam Latte (half-sweet)',
-    description: 'Base syrup at half pumps (1/2/3) because the cold foam on top is sweet. Iced + Hot.',
+    description: 'Iced only — base syrup at half pumps (1/2/3) because the cold foam on top is sweet.',
     variants: [
       {
         temperature: 'iced',
@@ -237,16 +237,6 @@ export const TEMPLATES: DrinkTemplate[] = [
           { name: 'Haus Syrup', modifier: '(half sweet — cold foam adds sweetness)', cells: ['1 pump', '2 pumps', '3 pumps'] },
           { presetSlug: 'ice-leave-room' },
           { name: 'Cold Foam', modifier: '(swap to flavor of choice)', cells: ['0.5 bell', '1 small bell', '1 Large Bell'] },
-        ],
-      },
-      {
-        temperature: 'hot',
-        sizeLabels: SIZES_HOT,
-        rows: [
-          { presetSlug: 'espresso' },
-          { name: 'Haus Syrup', modifier: '(half sweet — cold foam adds sweetness)', cells: ['1.5 Pumps', '2.5 Pumps', '3.5 Pumps'] },
-          { presetSlug: 'steamed-milk' },
-          { name: 'Cold Foam', modifier: '(spoon on top)', cells: ['0.5 bell', '1 small bell', '1 Large Bell'] },
         ],
       },
     ],

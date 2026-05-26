@@ -2,7 +2,7 @@ import React from 'react';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Document, Page, Text, View, StyleSheet, Font, renderToBuffer } from '@react-pdf/renderer';
-import type { Sop, SopVariant } from '../src/lib/sop-types.js';
+import type { Sop, SopVariant, Temperature } from '../src/lib/sop-types.js';
 import { TEMP_LABEL } from '../src/lib/sop-types.js';
 
 // Decorative title font. Germania One is a Google Font with a single
@@ -23,33 +23,33 @@ const SUBTLE = '#444444';
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 54,
-    paddingBottom: 54,
-    paddingHorizontal: 60,
+    paddingTop: 40,
+    paddingBottom: 40,
+    paddingHorizontal: 56,
     fontSize: 11,
     color: INK,
     fontFamily: 'Helvetica',
   },
   title: {
-    fontSize: 38,
+    fontSize: 34,
     fontFamily: 'Germania One',
     textAlign: 'center',
     letterSpacing: 0.5,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   tagLine: {
-    fontSize: 10.5,
+    fontSize: 10,
     textAlign: 'center',
     color: SUBTLE,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   tempBadge: {
-    marginTop: 20,
-    marginBottom: 10,
-    paddingTop: 6,
-    paddingBottom: 6,
+    marginTop: 12,
+    marginBottom: 6,
+    paddingTop: 4,
+    paddingBottom: 4,
     textAlign: 'center',
-    fontSize: 18,
+    fontSize: 15,
     fontFamily: 'Helvetica-Bold',
     letterSpacing: 4,
     textTransform: 'uppercase',
@@ -57,9 +57,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.75,
     borderColor: RULE,
   },
+  variantSection: {
+    // First variant on a combined cold page sits closer to the header;
+    // subsequent variants get extra breathing room above their temp label.
+  },
+  variantSectionGap: {
+    marginTop: 10,
+  },
 
   table: {
-    marginTop: 4,
+    marginTop: 2,
     borderTopWidth: 0.75,
     borderLeftWidth: 0.75,
     borderRightWidth: 0.75,
@@ -69,20 +76,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: 0.75,
     borderColor: RULE,
-    minHeight: 26,
+    minHeight: 22,
     alignItems: 'stretch',
   },
   row: {
     flexDirection: 'row',
     borderBottomWidth: 0.5,
     borderColor: RULE,
-    minHeight: 32,
+    minHeight: 24,
     alignItems: 'stretch',
   },
   cellName: {
     flex: 1.6,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRightWidth: 0.5,
     borderColor: RULE,
     justifyContent: 'center',
@@ -90,7 +97,7 @@ const styles = StyleSheet.create({
   cellSize: {
     flex: 1,
     paddingHorizontal: 8,
-    paddingVertical: 7,
+    paddingVertical: 4,
     borderRightWidth: 0.5,
     borderColor: RULE,
     justifyContent: 'center',
@@ -98,20 +105,20 @@ const styles = StyleSheet.create({
   cellSizeLast: {
     flex: 1,
     paddingHorizontal: 8,
-    paddingVertical: 7,
+    paddingVertical: 4,
     justifyContent: 'center',
   },
   headerCellName: {
     flex: 1.6,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     borderRightWidth: 0.5,
     borderColor: RULE,
   },
   headerCellSize: {
     flex: 1,
     paddingHorizontal: 8,
-    paddingVertical: 7,
+    paddingVertical: 5,
     borderRightWidth: 0.5,
     borderColor: RULE,
     justifyContent: 'center',
@@ -119,7 +126,7 @@ const styles = StyleSheet.create({
   headerCellSizeLast: {
     flex: 1,
     paddingHorizontal: 8,
-    paddingVertical: 7,
+    paddingVertical: 5,
     justifyContent: 'center',
   },
   headerLabel: {
@@ -242,23 +249,53 @@ function AssemblyBlock({ variant }: { variant: SopVariant }) {
   );
 }
 
-function VariantPage({ sop, variant }: { sop: Sop; variant: SopVariant }) {
+function VariantSection({ variant, isFirst }: { variant: SopVariant; isFirst: boolean }) {
   return (
-    <Page size="LETTER" style={styles.page}>
-      <HeaderBlock sop={sop} />
+    <View style={isFirst ? styles.variantSection : styles.variantSectionGap}>
       <Text style={styles.tempBadge}>{TEMP_LABEL[variant.temperature]}</Text>
       <RecipeTable variant={variant} />
       <FootnotesBlock variant={variant} />
       <AssemblyBlock variant={variant} />
+    </View>
+  );
+}
+
+function SopPage({ sop, variants }: { sop: Sop; variants: SopVariant[] }) {
+  return (
+    <Page size="LETTER" style={styles.page}>
+      <HeaderBlock sop={sop} />
+      {variants.map((v, i) => (
+        <VariantSection key={v.temperature} variant={v} isFirst={i === 0} />
+      ))}
     </Page>
   );
+}
+
+// Group a SOP's variants into print pages. Cold variants (iced and
+// frozen) always share a page; hot always lives on its own page.
+// Order: cold page first, then hot. Empty pages are skipped — e.g. a
+// hot-only drink like the Cortado gets one (hot) page, not an empty
+// cold page + hot.
+function pagesForSop(sop: Sop): SopVariant[][] {
+  const byTemp = new Map<Temperature, SopVariant>();
+  for (const v of sop.variants) byTemp.set(v.temperature, v);
+  const cold: SopVariant[] = [];
+  if (byTemp.has('iced')) cold.push(byTemp.get('iced')!);
+  if (byTemp.has('frozen')) cold.push(byTemp.get('frozen')!);
+  const hot = byTemp.has('hot') ? [byTemp.get('hot')!] : [];
+  const pages: SopVariant[][] = [];
+  if (cold.length > 0) pages.push(cold);
+  if (hot.length > 0) pages.push(hot);
+  return pages;
 }
 
 export function SopDocument({ sops }: { sops: Sop[] }) {
   return (
     <Document>
       {sops.flatMap((sop) =>
-        sop.variants.map((v) => <VariantPage key={`${sop.slug}-${v.temperature}`} sop={sop} variant={v} />)
+        pagesForSop(sop).map((pageVariants, pi) => (
+          <SopPage key={`${sop.slug}-page-${pi}`} sop={sop} variants={pageVariants} />
+        ))
       )}
     </Document>
   );
