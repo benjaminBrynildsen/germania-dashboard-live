@@ -308,9 +308,35 @@ export const TEMPLATES: DrinkTemplate[] = [
 
 type PresetLookup = { category: string; name: string; default_modifier: string | null; default_cells_json: string | null };
 
-export function expandTemplate(db: Database, slug: string): Sop['variants'] | null {
+// Pull the flavor descriptor out of a drink name by stripping common
+// drink-type words from the end. "Ube Latte" → "Ube"; "Cinnamon Honey
+// Latte" → "Cinnamon Honey"; "Sunshine Latte" → "Sunshine". Used by
+// expandTemplate to auto-name placeholder "Haus Syrup" rows on
+// creation so the user doesn't retype them.
+const DRINK_TYPE_SUFFIXES = ['Latte', 'Mocha', 'Cortado', 'Milkshake', 'Shake', 'Chai', 'Tea', 'Cider', 'Cold Brew', 'Macchiato', 'Cappuccino', 'Cloud'];
+function extractDescriptor(drinkName: string | undefined): string | null {
+  if (!drinkName) return null;
+  let result = drinkName.trim();
+  for (const word of DRINK_TYPE_SUFFIXES) {
+    const re = new RegExp(`\\s+${word}\\s*$`, 'i');
+    if (re.test(result)) {
+      result = result.replace(re, '').trim();
+      break;
+    }
+  }
+  if (!result) return null;
+  // No suffix matched — descriptor would be the full name, which is
+  // probably wrong (e.g. "Sweetened Cold Brew" → would render as
+  // "Haus Sweetened Cold Brew Syrup"). Bail out unless we successfully
+  // shortened the name.
+  if (result.toLowerCase() === drinkName.trim().toLowerCase()) return null;
+  return result;
+}
+
+export function expandTemplate(db: Database, slug: string, drinkName?: string): Sop['variants'] | null {
   const tpl = TEMPLATES.find((t) => t.slug === slug);
   if (!tpl) return null;
+  const descriptor = extractDescriptor(drinkName);
   const presetStmt = db.prepare('SELECT category, name, default_modifier, default_cells_json FROM sop_presets WHERE slug = ?');
   return tpl.variants.map((v, vi) => {
     const variant: SopVariant = {
@@ -356,6 +382,16 @@ export function expandTemplate(db: Database, slug: string): Sop['variants'] | nu
         }
         // Ensure cell count matches the variant's size column count
         cells = v.sizeLabels.map((_, i) => cells[i] ?? '');
+        // Auto-name placeholder rows: "Haus Syrup" → "Haus {Descriptor} Syrup".
+        // Wipe the "(swap to chosen syrup)" modifier too since the
+        // swap already happened. Skips when descriptor extraction
+        // failed so generic names stay generic.
+        if (descriptor && name === 'Haus Syrup') {
+          name = `Haus ${descriptor} Syrup`;
+          if (modifier === '(swap to chosen syrup)' || modifier === '(half sweet — cold foam adds sweetness)') {
+            modifier = modifier === '(swap to chosen syrup)' ? null : modifier;
+          }
+        }
         return { presetId: null, name, modifier, cells };
       }),
     };

@@ -273,7 +273,7 @@ router.post('/sops', requireAuth, (req: AuthRequest, res: Response) => {
   // "start from template" picker on the New SOP form works.
   let variants = clean.variants;
   if (typeof req.body?.templateSlug === 'string' && req.body.templateSlug) {
-    const expanded = expandTemplate(db, req.body.templateSlug);
+    const expanded = expandTemplate(db, req.body.templateSlug, clean.name);
     if (expanded) variants = expanded;
   }
   if (variants !== undefined) {
