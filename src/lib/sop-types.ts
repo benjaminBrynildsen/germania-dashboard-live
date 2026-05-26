@@ -64,6 +64,7 @@ export type Sop = {
   availabilityNote?: string | null;  // e.g. "This drink will be available ONLY through early January 2026."
   craftedBy?: string | null;         // shown in the PDF header eyebrow
   version?: number;                  // auto-incremented on each save; shown in PDF eyebrow
+  pumpsNote?: string | null;         // PUMPS cell in PDF meta box (defaults to "STANDARD")
   variants: SopVariant[];
   createdAt?: number;
   updatedAt?: number;

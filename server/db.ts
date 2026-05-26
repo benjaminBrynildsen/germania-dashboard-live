@@ -51,6 +51,8 @@ db.pragma('foreign_keys = ON');
       // version increments on each save so the PDF can show "Version N".
       ['crafted_by', 'TEXT'],
       ['version', 'INTEGER NOT NULL DEFAULT 1'],
+      // Override for the PUMPS row in the PDF meta box. Null = STANDARD.
+      ['pumps_note', 'TEXT'],
     ];
     for (const [name, type] of adds) {
       if (!cols.has(name)) {
@@ -554,6 +556,7 @@ db.exec(`
     kind TEXT NOT NULL DEFAULT 'drink' CHECK (kind IN ('drink', 'recipe')),
     crafted_by TEXT,
     version INTEGER NOT NULL DEFAULT 1,
+    pumps_note TEXT,
     created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
     updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
   );

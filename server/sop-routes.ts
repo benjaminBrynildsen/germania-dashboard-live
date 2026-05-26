@@ -22,7 +22,7 @@ const router = Router();
 // because the whole team contributes to recipes.
 const TEMPS: Temperature[] = ['iced', 'frozen', 'hot'];
 
-type SopRowDb = { id: number; sop_id: number; slug: string; name: string; collection: string | null; dietary_tags: string | null; syrup_dietary_tags: string | null; drink_contains: string | null; refrigeration_note: string | null; category: string | null; availability: string | null; sop_required: number; subtitle: string | null; availability_note: string | null; kind: string; crafted_by: string | null; version: number; created_at: number; updated_at: number };
+type SopRowDb = { id: number; sop_id: number; slug: string; name: string; collection: string | null; dietary_tags: string | null; syrup_dietary_tags: string | null; drink_contains: string | null; refrigeration_note: string | null; category: string | null; availability: string | null; sop_required: number; subtitle: string | null; availability_note: string | null; kind: string; crafted_by: string | null; version: number; pumps_note: string | null; created_at: number; updated_at: number };
 type VariantRowDb = { id: number; sop_id: number; temperature: Temperature; position: number; size_labels_json: string; footnotes_json: string; assembly_big_idea: string | null; assembly_steps_json: string | null };
 type RowRowDb = { id: number; variant_id: number; position: number; preset_id: number | null; name: string; modifier: string | null; cells_json: string; sync_locked: number };
 
@@ -75,6 +75,7 @@ function assembleSop(row: SopRowDb): Sop {
     kind: (row.kind === 'recipe' ? 'recipe' : 'drink'),
     craftedBy: row.crafted_by,
     version: row.version,
+    pumpsNote: row.pumps_note,
     collection: row.collection,
     dietaryTags: row.dietary_tags,
     syrupDietaryTags: row.syrup_dietary_tags,
@@ -134,7 +135,7 @@ function validatePayload(body: any, requireName: boolean): { ok: true; clean: Pa
   } else if (requireName) {
     return { ok: false, error: 'name_required' };
   }
-  for (const k of ['collection', 'dietaryTags', 'syrupDietaryTags', 'drinkContains', 'refrigerationNote', 'subtitle', 'availabilityNote', 'craftedBy'] as const) {
+  for (const k of ['collection', 'dietaryTags', 'syrupDietaryTags', 'drinkContains', 'refrigerationNote', 'subtitle', 'availabilityNote', 'craftedBy', 'pumpsNote'] as const) {
     if (body[k] !== undefined) {
       if (body[k] === null || body[k] === '') (out as any)[k] = null;
       else if (typeof body[k] !== 'string') return { ok: false, error: `invalid_${k}` };
@@ -239,6 +240,7 @@ function writeSop(id: number, payload: Partial<Sop>) {
       ['kind', 'kind'],
       ['craftedBy', 'crafted_by'],
       ['version', 'version'],
+      ['pumpsNote', 'pumps_note'],
     ];
     for (const [k, col] of fields) {
       if (payload[k] !== undefined) {
@@ -374,7 +376,7 @@ router.post('/sops', requireAuth, (req: AuthRequest, res: Response) => {
   const clean = v.clean;
   const slug = ensureUniqueSlug(clean.slug || slugify(clean.name!));
   const now = Date.now();
-  const result = db.prepare(`INSERT INTO sops (slug, name, collection, dietary_tags, syrup_dietary_tags, drink_contains, refrigeration_note, kind, crafted_by, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  const result = db.prepare(`INSERT INTO sops (slug, name, collection, dietary_tags, syrup_dietary_tags, drink_contains, refrigeration_note, kind, crafted_by, version, pumps_note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     slug,
     clean.name!,
     clean.collection ?? null,
@@ -385,6 +387,7 @@ router.post('/sops', requireAuth, (req: AuthRequest, res: Response) => {
     clean.kind ?? 'drink',
     clean.craftedBy ?? null,
     clean.version ?? 1,
+    clean.pumpsNote ?? null,
     now,
     now,
   );
@@ -412,7 +415,7 @@ router.post('/sops/:id/duplicate', requireAuth, (req: AuthRequest, res: Response
   const newName = `${source.name} (copy)`;
   const newSlug = ensureUniqueSlug(slugify(newName));
   const now = Date.now();
-  const result = db.prepare(`INSERT INTO sops (slug, name, collection, dietary_tags, syrup_dietary_tags, drink_contains, refrigeration_note, kind, category, availability, sop_required, subtitle, availability_note, crafted_by, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  const result = db.prepare(`INSERT INTO sops (slug, name, collection, dietary_tags, syrup_dietary_tags, drink_contains, refrigeration_note, kind, category, availability, sop_required, subtitle, availability_note, crafted_by, version, pumps_note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     newSlug,
     newName,
     source.collection ?? null,
@@ -428,6 +431,7 @@ router.post('/sops/:id/duplicate', requireAuth, (req: AuthRequest, res: Response
     source.availabilityNote ?? null,
     source.craftedBy ?? null,
     1,
+    source.pumpsNote ?? null,
     now,
     now,
   );

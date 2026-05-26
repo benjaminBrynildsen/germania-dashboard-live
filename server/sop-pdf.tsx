@@ -141,9 +141,8 @@ function storeLine(sop: Sop): string {
   return sop.refrigerationNote ? sop.refrigerationNote.toUpperCase() : '—';
 }
 
-function pumpsLine(_sop: Sop): string {
-  // Could be derived later if any rows carry "extra pump" / "half sweet".
-  return 'STANDARD';
+function pumpsLine(sop: Sop): string {
+  return sop.pumpsNote && sop.pumpsNote.trim() ? sop.pumpsNote.toUpperCase() : 'STANDARD';
 }
 
 function eyebrowText(sop: Sop): string {

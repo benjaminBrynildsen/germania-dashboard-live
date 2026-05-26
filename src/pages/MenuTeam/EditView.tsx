@@ -14,6 +14,13 @@ const REFRIG_OPTIONS_CHIPS = [
   'Does NOT need refrigeration',
   'Syrup does NOT need refrigeration',
 ];
+const PUMPS_OPTIONS = [
+  'Standard',
+  'Extra Pump',
+  'Half Sweet',
+  'No Syrup',
+  'Two-Syrup Split',
+];
 
 type SopFull = Sop & { id: number };
 
@@ -129,6 +136,7 @@ export default function EditView() {
         name: sop.name,
         kind: sop.kind ?? 'drink',
         craftedBy: sop.craftedBy,
+        pumpsNote: sop.pumpsNote,
         collection: sop.collection,
         dietaryTags: sop.dietaryTags,
         syrupDietaryTags: sop.syrupDietaryTags,
@@ -271,9 +279,16 @@ export default function EditView() {
             <ChipPicker presets={ALLERGEN_OPTIONS} value={sop.drinkContains} onChange={(v) => setField('drinkContains', v)} placeholder="Custom allergen" />
           </div>
         </div>
-        <div style={{ marginTop: 14 }}>
-          <label>Refrigeration note</label>
-          <ChipPicker presets={REFRIG_OPTIONS_CHIPS} value={sop.refrigerationNote} onChange={(v) => setField('refrigerationNote', v)} placeholder="Custom refrigeration note" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
+          <div>
+            <label>Refrigeration note</label>
+            <ChipPicker presets={REFRIG_OPTIONS_CHIPS} value={sop.refrigerationNote} onChange={(v) => setField('refrigerationNote', v)} placeholder="Custom refrigeration note" />
+          </div>
+          <div>
+            <label>Pumps</label>
+            <ChipPicker presets={PUMPS_OPTIONS} value={sop.pumpsNote} onChange={(v) => setField('pumpsNote', v)} placeholder="Custom pumps note" />
+            <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 4 }}>Shown in the PDF meta box. Blank = STANDARD.</p>
+          </div>
         </div>
         {sop.kind !== 'recipe' && (
           <>
