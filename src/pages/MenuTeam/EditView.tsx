@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { AVAILABILITY_OPTIONS, DEFAULT_SIZE_LABELS, SOP_CATEGORIES, TEMP_LABEL, TEMP_ORDER, standardPumpCells, type Availability, type Sop, type SopFootnote, type SopPreset, type SopRow, type SopVariant, type Temperature } from '../../lib/sop-types';
+import { AVAILABILITY_OPTIONS, DEFAULT_SIZE_LABELS, SOP_CATEGORIES, TEMP_LABEL, TEMP_ORDER, standardPumpCells, type Availability, type Sop, type SopFootnote, type SopKind, type SopPreset, type SopRow, type SopVariant, type Temperature } from '../../lib/sop-types';
 import SeasonYearPicker from './SeasonYearPicker';
 import ChipPicker from './ChipPicker';
 
@@ -127,6 +127,7 @@ export default function EditView() {
     try {
       const body = {
         name: sop.name,
+        kind: sop.kind ?? 'drink',
         collection: sop.collection,
         dietaryTags: sop.dietaryTags,
         syrupDietaryTags: sop.syrupDietaryTags,
@@ -223,9 +224,17 @@ export default function EditView() {
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, margin: '0 0 12px' }}>Header</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr', gap: 12 }}>
           <div>
-            <label>Drink name</label>
+            <label>Kind</label>
+            <select value={sop.kind ?? 'drink'} onChange={(e) => setField('kind', e.target.value as SopKind)}>
+              <option value="drink">Drink</option>
+              <option value="recipe">Recipe / Add-on</option>
+            </select>
+            <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 4 }}>Recipes (cold foam, syrup batches) skip iced/frozen/hot.</p>
+          </div>
+          <div>
+            <label>{sop.kind === 'recipe' ? 'Recipe name' : 'Drink name'}</label>
             <input type="text" value={sop.name} onChange={(e) => setField('name', e.target.value)} />
           </div>
           <div>
@@ -252,70 +261,89 @@ export default function EditView() {
           <label>Refrigeration note</label>
           <ChipPicker presets={REFRIG_OPTIONS_CHIPS} value={sop.refrigerationNote} onChange={(v) => setField('refrigerationNote', v)} placeholder="Custom refrigeration note" />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginTop: 14 }}>
-          <div>
-            <label>Category (for launch packet)</label>
-            <select value={sop.category || ''} onChange={(e) => setField('category', e.target.value || null)}>
-              <option value="">— Uncategorized —</option>
-              {SOP_CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
-            </select>
+        {sop.kind !== 'recipe' && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginTop: 14 }}>
+              <div>
+                <label>Category (for launch packet)</label>
+                <select value={sop.category || ''} onChange={(e) => setField('category', e.target.value || null)}>
+                  <option value="">— Uncategorized —</option>
+                  {SOP_CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label>Availability</label>
+                <select value={sop.availability || ''} onChange={(e) => setField('availability', (e.target.value || null) as Availability | null)}>
+                  <option value="">— Unspecified —</option>
+                  {AVAILABILITY_OPTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </div>
+              <div>
+                <label>SOP needed?</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 4px', fontSize: 13 }}>
+                  <input type="checkbox" checked={sop.sopRequired !== false} onChange={(e) => setField('sopRequired', e.target.checked)} />
+                  Print an SOP page for this drink
+                </label>
+                <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 2 }}>Uncheck for familiar drinks that only need a cover-page mention.</p>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
+              <div>
+                <label>Subtitle (optional)</label>
+                <input type="text" placeholder='e.g. The "Amar-tado"' value={sop.subtitle || ''} onChange={(e) => setField('subtitle', e.target.value || null)} />
+              </div>
+              <div>
+                <label>Availability note (optional)</label>
+                <input type="text" placeholder='e.g. "Available ONLY through early January 2026."' value={sop.availabilityNote || ''} onChange={(e) => setField('availabilityNote', e.target.value || null)} />
+              </div>
+            </div>
+          </>
+        )}
+        {sop.kind === 'recipe' && (
+          <div style={{ marginTop: 14, padding: 10, background: 'rgba(0,0,0,0.03)', borderRadius: 8, fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>
+            Recipes / add-ons appear at the back of the launch packet under a single "Recipes & Add-Ons" divider — no category or availability needed.
           </div>
-          <div>
-            <label>Availability</label>
-            <select value={sop.availability || ''} onChange={(e) => setField('availability', (e.target.value || null) as Availability | null)}>
-              <option value="">— Unspecified —</option>
-              {AVAILABILITY_OPTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </div>
-          <div>
-            <label>SOP needed?</label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 4px', fontSize: 13 }}>
-              <input type="checkbox" checked={sop.sopRequired !== false} onChange={(e) => setField('sopRequired', e.target.checked)} />
-              Print an SOP page for this drink
-            </label>
-            <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 2 }}>Uncheck for familiar drinks that only need a cover-page mention.</p>
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
-          <div>
-            <label>Subtitle (optional)</label>
-            <input type="text" placeholder='e.g. The "Amar-tado"' value={sop.subtitle || ''} onChange={(e) => setField('subtitle', e.target.value || null)} />
-          </div>
-          <div>
-            <label>Availability note (optional)</label>
-            <input type="text" placeholder='e.g. "Available ONLY through early January 2026."' value={sop.availabilityNote || ''} onChange={(e) => setField('availabilityNote', e.target.value || null)} />
-          </div>
-        </div>
+        )}
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={{ fontSize: 16, margin: '0 0 12px' }}>Temperatures</h2>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {TEMP_ORDER.map((t) => {
-            const on = !!sop.variants.find((v) => v.temperature === t);
-            return (
-              <label key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: on ? 'rgba(0,0,0,0.07)' : 'transparent', border: '1px solid rgba(0,0,0,0.1)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={on} onChange={() => toggleTemperature(t)} />
-                {TEMP_LABEL[t]}
-              </label>
-            );
-          })}
+      {sop.kind !== 'recipe' ? (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ fontSize: 16, margin: '0 0 12px' }}>Temperatures</h2>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {TEMP_ORDER.map((t) => {
+              const on = !!sop.variants.find((v) => v.temperature === t);
+              return (
+                <label key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: on ? 'rgba(0,0,0,0.07)' : 'transparent', border: '1px solid rgba(0,0,0,0.1)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={on} onChange={() => toggleTemperature(t)} />
+                  {TEMP_LABEL[t]}
+                </label>
+              );
+            })}
+          </div>
+          {sop.variants.length === 0 && (
+            <p style={{ marginTop: 12, color: 'rgba(0,0,0,0.5)', fontSize: 13 }}>Pick at least one temperature to start building the recipe.</p>
+          )}
+          {sop.variants.length > 1 && (
+            <label style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>
+              <input type="checkbox" checked={syncAcrossTemps} onChange={(e) => setSyncAcrossTemps(e.target.checked)} />
+              Sync ingredient names + modifiers across temperatures
+              <span style={{ color: 'rgba(0,0,0,0.4)', fontSize: 11 }}>(per-size cells stay independent)</span>
+            </label>
+          )}
         </div>
-        {sop.variants.length === 0 && (
-          <p style={{ marginTop: 12, color: 'rgba(0,0,0,0.5)', fontSize: 13 }}>Pick at least one temperature to start building the recipe.</p>
-        )}
-        {sop.variants.length > 1 && (
-          <label style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>
-            <input type="checkbox" checked={syncAcrossTemps} onChange={(e) => setSyncAcrossTemps(e.target.checked)} />
-            Sync ingredient names + modifiers across temperatures
-            <span style={{ color: 'rgba(0,0,0,0.4)', fontSize: 11 }}>(per-size cells stay independent)</span>
-          </label>
-        )}
-      </div>
+      ) : sop.variants.length === 0 ? (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p style={{ margin: 0, fontSize: 13 }}>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => toggleTemperature('hot')}>+ Start recipe table</button>
+            <span style={{ marginLeft: 10, color: 'rgba(0,0,0,0.5)' }}>Adds one section where you can list ingredients and yields.</span>
+          </p>
+        </div>
+      ) : null}
 
       {sop.variants.map((v) => (
         <VariantEditor
           key={v.temperature}
+          kind={sop.kind ?? 'drink'}
           variant={v}
           presets={presets}
           onChange={(updater) => updateVariant(v.temperature, updater)}
@@ -326,7 +354,7 @@ export default function EditView() {
   );
 }
 
-function VariantEditor({ variant, presets, onChange, onRowField }: { variant: SopVariant; presets: SopPreset[]; onChange: (updater: (v: SopVariant) => SopVariant) => void; onRowField: (idx: number, oldName: string, patch: { name?: string; modifier?: string | null }) => void }) {
+function VariantEditor({ kind, variant, presets, onChange, onRowField }: { kind: SopKind; variant: SopVariant; presets: SopPreset[]; onChange: (updater: (v: SopVariant) => SopVariant) => void; onRowField: (idx: number, oldName: string, patch: { name?: string; modifier?: string | null }) => void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   function setSizeLabel(i: number, label: string) {
@@ -484,20 +512,23 @@ function VariantEditor({ variant, presets, onChange, onRowField }: { variant: So
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [presets]);
 
+  const isRecipe = kind === 'recipe';
   return (
-    <div className="card" style={{ marginBottom: 16, borderTop: `4px solid ${tempBorder(variant.temperature)}` }}>
+    <div className="card" style={{ marginBottom: 16, borderTop: `4px solid ${isRecipe ? '#888' : tempBorder(variant.temperature)}` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <h2 style={{ fontSize: 18, margin: 0 }}>{TEMP_LABEL[variant.temperature]}</h2>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>Size preset:</span>
-          <button className="btn btn-secondary btn-sm" onClick={() => applySizeProfile('iced')}>Kids · R · L</button>
-          <button className="btn btn-secondary btn-sm" onClick={() => applySizeProfile('hot')}>S · R · L</button>
-          <button className="btn btn-secondary btn-sm" onClick={() => applySizeProfile('single')}>Single 8oz</button>
-        </div>
+        <h2 style={{ fontSize: 18, margin: 0 }}>{isRecipe ? 'Recipe' : TEMP_LABEL[variant.temperature]}</h2>
+        {!isRecipe && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>Size preset:</span>
+            <button className="btn btn-secondary btn-sm" onClick={() => applySizeProfile('iced')}>Kids · R · L</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => applySizeProfile('hot')}>S · R · L</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => applySizeProfile('single')}>Single 8oz</button>
+          </div>
+        )}
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <label>Size columns</label>
+        <label>{isRecipe ? 'Yield columns' : 'Size columns'}</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {variant.sizeLabels.map((label, i) => (
             <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', background: 'rgba(0,0,0,0.04)', borderRadius: 6 }}>
@@ -510,7 +541,7 @@ function VariantEditor({ variant, presets, onChange, onRowField }: { variant: So
       </div>
 
       <div style={{ marginBottom: 8 }}>
-        <label>Build steps (top → bottom is the build order)</label>
+        <label>{isRecipe ? 'Ingredients (top → bottom is the build order)' : 'Build steps (top → bottom is the build order)'}</label>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>

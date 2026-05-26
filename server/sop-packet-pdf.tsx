@@ -189,30 +189,22 @@ function CategoryDividerPage({ label }: { label: string }) {
 // page.
 export async function renderPacketPdfBuffer(sops: Sop[], collection: string | null, transitionNote: string | null): Promise<Buffer> {
   const printable = sops.filter((s) => s.sopRequired !== false);
-  // Group printable sops by category (in canonical category order).
+  // Split drink SOPs (category sections) from recipe SOPs (appended
+  // after all drinks under a "Recipes & Add-Ons" divider).
+  const drinks = printable.filter((s) => (s.kind ?? 'drink') === 'drink');
+  const recipes = printable.filter((s) => s.kind === 'recipe');
+
   const byCategory = new Map<string, Sop[]>();
-  for (const s of printable) {
+  for (const s of drinks) {
     const key = s.category ?? 'uncategorized';
     const arr = byCategory.get(key) ?? [];
     arr.push(s);
     byCategory.set(key, arr);
   }
-  // Render category sections in canonical SOP_CATEGORIES order; trailing
-  // "uncategorized" if any.
   const orderedKeys: string[] = [
     ...SOP_CATEGORIES.map((c) => c.key).filter((k) => byCategory.has(k)),
     ...(byCategory.has('uncategorized') ? ['uncategorized'] : []),
   ];
-
-  // Build a single Document with: CoverPage, then per-category
-  // [divider page + each SOP's pages]. We piggy-back on SopDocument
-  // for the SOP pages by rendering its children pages inline.
-  // @react-pdf doesn't let us nest Documents, so we render the
-  // SopDocument's pages via the same machinery here.
-  const packetSops = orderedKeys.flatMap((key) => byCategory.get(key) ?? []);
-  // We need to interleave divider pages with SOP pages, so we can't
-  // just hand packetSops to SopDocument. Instead we build the children
-  // list explicitly.
 
   const children: React.ReactElement[] = [
     <CoverPage key="cover" sops={sops} collection={collection} transitionNote={transitionNote} />,
@@ -222,6 +214,14 @@ export async function renderPacketPdfBuffer(sops: Sop[], collection: string | nu
     const label = cat ? cat.name : 'Other';
     children.push(<CategoryDividerPage key={`divider-${key}`} label={label} />);
     for (const sop of byCategory.get(key) ?? []) {
+      buildSopPages(sop).forEach((p, i) => {
+        children.push(React.cloneElement(p, { key: `${sop.slug}-pkt-${i}` }));
+      });
+    }
+  }
+  if (recipes.length > 0) {
+    children.push(<CategoryDividerPage key="divider-recipes" label="Recipes & Add-Ons" />);
+    for (const sop of recipes) {
       buildSopPages(sop).forEach((p, i) => {
         children.push(React.cloneElement(p, { key: `${sop.slug}-pkt-${i}` }));
       });

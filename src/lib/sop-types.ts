@@ -45,10 +45,13 @@ export const SOP_CATEGORIES: SopCategory[] = [
 
 export const AVAILABILITY_OPTIONS: Availability[] = ['All-Season', '1st Half Only', '2nd Half Only'];
 
+export type SopKind = 'drink' | 'recipe';
+
 export type Sop = {
   id?: number;
   slug: string;
   name: string;
+  kind?: SopKind;                    // 'drink' default; 'recipe' = non-drink batch (cold foam, syrup, etc.)
   collection?: string | null;
   dietaryTags?: string | null;
   syrupDietaryTags?: string | null;

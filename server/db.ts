@@ -42,6 +42,10 @@ db.pragma('foreign_keys = ON');
       ['sop_required', 'INTEGER NOT NULL DEFAULT 1'],
       ['subtitle', 'TEXT'],
       ['availability_note', 'TEXT'],
+      // 'drink' (default) or 'recipe'. Recipes are non-drink SOPs like
+      // cold foam batches or syrup procedures — no temperature variants,
+      // size columns become yields.
+      ['kind', "TEXT NOT NULL DEFAULT 'drink'"],
     ];
     for (const [name, type] of adds) {
       if (!cols.has(name)) {
@@ -542,6 +546,7 @@ db.exec(`
     sop_required INTEGER NOT NULL DEFAULT 1,
     subtitle TEXT,
     availability_note TEXT,
+    kind TEXT NOT NULL DEFAULT 'drink' CHECK (kind IN ('drink', 'recipe')),
     created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
     updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
   );

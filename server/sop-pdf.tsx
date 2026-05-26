@@ -248,10 +248,10 @@ function AssemblyBlock({ variant }: { variant: SopVariant }) {
   );
 }
 
-function VariantSection({ variant, isFirst }: { variant: SopVariant; isFirst: boolean }) {
+function VariantSection({ variant, isFirst, showTempLabel }: { variant: SopVariant; isFirst: boolean; showTempLabel: boolean }) {
   return (
     <View style={isFirst ? styles.variantSection : styles.variantSectionGap}>
-      <Text style={styles.tempBadge}>{TEMP_LABEL[variant.temperature]}</Text>
+      {showTempLabel ? <Text style={styles.tempBadge}>{TEMP_LABEL[variant.temperature]}</Text> : null}
       <RecipeTable variant={variant} />
       <FootnotesBlock variant={variant} />
       <AssemblyBlock variant={variant} />
@@ -260,22 +260,25 @@ function VariantSection({ variant, isFirst }: { variant: SopVariant; isFirst: bo
 }
 
 function SopPage({ sop, variants }: { sop: Sop; variants: SopVariant[] }) {
+  const showTempLabel = sop.kind !== 'recipe';
   return (
     <Page size="LETTER" style={styles.page}>
       <HeaderBlock sop={sop} />
       {variants.map((v, i) => (
-        <VariantSection key={v.temperature} variant={v} isFirst={i === 0} />
+        <VariantSection key={v.temperature} variant={v} isFirst={i === 0} showTempLabel={showTempLabel} />
       ))}
     </Page>
   );
 }
 
-// Group a SOP's variants into print pages. Cold variants (iced and
-// frozen) always share a page; hot always lives on its own page.
-// Order: cold page first, then hot. Empty pages are skipped — e.g. a
-// hot-only drink like the Cortado gets one (hot) page, not an empty
-// cold page + hot.
+// Group a SOP's variants into print pages. For drink SOPs: cold
+// variants (iced and frozen) always share a page; hot always lives on
+// its own page. Recipes have one logical "variant" and print on a
+// single page.
 function pagesForSop(sop: Sop): SopVariant[][] {
+  if (sop.kind === 'recipe') {
+    return sop.variants.length > 0 ? [sop.variants] : [];
+  }
   const byTemp = new Map<Temperature, SopVariant>();
   for (const v of sop.variants) byTemp.set(v.temperature, v);
   const cold: SopVariant[] = [];

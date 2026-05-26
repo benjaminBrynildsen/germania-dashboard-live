@@ -8,6 +8,7 @@ type SopListItem = {
   id: number;
   slug: string;
   name: string;
+  kind?: 'drink' | 'recipe';
   collection: string | null;
   dietaryTags: string | null;
   refrigerationNote: string | null;
@@ -33,6 +34,7 @@ export default function MenuTeam() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newTemplate, setNewTemplate] = useState<string>('');
+  const [newKind, setNewKind] = useState<'drink' | 'recipe'>('drink');
   const [newCollection, setNewCollection] = useState<string | null>(() => {
     const d = defaultCollection();
     return buildCollection(d.season, d.year);
@@ -99,14 +101,18 @@ export default function MenuTeam() {
     try {
       const body: any = {
         name: newName.trim(),
+        kind: newKind,
         collection: newCollection,
       };
-      if (newTemplate) {
+      if (newKind === 'drink' && newTemplate) {
         // Server resolves the template into variants + rows; client just
         // forwards the slug.
         body.templateSlug = newTemplate;
+      } else if (newKind === 'recipe') {
+        // Recipes get a single section with one yield column to start.
+        body.variants = [{ temperature: 'hot', position: 0, sizeLabels: ['1 Batch'], footnotes: [], rows: [] }];
       } else {
-        // Empty starter: one iced variant, no rows. Editor lets you add temps + rows.
+        // Drink empty starter: one iced variant, no rows.
         body.variants = [{ temperature: 'iced', position: 0, sizeLabels: ['Kids', 'R', 'L'], footnotes: [], rows: [] }];
       }
       const out = await api.post('/api/sops', body);
@@ -130,25 +136,32 @@ export default function MenuTeam() {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr auto', gap: 10, alignItems: 'end' }}>
+        <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: 'auto 2fr 1.5fr 1.5fr auto', gap: 10, alignItems: 'end' }}>
           <div>
-            <label>New SOP name</label>
+            <label>Kind</label>
+            <select value={newKind} onChange={(e) => setNewKind(e.target.value as 'drink' | 'recipe')}>
+              <option value="drink">Drink</option>
+              <option value="recipe">Recipe / Add-on</option>
+            </select>
+          </div>
+          <div>
+            <label>{newKind === 'recipe' ? 'Recipe name' : 'New SOP name'}</label>
             <input
               type="text"
-              placeholder="e.g. Vanilla Cloud Latte"
+              placeholder={newKind === 'recipe' ? 'e.g. Lavender Cold Foam' : 'e.g. Vanilla Cloud Latte'}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
             />
           </div>
           <div>
-            <label>Start from template</label>
-            <select value={newTemplate} onChange={(e) => setNewTemplate(e.target.value)} title={templates.find((t) => t.slug === newTemplate)?.description || ''}>
-              <option value="">— Empty (one iced variant) —</option>
+            <label>{newKind === 'recipe' ? 'Template' : 'Start from template'}</label>
+            <select value={newTemplate} onChange={(e) => setNewTemplate(e.target.value)} disabled={newKind === 'recipe'} title={templates.find((t) => t.slug === newTemplate)?.description || ''}>
+              <option value="">— Empty —</option>
               {templates.map((t) => (
                 <option key={t.slug} value={t.slug}>{t.name}</option>
               ))}
             </select>
-            {newTemplate && (
+            {newTemplate && newKind === 'drink' && (
               <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', marginTop: 4 }}>{templates.find((t) => t.slug === newTemplate)?.description}</p>
             )}
           </div>
@@ -157,7 +170,7 @@ export default function MenuTeam() {
             <SeasonYearPicker value={newCollection} onChange={setNewCollection} />
           </div>
           <button type="submit" className="btn btn-primary" disabled={creating || !newName.trim()}>
-            {creating ? 'Creating…' : '+ New SOP'}
+            {creating ? 'Creating…' : newKind === 'recipe' ? '+ New Recipe' : '+ New SOP'}
           </button>
         </form>
       </div>
@@ -222,10 +235,13 @@ export default function MenuTeam() {
                   </td>
                   <td style={{ padding: '12px 14px', fontWeight: 600 }}>
                     <Link to={`/menu-team/${s.slug}`} style={{ color: '#1a1a1a' }}>{s.name}</Link>
+                    {s.kind === 'recipe' && (
+                      <span style={{ marginLeft: 8, fontSize: 10, padding: '2px 6px', background: 'rgba(0,0,0,0.07)', borderRadius: 4, color: 'rgba(0,0,0,0.5)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Recipe</span>
+                    )}
                   </td>
                   <td style={{ padding: '12px 14px', color: 'rgba(0,0,0,0.6)', fontSize: 13 }}>{s.collection || '—'}</td>
                   <td style={{ padding: '12px 14px' }}>
-                    {s.temperatures.length === 0 ? <span style={{ color: 'rgba(0,0,0,0.3)', fontSize: 12 }}>none</span> : s.temperatures.map((t) => (
+                    {s.kind === 'recipe' ? <span style={{ color: 'rgba(0,0,0,0.3)', fontSize: 12 }}>—</span> : s.temperatures.length === 0 ? <span style={{ color: 'rgba(0,0,0,0.3)', fontSize: 12 }}>none</span> : s.temperatures.map((t) => (
                       <span key={t} style={{ display: 'inline-block', padding: '2px 8px', marginRight: 4, fontSize: 11, borderRadius: 4, background: tempColor(t), color: '#3a2f25' }}>{TEMP_LABEL[t]}</span>
                     ))}
                   </td>
