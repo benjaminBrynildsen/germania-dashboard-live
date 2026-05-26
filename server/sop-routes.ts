@@ -439,6 +439,64 @@ router.get('/sop-templates', requireAuth, (_req, res: Response) => {
   res.json({ templates: listTemplates() });
 });
 
+// ---------- bulk import ----------
+// One-shot endpoint to ingest a batch of parsed SOPs (typically from
+// the Drive importer script). Each entry has the same shape POST
+// /api/sops accepts. Conflict policy: if a SOP with the same name +
+// collection already exists, skip it unless { force: true } is sent at
+// the top level (then we create as a duplicate slug with " (imported)"
+// appended to the name).
+router.post('/sops/bulk-import', requireAuth, (req: AuthRequest, res: Response) => {
+  const body = req.body || {};
+  const sops = Array.isArray(body.sops) ? body.sops : null;
+  if (!sops) { res.status(400).json({ error: 'sops_array_required' }); return; }
+  const force = !!body.force;
+  const imported: Array<{ name: string; slug: string }> = [];
+  const skipped: Array<{ name: string; reason: string }> = [];
+  const errors: Array<{ name: string; error: string }> = [];
+  const findExisting = db.prepare('SELECT id FROM sops WHERE name = ? AND COALESCE(collection,"") = COALESCE(?,"")');
+  for (const raw of sops) {
+    const name = typeof raw?.name === 'string' ? raw.name.trim() : '';
+    if (!name) { errors.push({ name: '?', error: 'missing_name' }); continue; }
+    const v = validatePayload(raw, true);
+    if (!v.ok) { errors.push({ name, error: v.error }); continue; }
+    const clean = v.clean;
+    try {
+      const existing = findExisting.get(clean.name, clean.collection ?? null) as { id: number } | undefined;
+      let finalName = clean.name!;
+      if (existing && !force) {
+        skipped.push({ name: finalName, reason: 'already_exists_same_collection' });
+        continue;
+      }
+      if (existing && force) finalName = `${finalName} (imported)`;
+      const slug = ensureUniqueSlug(slugify(finalName));
+      const now = Date.now();
+      const result = db.prepare(`INSERT INTO sops (slug, name, collection, dietary_tags, syrup_dietary_tags, drink_contains, refrigeration_note, kind, subtitle, category, availability, sop_required, availability_note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        slug,
+        finalName,
+        clean.collection ?? null,
+        clean.dietaryTags ?? null,
+        clean.syrupDietaryTags ?? null,
+        clean.drinkContains ?? null,
+        clean.refrigerationNote ?? null,
+        clean.kind ?? 'drink',
+        clean.subtitle ?? null,
+        clean.category ?? null,
+        clean.availability ?? null,
+        clean.sopRequired === false ? 0 : 1,
+        clean.availabilityNote ?? null,
+        now, now,
+      );
+      const id = Number(result.lastInsertRowid);
+      if (clean.variants !== undefined) writeSop(id, { variants: clean.variants });
+      imported.push({ name: finalName, slug });
+    } catch (err: any) {
+      errors.push({ name, error: err?.message || String(err) });
+    }
+  }
+  res.json({ imported, skipped, errors, total: sops.length });
+});
+
 // ---------- update ----------
 router.put('/sops/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
