@@ -62,6 +62,8 @@ export type Sop = {
   sopRequired?: boolean;             // false → parens on cover, no SOP page
   subtitle?: string | null;          // e.g. The "Amar-tado"
   availabilityNote?: string | null;  // e.g. "This drink will be available ONLY through early January 2026."
+  craftedBy?: string | null;         // shown in the PDF header eyebrow
+  version?: number;                  // auto-incremented on each save; shown in PDF eyebrow
   variants: SopVariant[];
   createdAt?: number;
   updatedAt?: number;

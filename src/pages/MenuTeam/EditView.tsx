@@ -128,6 +128,7 @@ export default function EditView() {
       const body = {
         name: sop.name,
         kind: sop.kind ?? 'drink',
+        craftedBy: sop.craftedBy,
         collection: sop.collection,
         dietaryTags: sop.dietaryTags,
         syrupDietaryTags: sop.syrupDietaryTags,
@@ -240,6 +241,19 @@ export default function EditView() {
           <div>
             <label>Season &amp; year</label>
             <SeasonYearPicker value={sop.collection} onChange={(next) => setField('collection', next)} />
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr auto', gap: 12, marginTop: 14 }}>
+          <div>
+            <label>Crafted by</label>
+            <input type="text" placeholder="e.g. Ben & the Menu Team" value={sop.craftedBy || ''} onChange={(e) => setField('craftedBy', e.target.value || null)} />
+            <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 4 }}>Appears under the drink name in the printed SOP.</p>
+          </div>
+          <div>
+            <label>Version</label>
+            <div style={{ padding: '8px 4px', fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>
+              v{sop.version ?? 1} <span style={{ color: 'rgba(0,0,0,0.35)', fontSize: 11 }}>(auto-bumps on save)</span>
+            </div>
           </div>
         </div>
         <div style={{ marginTop: 14 }}>

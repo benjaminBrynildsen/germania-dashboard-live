@@ -3,189 +3,179 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Document, Page, Text, View, StyleSheet, Font, renderToBuffer } from '@react-pdf/renderer';
 import type { Sop, SopVariant, Temperature } from '../src/lib/sop-types.js';
-import { TEMP_LABEL } from '../src/lib/sop-types.js';
+import { SOP_CATEGORIES, parseCollectionSeasons } from '../src/lib/sop-types.js';
 
-// Decorative title font. Germania One is a Google Font with a single
-// Regular weight — fitting for the drink name only; body stays in
-// Helvetica for legibility on the recipe table.
+// Crafted SOP layout. Cream paper, monospace labels + values, big bold
+// title, top-right 3-row meta box, black section banner with a "G" mark
+// and step count, numbered recipe table with black header.
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-Font.register({
-  family: 'Germania One',
-  src: path.join(__dirname, 'fonts', 'GermaniaOne-Regular.ttf'),
-});
+const FONT_DIR = path.join(__dirname, 'fonts');
 
-// Pure black-and-white SOP layout — matches the look of the Word
-// templates: clean Arial-style typography, thin rules, no fills.
-// Helvetica is react-pdf's closest built-in match to Arial.
-const INK = '#000000';
-const RULE = '#000000';
-const SUBTLE = '#444444';
+Font.register({ family: 'Germania One', src: path.join(FONT_DIR, 'GermaniaOne-Regular.ttf') });
+Font.register({ family: 'IBM Plex Sans', fonts: [{ src: path.join(FONT_DIR, 'IBMPlexSans-Bold.ttf'), fontWeight: 700 }] });
+Font.register({ family: 'IBM Plex Mono', fonts: [
+  { src: path.join(FONT_DIR, 'IBMPlexMono-Regular.ttf'), fontWeight: 400 },
+  { src: path.join(FONT_DIR, 'IBMPlexMono-Bold.ttf'), fontWeight: 700 },
+] });
+
+const INK = '#101010';
+const PAPER = '#f6f1e7';
+const PAPER_CUT = '#f0eee9';
+const RULE = '#101010';
+const MUTED = '#9a958b';
+const STEP_MUTED = '#b4b0a5';
+
+const SANS = 'IBM Plex Sans';
+const MONO = 'IBM Plex Mono';
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 40,
-    paddingBottom: 40,
-    paddingHorizontal: 56,
-    fontSize: 11,
+    paddingTop: 36,
+    paddingBottom: 36,
+    paddingHorizontal: 38,
+    fontSize: 10,
     color: INK,
-    fontFamily: 'Helvetica',
-  },
-  title: {
-    fontSize: 34,
-    fontFamily: 'Germania One',
-    textAlign: 'center',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  tagLine: {
-    fontSize: 10,
-    textAlign: 'center',
-    color: SUBTLE,
-    marginBottom: 1,
-  },
-  tempBadge: {
-    marginTop: 12,
-    marginBottom: 6,
-    paddingTop: 4,
-    paddingBottom: 4,
-    textAlign: 'center',
-    fontSize: 20,
-    fontFamily: 'Germania One',
-    letterSpacing: 2,
-    borderTopWidth: 0.75,
-    borderBottomWidth: 0.75,
-    borderColor: RULE,
-  },
-  variantSection: {
-    // First variant on a combined cold page sits closer to the header;
-    // subsequent variants get extra breathing room above their temp label.
-  },
-  variantSectionGap: {
-    marginTop: 10,
+    fontFamily: MONO,
+    backgroundColor: PAPER,
   },
 
-  table: {
-    marginTop: 2,
-    borderTopWidth: 0.75,
-    borderLeftWidth: 0.75,
-    borderRightWidth: 0.75,
-    borderColor: RULE,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 0.75,
-    borderColor: RULE,
-    minHeight: 22,
-    alignItems: 'stretch',
-  },
-  row: {
-    flexDirection: 'row',
-    borderBottomWidth: 0.5,
-    borderColor: RULE,
-    minHeight: 24,
-    alignItems: 'stretch',
-  },
-  cellName: {
-    flex: 1.6,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRightWidth: 0.5,
-    borderColor: RULE,
-    justifyContent: 'center',
-  },
-  cellSize: {
-    flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRightWidth: 0.5,
-    borderColor: RULE,
-    justifyContent: 'center',
-  },
-  cellSizeLast: {
-    flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    justifyContent: 'center',
-  },
-  headerCellName: {
-    flex: 1.6,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRightWidth: 0.5,
-    borderColor: RULE,
-  },
-  headerCellSize: {
-    flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRightWidth: 0.5,
-    borderColor: RULE,
-    justifyContent: 'center',
-  },
-  headerCellSizeLast: {
-    flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    justifyContent: 'center',
-  },
-  headerLabel: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 11,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  rowName: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 11,
-  },
-  rowModifier: {
-    fontSize: 9,
-    color: SUBTLE,
-    marginTop: 2,
-  },
-  rowCellText: {
-    fontSize: 10.5,
-    textAlign: 'center',
-    lineHeight: 1.3,
-  },
+  // ── header row ──────────────────────────────────────────────
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  headerLeft: { flex: 1, paddingRight: 14 },
+  eyebrow: { fontSize: 8.5, fontFamily: MONO, letterSpacing: 1.6, color: INK },
+  title: { fontSize: 56, fontFamily: SANS, fontWeight: 700, letterSpacing: -1.5, lineHeight: 1, marginTop: 6, marginBottom: 8, color: INK },
+  craftedBy: { fontSize: 8.5, fontFamily: MONO, letterSpacing: 1.6, color: INK, textTransform: 'uppercase' },
 
-  footnotes: { marginTop: 12 },
-  footnote: { fontSize: 9, color: SUBTLE, marginTop: 3, lineHeight: 1.4 },
+  // ── meta box top-right ──────────────────────────────────────
+  metaBox: { borderWidth: 1, borderColor: INK, width: 200 },
+  metaRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: INK, minHeight: 22, alignItems: 'stretch' },
+  metaRowLast: { flexDirection: 'row', minHeight: 22, alignItems: 'stretch' },
+  metaLabel: { width: 60, backgroundColor: INK, color: PAPER, paddingHorizontal: 8, paddingVertical: 6, fontSize: 8, fontFamily: MONO, fontWeight: 700, letterSpacing: 1.2 },
+  metaValue: { flex: 1, paddingHorizontal: 10, paddingVertical: 6, fontSize: 9.5, fontFamily: MONO, color: INK, alignSelf: 'center' },
 
-  assemblyTitle: {
-    marginTop: 18,
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-  assemblyDivider: {
-    marginTop: 4,
-    marginBottom: 6,
-    borderBottomWidth: 0.5,
-    borderColor: RULE,
-  },
-  bigIdea: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Oblique',
-    color: SUBTLE,
-    marginBottom: 4,
-  },
-  assemblyStep: { marginTop: 3, fontSize: 10.5, lineHeight: 1.4 },
+  // ── section banner ───────────────────────────────────────────
+  divider: { borderBottomWidth: 1, borderColor: INK, marginTop: 14 },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, marginBottom: 6 },
+  sectionMark: { width: 28, height: 28, backgroundColor: INK, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  sectionMarkText: { fontFamily: 'Germania One', fontSize: 16, color: PAPER },
+  sectionLabel: { fontSize: 19, fontFamily: SANS, fontWeight: 700, letterSpacing: 1.4, color: INK, textTransform: 'uppercase' },
+  sectionRule: { flex: 1, marginHorizontal: 16, height: 1, backgroundColor: MUTED, alignSelf: 'center' },
+  sectionSteps: { fontSize: 9, fontFamily: MONO, letterSpacing: 1.4, color: INK },
+
+  // ── recipe table ─────────────────────────────────────────────
+  table: { borderWidth: 1, borderColor: INK, marginTop: 4 },
+  thead: { flexDirection: 'row', backgroundColor: INK, minHeight: 26, alignItems: 'stretch' },
+  thHash: { width: 48, backgroundColor: STEP_MUTED, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderColor: INK },
+  thHashText: { fontFamily: MONO, fontSize: 11, color: INK },
+  thName: { flex: 2.2, paddingHorizontal: 12, justifyContent: 'center', borderRightWidth: 1, borderColor: PAPER },
+  thNameText: { fontFamily: MONO, fontSize: 8.5, color: PAPER, letterSpacing: 1.4 },
+  thSize: { flex: 1, paddingHorizontal: 8, justifyContent: 'center', borderRightWidth: 1, borderColor: PAPER, alignItems: 'center' },
+  thSizeLast: { flex: 1, paddingHorizontal: 8, justifyContent: 'center', alignItems: 'center' },
+  thSizeText: { fontFamily: MONO, fontSize: 8.5, color: PAPER, letterSpacing: 1.4 },
+
+  tr: { flexDirection: 'row', borderTopWidth: 1, borderColor: INK, minHeight: 44, alignItems: 'stretch', backgroundColor: PAPER },
+  tdStep: { width: 48, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderColor: INK },
+  tdStepText: { fontFamily: MONO, fontSize: 11, color: STEP_MUTED, letterSpacing: 0.5 },
+  tdName: { flex: 2.2, paddingHorizontal: 12, justifyContent: 'center', borderRightWidth: 1, borderColor: INK },
+  tdNameText: { fontFamily: SANS, fontWeight: 700, fontSize: 13, color: INK, lineHeight: 1.15 },
+  tdNameModifier: { fontFamily: MONO, fontSize: 8, color: MUTED, marginTop: 3, letterSpacing: 0.6 },
+  tdSize: { flex: 1, paddingHorizontal: 10, justifyContent: 'center', alignItems: 'center', borderRightWidth: 1, borderColor: INK },
+  tdSizeLast: { flex: 1, paddingHorizontal: 10, justifyContent: 'center', alignItems: 'center' },
+  tdSizeText: { fontFamily: MONO, fontSize: 13, color: INK, textAlign: 'center', lineHeight: 1.15 },
+
+  // ── footer / extras ──────────────────────────────────────────
+  footnotes: { marginTop: 10 },
+  footnote: { fontSize: 8.5, fontFamily: MONO, color: MUTED, marginTop: 2, letterSpacing: 0.4 },
+  assemblyTitle: { marginTop: 16, fontSize: 10, fontFamily: SANS, fontWeight: 700, letterSpacing: 1.6, textTransform: 'uppercase' },
+  assemblyRule: { marginTop: 4, marginBottom: 6, height: 1, backgroundColor: INK },
+  bigIdea: { fontSize: 9, fontFamily: MONO, color: MUTED, marginBottom: 4 },
+  assemblyStep: { marginTop: 3, fontSize: 10, fontFamily: MONO },
+  availabilityNote: { marginTop: 8, fontSize: 9.5, fontFamily: MONO, fontWeight: 700, textAlign: 'center', color: INK, letterSpacing: 0.6 },
+  subtitle: { fontSize: 11, fontFamily: SANS, fontWeight: 700, color: INK, marginBottom: 6, marginTop: -4 },
 });
 
+const TEMP_SECTION_LABEL: Record<Temperature, string> = {
+  iced: 'ICED BUILD',
+  frozen: 'FROZEN BUILD',
+  hot: 'HOT BUILD',
+};
+
+function dietLine(sop: Sop): string {
+  // Crunch the dietary fields into one short "DF · GF · VG" line.
+  const tokens: string[] = [];
+  const push = (s: string | null | undefined) => {
+    if (!s) return;
+    for (const t of s.split(',').map((x) => x.trim()).filter(Boolean)) {
+      // Normalize "Vegan" → "VG" so the row fits the editorial style.
+      const norm = /^vegan$/i.test(t) ? 'VG' : t.toUpperCase();
+      if (!tokens.includes(norm)) tokens.push(norm);
+    }
+  };
+  push(sop.dietaryTags);
+  push(sop.syrupDietaryTags);
+  return tokens.join(' · ');
+}
+
+function storeLine(sop: Sop): string {
+  return sop.refrigerationNote ? sop.refrigerationNote.toUpperCase() : '—';
+}
+
+function pumpsLine(_sop: Sop): string {
+  // Could be derived later if any rows carry "extra pump" / "half sweet".
+  return 'STANDARD';
+}
+
+function eyebrowText(sop: Sop): string {
+  const cat = sop.category ? SOP_CATEGORIES.find((c) => c.key === sop.category) : null;
+  const catLabel = cat ? cat.name.toUpperCase() : (sop.kind === 'recipe' ? 'RECIPE' : 'SOP');
+  const version = `Version ${sop.version ?? 1}`;
+  const yr = parseCollectionSeasons(sop.collection || '')?.year ?? new Date().getFullYear();
+  return `${catLabel} · ${version} · ${yr}`;
+}
+
+function craftedByText(sop: Sop): string {
+  const who = sop.craftedBy && sop.craftedBy.trim() ? sop.craftedBy.trim() : 'THE MENU TEAM';
+  return `CRAFTED BY ${who.toUpperCase()}`;
+}
+
 function HeaderBlock({ sop }: { sop: Sop }) {
-  const tagLines: string[] = [];
-  if (sop.syrupDietaryTags) tagLines.push(`Syrup: ${sop.syrupDietaryTags}`);
-  if (sop.drinkContains) tagLines.push(`Drink Contains: ${sop.drinkContains}`);
-  if (!sop.syrupDietaryTags && sop.dietaryTags) tagLines.push(sop.dietaryTags);
-  if (sop.refrigerationNote) tagLines.push(`Temp: ${sop.refrigerationNote}`);
+  return (
+    <View style={styles.headerRow}>
+      <View style={styles.headerLeft}>
+        <Text style={styles.eyebrow}>{eyebrowText(sop)}</Text>
+        <Text style={styles.title}>{sop.name}</Text>
+        {sop.subtitle ? <Text style={styles.subtitle}>{sop.subtitle}</Text> : null}
+        <Text style={styles.craftedBy}>{craftedByText(sop)}</Text>
+      </View>
+      <View style={styles.metaBox}>
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>DIET</Text>
+          <Text style={styles.metaValue}>{dietLine(sop) || '—'}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>STORE</Text>
+          <Text style={styles.metaValue}>{storeLine(sop)}</Text>
+        </View>
+        <View style={styles.metaRowLast}>
+          <Text style={styles.metaLabel}>PUMPS</Text>
+          <Text style={styles.metaValue}>{pumpsLine(sop)}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function SectionBanner({ label, steps }: { label: string; steps: number }) {
   return (
     <View>
-      <Text style={styles.title}>{sop.name}</Text>
-      {tagLines.map((line, i) => (
-        <Text key={i} style={styles.tagLine}>{line}</Text>
-      ))}
+      <View style={styles.divider} />
+      <View style={styles.sectionRow}>
+        <View style={styles.sectionMark}><Text style={styles.sectionMarkText}>G</Text></View>
+        <Text style={styles.sectionLabel}>{label}</Text>
+        <View style={styles.sectionRule} />
+        <Text style={styles.sectionSteps}>{steps} STEPS</Text>
+      </View>
     </View>
   );
 }
@@ -194,28 +184,27 @@ function RecipeTable({ variant }: { variant: SopVariant }) {
   const sizeCount = variant.sizeLabels.length;
   return (
     <View style={styles.table}>
-      <View style={styles.headerRow}>
-        <View style={styles.headerCellName}><Text> </Text></View>
+      <View style={styles.thead}>
+        <View style={styles.thHash}><Text style={styles.thHashText}>#</Text></View>
+        <View style={styles.thName}><Text style={styles.thNameText}>COMPONENT</Text></View>
         {variant.sizeLabels.map((label, i) => (
-          <View key={i} style={i === sizeCount - 1 ? styles.headerCellSizeLast : styles.headerCellSize}>
-            <Text style={styles.headerLabel}>{label}</Text>
+          <View key={i} style={i === sizeCount - 1 ? styles.thSizeLast : styles.thSize}>
+            <Text style={styles.thSizeText}>{(label || '').toUpperCase()}</Text>
           </View>
         ))}
       </View>
       {variant.rows.map((row, rIdx) => (
-        <View key={rIdx} style={styles.row}>
-          <View style={styles.cellName}>
-            <Text style={styles.rowName}>{row.name}</Text>
-            {row.modifier ? <Text style={styles.rowModifier}>{row.modifier}</Text> : null}
+        <View key={rIdx} style={styles.tr}>
+          <View style={styles.tdStep}><Text style={styles.tdStepText}>{String(rIdx + 1).padStart(2, '0')}</Text></View>
+          <View style={styles.tdName}>
+            <Text style={styles.tdNameText}>{row.name}</Text>
+            {row.modifier ? <Text style={styles.tdNameModifier}>{row.modifier.toUpperCase()}</Text> : null}
           </View>
-          {variant.sizeLabels.map((_, cIdx) => {
-            const value = row.cells[cIdx] ?? '';
-            return (
-              <View key={cIdx} style={cIdx === sizeCount - 1 ? styles.cellSizeLast : styles.cellSize}>
-                <Text style={styles.rowCellText}>{value}</Text>
-              </View>
-            );
-          })}
+          {variant.sizeLabels.map((_, cIdx) => (
+            <View key={cIdx} style={cIdx === sizeCount - 1 ? styles.tdSizeLast : styles.tdSize}>
+              <Text style={styles.tdSizeText}>{row.cells[cIdx] ?? ''}</Text>
+            </View>
+          ))}
         </View>
       ))}
     </View>
@@ -239,7 +228,7 @@ function AssemblyBlock({ variant }: { variant: SopVariant }) {
   return (
     <View>
       <Text style={styles.assemblyTitle}>Drink Assembly</Text>
-      <View style={styles.assemblyDivider} />
+      <View style={styles.assemblyRule} />
       {variant.assemblyBigIdea ? <Text style={styles.bigIdea}>Big Idea: {variant.assemblyBigIdea}</Text> : null}
       {(variant.assemblySteps ?? []).map((step, i) => (
         <Text key={i} style={styles.assemblyStep}>{i + 1}. {step}</Text>
@@ -248,55 +237,26 @@ function AssemblyBlock({ variant }: { variant: SopVariant }) {
   );
 }
 
-function VariantSection({ variant, isFirst, showTempLabel }: { variant: SopVariant; isFirst: boolean; showTempLabel: boolean }) {
-  return (
-    <View style={isFirst ? styles.variantSection : styles.variantSectionGap}>
-      {showTempLabel ? <Text style={styles.tempBadge}>{TEMP_LABEL[variant.temperature]}</Text> : null}
-      <RecipeTable variant={variant} />
-      <FootnotesBlock variant={variant} />
-      <AssemblyBlock variant={variant} />
-    </View>
-  );
-}
-
-function SopPage({ sop, variants }: { sop: Sop; variants: SopVariant[] }) {
-  const showTempLabel = sop.kind !== 'recipe';
+function VariantPage({ sop, variant }: { sop: Sop; variant: SopVariant }) {
+  const label = sop.kind === 'recipe' ? 'RECIPE' : TEMP_SECTION_LABEL[variant.temperature];
   return (
     <Page size="LETTER" style={styles.page}>
       <HeaderBlock sop={sop} />
-      {variants.map((v, i) => (
-        <VariantSection key={v.temperature} variant={v} isFirst={i === 0} showTempLabel={showTempLabel} />
-      ))}
+      <SectionBanner label={label} steps={variant.rows.length} />
+      {sop.availabilityNote ? <Text style={styles.availabilityNote}>{sop.availabilityNote}</Text> : null}
+      <RecipeTable variant={variant} />
+      <FootnotesBlock variant={variant} />
+      <AssemblyBlock variant={variant} />
     </Page>
   );
 }
 
-// Group a SOP's variants into print pages. For drink SOPs: cold
-// variants (iced and frozen) always share a page; hot always lives on
-// its own page. Recipes have one logical "variant" and print on a
-// single page.
-function pagesForSop(sop: Sop): SopVariant[][] {
-  if (sop.kind === 'recipe') {
-    return sop.variants.length > 0 ? [sop.variants] : [];
-  }
-  const byTemp = new Map<Temperature, SopVariant>();
-  for (const v of sop.variants) byTemp.set(v.temperature, v);
-  const cold: SopVariant[] = [];
-  if (byTemp.has('iced')) cold.push(byTemp.get('iced')!);
-  if (byTemp.has('frozen')) cold.push(byTemp.get('frozen')!);
-  const hot = byTemp.has('hot') ? [byTemp.get('hot')!] : [];
-  const pages: SopVariant[][] = [];
-  if (cold.length > 0) pages.push(cold);
-  if (hot.length > 0) pages.push(hot);
-  return pages;
-}
-
-// Exported for the packet renderer so it can splice these pages in
-// between cover and category dividers without re-implementing the
-// cold/hot grouping rule.
+// Crafted layout puts each variant on its own page (matches the
+// designed Iced / Frozen / Hot screenshots) so the header card is
+// fully visible above every recipe table.
 export function buildSopPages(sop: Sop): React.ReactElement[] {
-  return pagesForSop(sop).map((pageVariants, pi) => (
-    <SopPage key={`${sop.slug}-page-${pi}`} sop={sop} variants={pageVariants} />
+  return sop.variants.map((v) => (
+    <VariantPage key={`${sop.slug}-${v.temperature}`} sop={sop} variant={v} />
   ));
 }
 

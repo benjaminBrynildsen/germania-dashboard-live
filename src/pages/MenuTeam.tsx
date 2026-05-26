@@ -35,6 +35,7 @@ export default function MenuTeam() {
   const [newName, setNewName] = useState('');
   const [newTemplate, setNewTemplate] = useState<string>('');
   const [newKind, setNewKind] = useState<'drink' | 'recipe'>('drink');
+  const [newCraftedBy, setNewCraftedBy] = useState<string>('');
   const [newCollection, setNewCollection] = useState<string | null>(() => {
     const d = defaultCollection();
     return buildCollection(d.season, d.year);
@@ -102,6 +103,7 @@ export default function MenuTeam() {
       const body: any = {
         name: newName.trim(),
         kind: newKind,
+        craftedBy: newCraftedBy.trim() || null,
         collection: newCollection,
       };
       if (newKind === 'drink' && newTemplate) {
@@ -172,6 +174,15 @@ export default function MenuTeam() {
           <button type="submit" className="btn btn-primary" disabled={creating || !newName.trim()}>
             {creating ? 'Creating…' : newKind === 'recipe' ? '+ New Recipe' : '+ New SOP'}
           </button>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label>Crafted by (shown on the printed SOP)</label>
+            <input
+              type="text"
+              placeholder="e.g. Ben &amp; the Menu Team"
+              value={newCraftedBy}
+              onChange={(e) => setNewCraftedBy(e.target.value)}
+            />
+          </div>
         </form>
       </div>
 

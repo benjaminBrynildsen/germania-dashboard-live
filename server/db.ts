@@ -46,6 +46,11 @@ db.pragma('foreign_keys = ON');
       // cold foam batches or syrup procedures — no temperature variants,
       // size columns become yields.
       ['kind', "TEXT NOT NULL DEFAULT 'drink'"],
+      // Editorial header fields used by the crafted PDF layout.
+      // crafted_by is freeform ("Ben", "Maggie + Joe", etc.).
+      // version increments on each save so the PDF can show "Version N".
+      ['crafted_by', 'TEXT'],
+      ['version', 'INTEGER NOT NULL DEFAULT 1'],
     ];
     for (const [name, type] of adds) {
       if (!cols.has(name)) {
@@ -547,6 +552,8 @@ db.exec(`
     subtitle TEXT,
     availability_note TEXT,
     kind TEXT NOT NULL DEFAULT 'drink' CHECK (kind IN ('drink', 'recipe')),
+    crafted_by TEXT,
+    version INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
     updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
   );
