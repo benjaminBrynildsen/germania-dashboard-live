@@ -51,6 +51,16 @@ db.pragma('foreign_keys = ON');
     }
   }
 }
+// sop_rows.sync_locked — per-row opt-out from the cross-temperature
+// sync. When 1, edits to this row's name/modifier in another variant
+// don't propagate into this one (and vice versa from this row).
+{
+  const tbl = db.prepare("PRAGMA table_info(sop_rows)").all() as Array<{ name: string }>;
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'sync_locked')) {
+    console.log('[migration] adding sync_locked to sop_rows');
+    db.exec('ALTER TABLE sop_rows ADD COLUMN sync_locked INTEGER NOT NULL DEFAULT 0');
+  }
+}
 
 // bake_haus_orders.mon_locked_qty migration — adds the Mon-delivery
 // snapshot column to existing tables that pre-date the lock feature.
@@ -567,7 +577,8 @@ db.exec(`
     preset_id INTEGER,
     name TEXT NOT NULL,
     modifier TEXT,
-    cells_json TEXT NOT NULL DEFAULT '[]'
+    cells_json TEXT NOT NULL DEFAULT '[]',
+    sync_locked INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_sop_rows_variant ON sop_rows(variant_id);
 

@@ -96,6 +96,9 @@ export default function EditView() {
     mutate((s) => {
       const targetVariantIdx = s.variants.findIndex((v) => v.temperature === temp);
       if (targetVariantIdx === -1) return s;
+      // If the target row is locked, only update that row — never propagate.
+      const targetRow = s.variants[targetVariantIdx].rows[idx];
+      const targetLocked = !!targetRow?.syncLocked;
       const variants = s.variants.map((v, vi) => {
         if (vi === targetVariantIdx) {
           return {
@@ -103,13 +106,14 @@ export default function EditView() {
             rows: v.rows.map((r, ri) => (ri === idx ? { ...r, ...patch } : r)),
           };
         }
-        if (!syncAcrossTemps) return v;
+        if (!syncAcrossTemps || targetLocked) return v;
         // Blank old name → no identity to match on; would otherwise sync
         // every unnamed custom row to the new value all at once.
         if (!oldName.trim()) return v;
         return {
           ...v,
-          rows: v.rows.map((r) => (r.name.trim().toLowerCase() === oldName.trim().toLowerCase() ? { ...r, ...patch } : r)),
+          // Skip locked rows on the receiving side too.
+          rows: v.rows.map((r) => (!r.syncLocked && r.name.trim().toLowerCase() === oldName.trim().toLowerCase() ? { ...r, ...patch } : r)),
         };
       });
       return { ...s, variants };
@@ -522,11 +526,18 @@ function VariantEditor({ variant, presets, onChange, onRowField }: { variant: So
             </thead>
             <tbody>
               {variant.rows.map((r, idx) => (
-                <tr key={idx} style={{ borderTop: '1px solid rgba(0,0,0,0.07)' }}>
+                <tr key={idx} style={{ borderTop: '1px solid rgba(0,0,0,0.07)', background: r.syncLocked ? 'rgba(255,235,150,0.18)' : undefined }}>
                   <td style={tdCenter}>
-                    <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 2 }}>
+                    <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
                       <button onClick={() => moveRow(idx, -1)} style={btnGhost} disabled={idx === 0}>▲</button>
                       <button onClick={() => moveRow(idx, 1)} style={btnGhost} disabled={idx === variant.rows.length - 1}>▼</button>
+                      <button
+                        onClick={() => updateRow(idx, { syncLocked: !r.syncLocked })}
+                        style={{ ...btnGhost, fontSize: 13, color: r.syncLocked ? '#9a6900' : 'rgba(0,0,0,0.35)' }}
+                        title={r.syncLocked ? 'Locked — edits stay local to this temperature. Click to unlock.' : 'Click to lock — edits to this row will stop syncing to other temperatures.'}
+                      >
+                        {r.syncLocked ? '🔒' : '🔓'}
+                      </button>
                     </div>
                   </td>
                   <td style={td}>

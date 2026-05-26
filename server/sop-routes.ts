@@ -24,7 +24,7 @@ const TEMPS: Temperature[] = ['iced', 'frozen', 'hot'];
 
 type SopRowDb = { id: number; sop_id: number; slug: string; name: string; collection: string | null; dietary_tags: string | null; syrup_dietary_tags: string | null; drink_contains: string | null; refrigeration_note: string | null; category: string | null; availability: string | null; sop_required: number; subtitle: string | null; availability_note: string | null; created_at: number; updated_at: number };
 type VariantRowDb = { id: number; sop_id: number; temperature: Temperature; position: number; size_labels_json: string; footnotes_json: string; assembly_big_idea: string | null; assembly_steps_json: string | null };
-type RowRowDb = { id: number; variant_id: number; position: number; preset_id: number | null; name: string; modifier: string | null; cells_json: string };
+type RowRowDb = { id: number; variant_id: number; position: number; preset_id: number | null; name: string; modifier: string | null; cells_json: string; sync_locked: number };
 
 function slugify(input: string): string {
   return input.toLowerCase().trim().replace(/['"]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || 'sop';
@@ -81,6 +81,7 @@ function assembleSop(row: SopRowDb): Sop {
           name: r.name,
           modifier: r.modifier,
           cells: safeJson<string[]>(r.cells_json, []),
+          syncLocked: r.sync_locked === 1,
         })),
       } satisfies SopVariant;
     }),
@@ -162,6 +163,7 @@ function validatePayload(body: any, requireName: boolean): { ok: true; clean: Pa
           name: r.name.trim().slice(0, 200),
           modifier: typeof r.modifier === 'string' && r.modifier.trim() ? r.modifier.trim().slice(0, 200) : null,
           cells,
+          syncLocked: !!r.syncLocked,
         });
       }
       const footnotes: SopFootnote[] = Array.isArray(v.footnotes)
@@ -226,12 +228,12 @@ function writeSop(id: number, payload: Partial<Sop>) {
       // contract is "PUT replaces the entire SOP body."
       db.prepare('DELETE FROM sop_variants WHERE sop_id = ?').run(id);
       const insertVariant = db.prepare(`INSERT INTO sop_variants (sop_id, temperature, position, size_labels_json, footnotes_json, assembly_big_idea, assembly_steps_json) VALUES (?, ?, ?, ?, ?, ?, ?)`);
-      const insertRow = db.prepare(`INSERT INTO sop_rows (variant_id, position, preset_id, name, modifier, cells_json) VALUES (?, ?, ?, ?, ?, ?)`);
+      const insertRow = db.prepare(`INSERT INTO sop_rows (variant_id, position, preset_id, name, modifier, cells_json, sync_locked) VALUES (?, ?, ?, ?, ?, ?, ?)`);
       payload.variants!.forEach((v, vi) => {
         const result = insertVariant.run(id, v.temperature, v.position ?? vi, JSON.stringify(v.sizeLabels), JSON.stringify(v.footnotes ?? []), v.assemblyBigIdea ?? null, v.assemblySteps ? JSON.stringify(v.assemblySteps) : null);
         const variantId = Number(result.lastInsertRowid);
         v.rows.forEach((r, ri) => {
-          insertRow.run(variantId, ri, r.presetId ?? null, r.name, r.modifier ?? null, JSON.stringify(r.cells));
+          insertRow.run(variantId, ri, r.presetId ?? null, r.name, r.modifier ?? null, JSON.stringify(r.cells), r.syncLocked ? 1 : 0);
         });
       });
     }

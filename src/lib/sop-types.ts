@@ -13,6 +13,7 @@ export type SopRow = {
   name: string;
   modifier?: string | null;
   cells: string[]; // one per size column; multi-line allowed via "\n"
+  syncLocked?: boolean; // when true, cross-temperature sync skips this row
 };
 
 export type SopVariant = {
