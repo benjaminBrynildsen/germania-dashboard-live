@@ -30,6 +30,21 @@ function slugify(input: string): string {
   return input.toLowerCase().trim().replace(/['"]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || 'sop';
 }
 
+// Build a human-friendly download filename. Strips chars browsers/
+// filesystems struggle with but keeps spaces and ampersands so the
+// file reads naturally — "Ube Latte 2026.pdf" not "ube-latte-2026.pdf".
+function downloadFilename(base: string, year: number | null, ext: string): string {
+  const cleaned = base.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim() || 'SOP';
+  const withYear = year ? `${cleaned} ${year}` : cleaned;
+  return `${withYear}.${ext}`;
+}
+
+function yearFromCollection(collection: string | null | undefined): number | null {
+  if (!collection) return null;
+  const parsed = parseCollectionSeasons(collection);
+  return parsed?.year ?? null;
+}
+
 function safeJson<T>(s: string | null | undefined, fallback: T): T {
   if (!s) return fallback;
   try { return JSON.parse(s) as T; } catch { return fallback; }
@@ -492,8 +507,9 @@ router.get('/sops/:slug/pdf', requireAuth, async (req: AuthRequest, res: Respons
   if (!sop) { res.status(404).json({ error: 'not_found' }); return; }
   try {
     const buf = await renderSopsToPdfBuffer([sop]);
+    const filename = downloadFilename(sop.name, yearFromCollection(sop.collection), 'pdf');
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${sop.slug}.pdf"`);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     res.send(buf);
   } catch (err) {
     console.error('[sop-pdf]', err);
@@ -532,9 +548,10 @@ router.get('/sops/packet.pdf', requireAuth, async (req: AuthRequest, res: Respon
     : undefined;
   try {
     const buf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null);
-    const name = collection ? slugify(collection) : `packet-${sops.length}-sops`;
+    const baseName = collection ? `${collection} Packet` : `Packet (${sops.length} SOPs)`;
+    const filename = downloadFilename(baseName, null, 'pdf');
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${name}-packet.pdf"`);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     res.send(buf);
   } catch (err) {
     console.error('[sop-packet-pdf]', err);
@@ -552,18 +569,22 @@ router.get('/sops/packet.zip', requireAuth, async (req: AuthRequest, res: Respon
     const packetBuf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null);
     // Individual SOPs in parallel — each one is a small render.
     const individuals = await Promise.all(
-      sops.filter((s) => s.sopRequired !== false).map(async (s) => ({ slug: s.slug, buf: await renderSopsToPdfBuffer([s]) }))
+      sops.filter((s) => s.sopRequired !== false).map(async (s) => ({
+        sop: s,
+        buf: await renderSopsToPdfBuffer([s]),
+      }))
     );
     const zip = new JSZip();
-    const base = collection ? slugify(collection) : `packet-${sops.length}-sops`;
-    zip.file(`${base}-packet.pdf`, packetBuf);
+    const packetBaseName = collection ? `${collection} Packet` : `Packet (${sops.length} SOPs)`;
+    zip.file(downloadFilename(packetBaseName, null, 'pdf'), packetBuf);
     const indivFolder = zip.folder('individual-sops');
-    for (const { slug: s, buf } of individuals) {
-      indivFolder?.file(`${s}.pdf`, buf);
+    for (const { sop: s, buf } of individuals) {
+      indivFolder?.file(downloadFilename(s.name, yearFromCollection(s.collection), 'pdf'), buf);
     }
     const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
+    const zipFilename = downloadFilename(packetBaseName, null, 'zip');
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${base}-packet.zip"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
     res.send(zipBuf);
   } catch (err) {
     console.error('[sop-packet-zip]', err);
@@ -590,9 +611,10 @@ router.get('/sops/bundle.pdf', requireAuth, async (req: AuthRequest, res: Respon
   if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
   try {
     const buf = await renderSopsToPdfBuffer(sops);
-    const name = collectionParam ? slugify(collectionParam) : `bundle-${sops.length}-sops`;
+    const baseName = collectionParam ? `${collectionParam} Bundle` : `Bundle (${sops.length} SOPs)`;
+    const filename = downloadFilename(baseName, null, 'pdf');
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${name}.pdf"`);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     res.send(buf);
   } catch (err) {
     console.error('[sop-pdf-bundle]', err);
