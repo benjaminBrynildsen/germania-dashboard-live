@@ -19,6 +19,11 @@ Font.register({ family: 'IBM Plex Mono', fonts: [
   { src: path.join(FONT_DIR, 'IBMPlexMono-Bold.ttf'), fontWeight: 700 },
 ] });
 
+// Default react-pdf hyphenates long words (e.g. "Origin" → "Ori-/gin")
+// at line breaks. Disable so the drink title and component names stay
+// intact and the layout just shrinks the title font when needed.
+Font.registerHyphenationCallback((word) => [word]);
+
 const INK = '#101010';
 const PAPER = '#ffffff';
 const PAPER_CUT = '#f5f5f5';
@@ -44,7 +49,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   headerLeft: { flex: 1, paddingRight: 14 },
   eyebrow: { fontSize: 8.5, fontFamily: MONO, letterSpacing: 1.6, color: INK },
-  title: { fontSize: 72, fontFamily: SANS, fontWeight: 700, letterSpacing: -2, lineHeight: 1, marginTop: 4, marginBottom: 8, color: INK },
+  title: { fontFamily: SANS, fontWeight: 700, letterSpacing: -2, lineHeight: 1, marginTop: 4, marginBottom: 8, color: INK },
   craftedBy: { fontSize: 8.5, fontFamily: MONO, letterSpacing: 1.6, color: INK, textTransform: 'uppercase' },
 
   // ── meta box top-right ──────────────────────────────────────
@@ -107,14 +112,29 @@ function dietLine(sop: Sop): string {
   const push = (s: string | null | undefined) => {
     if (!s) return;
     for (const t of s.split(',').map((x) => x.trim()).filter(Boolean)) {
-      // Normalize "Vegan" → "VG" so the row fits the editorial style.
-      const norm = /^vegan$/i.test(t) ? 'VG' : t.toUpperCase();
+      // Normalize so the line stays compact: Vegan → VG, Vegetarian → VEG.
+      let norm = t.toUpperCase();
+      if (/^vegan$/i.test(t)) norm = 'VG';
+      else if (/^vegetarian$/i.test(t)) norm = 'VEG';
       if (!tokens.includes(norm)) tokens.push(norm);
     }
   };
   push(sop.dietaryTags);
   push(sop.syrupDietaryTags);
   return tokens.join(' · ');
+}
+
+// Scale the giant drink title down as names get longer so they don't
+// blow the column width or wrap into 3 lines. Tuned against the title
+// column (~322pt wide) and IBM Plex Sans Bold metrics.
+function titleFontSize(name: string): number {
+  const len = (name || '').length;
+  if (len <= 11) return 72;
+  if (len <= 14) return 60;
+  if (len <= 18) return 52;
+  if (len <= 22) return 44;
+  if (len <= 26) return 38;
+  return 34;
 }
 
 function storeLine(sop: Sop): string {
@@ -144,7 +164,7 @@ function HeaderBlock({ sop }: { sop: Sop }) {
     <View style={styles.headerRow}>
       <View style={styles.headerLeft}>
         <Text style={styles.eyebrow}>{eyebrowText(sop)}</Text>
-        <Text style={styles.title}>{sop.name}</Text>
+        <Text style={[styles.title, { fontSize: titleFontSize(sop.name) }]}>{sop.name}</Text>
         {sop.subtitle ? <Text style={styles.subtitle}>{sop.subtitle}</Text> : null}
         <Text style={styles.craftedBy}>{craftedByText(sop)}</Text>
       </View>
