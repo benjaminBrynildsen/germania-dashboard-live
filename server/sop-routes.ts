@@ -464,7 +464,7 @@ router.post('/sops/bulk-import', requireAuthOrToken, (req: AuthRequest, res: Res
   const imported: Array<{ name: string; slug: string }> = [];
   const skipped: Array<{ name: string; reason: string }> = [];
   const errors: Array<{ name: string; error: string }> = [];
-  const findExisting = db.prepare('SELECT id FROM sops WHERE name = ? AND COALESCE(collection,"") = COALESCE(?,"")');
+  const findExisting = db.prepare("SELECT id FROM sops WHERE name = ? AND COALESCE(collection,'') = COALESCE(?,'')");
   for (const raw of sops) {
     const name = typeof raw?.name === 'string' ? raw.name.trim() : '';
     if (!name) { errors.push({ name: '?', error: 'missing_name' }); continue; }

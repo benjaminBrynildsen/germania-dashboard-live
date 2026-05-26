@@ -155,6 +155,11 @@ export function parseSopDoc(title, content) {
     if (tbl.rows.length === 0) continue;
     const sizeHeader = tbl.rows[0];
     const sizeLabels = sizeHeader.slice(1).filter((c) => c && c.trim().length > 0).map((c) => c.trim());
+    // Recipe-style docs (cold foam, syrup batches) sometimes put a
+    // metadata row first ("Recipe / Makes 18 oz batch") with no size
+    // labels. Default to a single "Quantity" column so the actual
+    // ingredient quantities still import.
+    if (sizeLabels.length === 0) sizeLabels.push('Quantity');
     const recipeRows = tbl.rows.slice(1);
 
     const rowsOut = [];
