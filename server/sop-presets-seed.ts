@@ -79,6 +79,7 @@ const PRESETS: SeedPreset[] = [
   { slug: 'sweetened-condensed-milk', category: 'sauce', name: 'Sweetened Condensed Milk', defaults: { iced: ['1 pump\n(20g)', '2 pumps\n(40g)', '3 pumps\n(60g)'] } },
 
   // Foams
+  { slug: 'cold-foam', category: 'foam', name: 'Cold Foam', default_modifier: '(swap to flavor of choice; base latte is half-sweet)', defaults: { iced: ['0.5 bell', '1 small bell', '1 Large Bell'], hot: ['0.5 bell', '1 small bell', '1 Large Bell'] } },
   { slug: 'lavender-cold-foam', category: 'foam', name: 'Lavender Cold Foam', defaults: { iced: ['0.5 bell', '1 small bell', '1 Large Bell'] } },
   { slug: 'haus-vanilla-cold-foam', category: 'foam', name: 'Haus Vanilla Cold Foam', defaults: { iced: ['0.5 small bell', '1 small bell', '1 large bell'] } },
 

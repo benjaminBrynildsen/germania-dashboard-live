@@ -219,6 +219,101 @@ export const TEMPLATES: DrinkTemplate[] = [
       },
     ],
   },
+
+  // ── Cold foam latte (half-sweet base) ─────────────────────────────
+  // The cold foam itself is sweetened — base syrup is half-sweet so
+  // the drink doesn't over-sweeten when sipped through the foam.
+  {
+    slug: 'cold-foam-latte',
+    name: 'Cold Foam Latte (half-sweet)',
+    description: 'Base syrup at half pumps (1/2/3) because the cold foam on top is sweet. Iced + Hot.',
+    variants: [
+      {
+        temperature: 'iced',
+        sizeLabels: SIZES_ICED,
+        rows: [
+          { presetSlug: 'cold-brew' },
+          { presetSlug: 'milk' },
+          { name: 'Haus Syrup', modifier: '(half sweet — cold foam adds sweetness)', cells: ['1 pump', '2 pumps', '3 pumps'] },
+          { presetSlug: 'ice-leave-room' },
+          { name: 'Cold Foam', modifier: '(swap to flavor of choice)', cells: ['0.5 bell', '1 small bell', '1 Large Bell'] },
+        ],
+      },
+      {
+        temperature: 'hot',
+        sizeLabels: SIZES_HOT,
+        rows: [
+          { presetSlug: 'espresso' },
+          { name: 'Haus Syrup', modifier: '(half sweet — cold foam adds sweetness)', cells: ['1.5 Pumps', '2.5 Pumps', '3.5 Pumps'] },
+          { presetSlug: 'steamed-milk' },
+          { name: 'Cold Foam', modifier: '(spoon on top)', cells: ['0.5 bell', '1 small bell', '1 Large Bell'] },
+        ],
+      },
+    ],
+  },
+
+  // ── Two-syrup drinks (Sunshine Latte style) ───────────────────────
+  // Standard pumps are split evenly between the two syrups so the
+  // overall sweetness matches a single-syrup drink. 2/4/6 → 1/2/3
+  // each (iced+frozen) and 3/5/7 → 1.5/2.5/3.5 each (hot).
+  {
+    slug: 'two-syrup-iced-latte',
+    name: 'Two-Syrup Iced Latte',
+    description: 'Iced latte with two syrups; each at 1/2/3 pumps so total sweetness = single-syrup standard.',
+    variants: [
+      {
+        temperature: 'iced',
+        sizeLabels: SIZES_ICED,
+        rows: [
+          { presetSlug: 'cold-brew' },
+          { presetSlug: 'milk' },
+          { name: 'Syrup A', modifier: '(half of standard — paired with syrup B)', cells: ['1 Pump', '2 Pumps', '3 Pumps'] },
+          { name: 'Syrup B', modifier: '(half of standard — paired with syrup A)', cells: ['1 Pump', '2 Pumps', '3 Pumps'] },
+          { presetSlug: 'ice-fill-cup' },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'two-syrup-full-set',
+    name: 'Two-Syrup Full Set (Iced + Frozen + Hot)',
+    description: 'Sunshine Latte shape — two syrups split 50/50 across all three temperatures.',
+    variants: [
+      {
+        temperature: 'iced',
+        sizeLabels: SIZES_ICED,
+        rows: [
+          { presetSlug: 'cold-brew' },
+          { presetSlug: 'milk' },
+          { name: 'Syrup A', modifier: '(half of standard)', cells: ['1 Pump', '2 Pumps', '3 Pumps'] },
+          { name: 'Syrup B', modifier: '(half of standard)', cells: ['1 Pump', '2 Pumps', '3 Pumps'] },
+          { presetSlug: 'ice-fill-cup' },
+        ],
+      },
+      {
+        temperature: 'frozen',
+        sizeLabels: SIZES_ICED,
+        rows: [
+          { presetSlug: 'polar-powder' },
+          { presetSlug: 'cold-brew' },
+          { presetSlug: 'milk' },
+          { name: 'Syrup A', modifier: '(half of standard)', cells: ['1 Pump', '2 Pumps', '3 Pumps'] },
+          { name: 'Syrup B', modifier: '(half of standard)', cells: ['1 Pump', '2 Pumps', '3 Pumps'] },
+          { presetSlug: 'ice-heaping-cup' },
+        ],
+      },
+      {
+        temperature: 'hot',
+        sizeLabels: SIZES_HOT,
+        rows: [
+          { presetSlug: 'espresso' },
+          { name: 'Syrup A', modifier: '(half of standard)', cells: ['1.5 Pumps', '2.5 Pumps', '3.5 Pumps'] },
+          { name: 'Syrup B', modifier: '(half of standard)', cells: ['1.5 Pumps', '2.5 Pumps', '3.5 Pumps'] },
+          { presetSlug: 'steamed-milk' },
+        ],
+      },
+    ],
+  },
 ];
 
 type PresetLookup = { category: string; name: string; default_modifier: string | null; default_cells_json: string | null };
