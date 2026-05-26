@@ -171,17 +171,24 @@ export default function MenuTeam() {
               <option key={c.collection} value={c.collection}>{c.collection} ({c.count})</option>
             ))}
           </select>
+          {collectionFilter && <CollectionMetaEditor collection={collectionFilter} />}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {selectedCount > 0 && (
-            <a className="btn btn-primary" href={bundleUrl()} target="_blank" rel="noreferrer">
-              Export Bundle ({selectedCount}) PDF
-            </a>
+            <DownloadDropdown
+              label={`Download (${selectedCount}) ▾`}
+              packetUrl={`/api/sops/packet.pdf?ids=${Array.from(selected).join(',')}`}
+              zipUrl={`/api/sops/packet.zip?ids=${Array.from(selected).join(',')}`}
+              bundleUrl={bundleUrl()}
+            />
           )}
           {collectionFilter && (
-            <a className="btn btn-secondary" href={`/api/sops/bundle.pdf?collection=${encodeURIComponent(collectionFilter)}`} target="_blank" rel="noreferrer">
-              Print whole "{collectionFilter}"
-            </a>
+            <DownloadDropdown
+              label={`Download "${collectionFilter}" ▾`}
+              packetUrl={`/api/sops/packet.pdf?collection=${encodeURIComponent(collectionFilter)}`}
+              zipUrl={`/api/sops/packet.zip?collection=${encodeURIComponent(collectionFilter)}`}
+              bundleUrl={`/api/sops/bundle.pdf?collection=${encodeURIComponent(collectionFilter)}`}
+            />
           )}
         </div>
       </div>
@@ -242,4 +249,66 @@ function tempColor(t: Temperature): string {
   if (t === 'iced') return '#e6efe1';
   if (t === 'frozen') return '#dfeaf2';
   return '#f4d8c8';
+}
+
+function DownloadDropdown({ label, packetUrl, zipUrl, bundleUrl }: { label: string; packetUrl: string; zipUrl: string; bundleUrl: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: 'relative' }}>
+      <button type="button" className="btn btn-primary" onClick={() => setOpen((o) => !o)}>{label}</button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
+          <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, minWidth: 280, background: '#fff', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 10, padding: 4, zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.10)' }}>
+            <a href={zipUrl} onClick={() => setOpen(false)} style={menuItemStyle}>
+              <div style={{ fontWeight: 600 }}>Packet + individuals (ZIP)</div>
+              <div style={menuItemHint}>Cover + dividers + all SOPs as one PDF, plus each drink as its own PDF.</div>
+            </a>
+            <a href={packetUrl} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} style={menuItemStyle}>
+              <div style={{ fontWeight: 600 }}>Launch packet only (PDF)</div>
+              <div style={menuItemHint}>Single PDF: cover + dividers + all SOPs.</div>
+            </a>
+            <a href={bundleUrl} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} style={menuItemStyle}>
+              <div style={{ fontWeight: 600 }}>Bundle SOPs only (PDF)</div>
+              <div style={menuItemHint}>SOPs concatenated, no cover or dividers.</div>
+            </a>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const menuItemStyle: React.CSSProperties = { display: 'block', padding: '10px 12px', textDecoration: 'none', color: '#1a1a1a', fontSize: 13, borderRadius: 6 };
+const menuItemHint: React.CSSProperties = { fontSize: 11, color: 'rgba(0,0,0,0.5)', marginTop: 2 };
+
+function CollectionMetaEditor({ collection }: { collection: string }) {
+  const [meta, setMeta] = useState<{ transitionNote: string | null } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  useEffect(() => {
+    api.get(`/api/sop-collections/${encodeURIComponent(collection)}/meta`).then((r) => {
+      setMeta(r.meta);
+      setDraft(r.meta.transitionNote || '');
+    });
+  }, [collection]);
+  async function save() {
+    await api.put(`/api/sop-collections/${encodeURIComponent(collection)}/meta`, { transitionNote: draft || null });
+    setMeta({ transitionNote: draft || null });
+    setEditing(false);
+  }
+  if (!editing) {
+    return (
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditing(true)} title="Edit cover transition note">
+        {meta?.transitionNote ? 'Edit transition note' : '+ Transition note'}
+      </button>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder='e.g. "transition will happen around early March"' style={{ minWidth: 320, fontSize: 12 }} />
+      <button type="button" className="btn btn-primary btn-sm" onClick={save}>Save</button>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditing(false)}>Cancel</button>
+    </div>
+  );
 }

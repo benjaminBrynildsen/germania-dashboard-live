@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { DEFAULT_SIZE_LABELS, TEMP_LABEL, TEMP_ORDER, standardPumpCells, type Sop, type SopFootnote, type SopPreset, type SopRow, type SopVariant, type Temperature } from '../../lib/sop-types';
+import { AVAILABILITY_OPTIONS, DEFAULT_SIZE_LABELS, SOP_CATEGORIES, TEMP_LABEL, TEMP_ORDER, standardPumpCells, type Availability, type Sop, type SopFootnote, type SopPreset, type SopRow, type SopVariant, type Temperature } from '../../lib/sop-types';
 import SeasonYearPicker from './SeasonYearPicker';
 import ChipPicker from './ChipPicker';
 
@@ -128,6 +128,11 @@ export default function EditView() {
         syrupDietaryTags: sop.syrupDietaryTags,
         drinkContains: sop.drinkContains,
         refrigerationNote: sop.refrigerationNote,
+        category: sop.category,
+        availability: sop.availability,
+        sopRequired: sop.sopRequired,
+        subtitle: sop.subtitle,
+        availabilityNote: sop.availabilityNote,
         variants: sop.variants.map((v, i) => ({
           temperature: v.temperature,
           position: i,
@@ -242,6 +247,40 @@ export default function EditView() {
         <div style={{ marginTop: 14 }}>
           <label>Refrigeration note</label>
           <ChipPicker presets={REFRIG_OPTIONS_CHIPS} value={sop.refrigerationNote} onChange={(v) => setField('refrigerationNote', v)} placeholder="Custom refrigeration note" />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginTop: 14 }}>
+          <div>
+            <label>Category (for launch packet)</label>
+            <select value={sop.category || ''} onChange={(e) => setField('category', e.target.value || null)}>
+              <option value="">— Uncategorized —</option>
+              {SOP_CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label>Availability</label>
+            <select value={sop.availability || ''} onChange={(e) => setField('availability', (e.target.value || null) as Availability | null)}>
+              <option value="">— Unspecified —</option>
+              {AVAILABILITY_OPTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div>
+            <label>SOP needed?</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 4px', fontSize: 13 }}>
+              <input type="checkbox" checked={sop.sopRequired !== false} onChange={(e) => setField('sopRequired', e.target.checked)} />
+              Print an SOP page for this drink
+            </label>
+            <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 2 }}>Uncheck for familiar drinks that only need a cover-page mention.</p>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
+          <div>
+            <label>Subtitle (optional)</label>
+            <input type="text" placeholder='e.g. The "Amar-tado"' value={sop.subtitle || ''} onChange={(e) => setField('subtitle', e.target.value || null)} />
+          </div>
+          <div>
+            <label>Availability note (optional)</label>
+            <input type="text" placeholder='e.g. "Available ONLY through early January 2026."' value={sop.availabilityNote || ''} onChange={(e) => setField('availabilityNote', e.target.value || null)} />
+          </div>
         </div>
       </div>
 

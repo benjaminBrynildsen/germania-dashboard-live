@@ -289,14 +289,19 @@ function pagesForSop(sop: Sop): SopVariant[][] {
   return pages;
 }
 
+// Exported for the packet renderer so it can splice these pages in
+// between cover and category dividers without re-implementing the
+// cold/hot grouping rule.
+export function buildSopPages(sop: Sop): React.ReactElement[] {
+  return pagesForSop(sop).map((pageVariants, pi) => (
+    <SopPage key={`${sop.slug}-page-${pi}`} sop={sop} variants={pageVariants} />
+  ));
+}
+
 export function SopDocument({ sops }: { sops: Sop[] }) {
   return (
     <Document>
-      {sops.flatMap((sop) =>
-        pagesForSop(sop).map((pageVariants, pi) => (
-          <SopPage key={`${sop.slug}-page-${pi}`} sop={sop} variants={pageVariants} />
-        ))
-      )}
+      {sops.flatMap((sop) => buildSopPages(sop))}
     </Document>
   );
 }

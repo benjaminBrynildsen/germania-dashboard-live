@@ -8,8 +8,11 @@
 import { Router, Response } from 'express';
 import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
-import type { Sop, SopVariant, SopRow, SopFootnote, Temperature } from '../src/lib/sop-types.js';
+import type { Sop, SopVariant, SopRow, SopFootnote, Temperature, Availability } from '../src/lib/sop-types.js';
+import { AVAILABILITY_OPTIONS, SOP_CATEGORIES } from '../src/lib/sop-types.js';
+import JSZip from 'jszip';
 import { renderSopsToPdfBuffer } from './sop-pdf.js';
+import { renderPacketPdfBuffer } from './sop-packet-pdf.js';
 import { expandTemplate, listTemplates } from './sop-templates.js';
 
 const router = Router();
@@ -19,7 +22,7 @@ const router = Router();
 // because the whole team contributes to recipes.
 const TEMPS: Temperature[] = ['iced', 'frozen', 'hot'];
 
-type SopRowDb = { id: number; sop_id: number; slug: string; name: string; collection: string | null; dietary_tags: string | null; syrup_dietary_tags: string | null; drink_contains: string | null; refrigeration_note: string | null; created_at: number; updated_at: number };
+type SopRowDb = { id: number; sop_id: number; slug: string; name: string; collection: string | null; dietary_tags: string | null; syrup_dietary_tags: string | null; drink_contains: string | null; refrigeration_note: string | null; category: string | null; availability: string | null; sop_required: number; subtitle: string | null; availability_note: string | null; created_at: number; updated_at: number };
 type VariantRowDb = { id: number; sop_id: number; temperature: Temperature; position: number; size_labels_json: string; footnotes_json: string; assembly_big_idea: string | null; assembly_steps_json: string | null };
 type RowRowDb = { id: number; variant_id: number; position: number; preset_id: number | null; name: string; modifier: string | null; cells_json: string };
 
@@ -55,6 +58,11 @@ function assembleSop(row: SopRowDb): Sop {
     syrupDietaryTags: row.syrup_dietary_tags,
     drinkContains: row.drink_contains,
     refrigerationNote: row.refrigeration_note,
+    category: row.category,
+    availability: (row.availability as Availability | null),
+    sopRequired: row.sop_required !== 0,
+    subtitle: row.subtitle,
+    availabilityNote: row.availability_note,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     variants: variants.map((v) => {
@@ -103,12 +111,25 @@ function validatePayload(body: any, requireName: boolean): { ok: true; clean: Pa
   } else if (requireName) {
     return { ok: false, error: 'name_required' };
   }
-  for (const k of ['collection', 'dietaryTags', 'syrupDietaryTags', 'drinkContains', 'refrigerationNote'] as const) {
+  for (const k of ['collection', 'dietaryTags', 'syrupDietaryTags', 'drinkContains', 'refrigerationNote', 'subtitle', 'availabilityNote'] as const) {
     if (body[k] !== undefined) {
       if (body[k] === null || body[k] === '') (out as any)[k] = null;
       else if (typeof body[k] !== 'string') return { ok: false, error: `invalid_${k}` };
       else (out as any)[k] = body[k].slice(0, 500);
     }
+  }
+  if (body.category !== undefined) {
+    if (body.category === null || body.category === '') (out as any).category = null;
+    else if (typeof body.category !== 'string' || !SOP_CATEGORIES.find((c) => c.key === body.category)) return { ok: false, error: 'invalid_category' };
+    else (out as any).category = body.category;
+  }
+  if (body.availability !== undefined) {
+    if (body.availability === null || body.availability === '') (out as any).availability = null;
+    else if (typeof body.availability !== 'string' || !AVAILABILITY_OPTIONS.includes(body.availability as Availability)) return { ok: false, error: 'invalid_availability' };
+    else (out as any).availability = body.availability;
+  }
+  if (body.sopRequired !== undefined) {
+    (out as any).sopRequired = !!body.sopRequired;
   }
   if (body.slug !== undefined) {
     if (typeof body.slug !== 'string') return { ok: false, error: 'invalid_slug' };
@@ -178,12 +199,20 @@ function writeSop(id: number, payload: Partial<Sop>) {
       ['syrupDietaryTags', 'syrup_dietary_tags'],
       ['drinkContains', 'drink_contains'],
       ['refrigerationNote', 'refrigeration_note'],
+      ['category', 'category'],
+      ['availability', 'availability'],
+      ['subtitle', 'subtitle'],
+      ['availabilityNote', 'availability_note'],
     ];
     for (const [k, col] of fields) {
       if (payload[k] !== undefined) {
         setCols.push(`${col} = ?`);
         args.push((payload as any)[k]);
       }
+    }
+    if (payload.sopRequired !== undefined) {
+      setCols.push('sop_required = ?');
+      args.push(payload.sopRequired ? 1 : 0);
     }
     if (setCols.length > 0) {
       setCols.push('updated_at = ?');
@@ -233,10 +262,28 @@ router.get('/sops', requireAuth, (req: AuthRequest, res: Response) => {
       collection: r.collection,
       dietaryTags: r.dietary_tags,
       refrigerationNote: r.refrigeration_note,
+      category: r.category,
+      availability: r.availability,
+      sopRequired: r.sop_required !== 0,
       temperatures: byId.get(r.id) ?? [],
       updatedAt: r.updated_at,
     })),
   });
+});
+
+// ---------- collection metadata ----------
+router.get('/sop-collections/:name/meta', requireAuth, (req: AuthRequest, res: Response) => {
+  const name = String(req.params.name);
+  const r = db.prepare('SELECT collection, transition_note FROM sop_collection_meta WHERE collection = ?').get(name) as { collection: string; transition_note: string | null } | undefined;
+  res.json({ meta: r ? { collection: r.collection, transitionNote: r.transition_note } : { collection: name, transitionNote: null } });
+});
+
+router.put('/sop-collections/:name/meta', requireAuth, (req: AuthRequest, res: Response) => {
+  const name = String(req.params.name);
+  const note = typeof req.body?.transitionNote === 'string' ? req.body.transitionNote.slice(0, 500) : null;
+  db.prepare(`INSERT INTO sop_collection_meta (collection, transition_note, updated_at) VALUES (?, ?, ?)
+    ON CONFLICT(collection) DO UPDATE SET transition_note = excluded.transition_note, updated_at = excluded.updated_at`).run(name, note, Date.now());
+  res.json({ ok: true });
 });
 
 router.get('/sop-collections', requireAuth, (_req, res: Response) => {
@@ -416,6 +463,73 @@ router.get('/sops/:slug/pdf', requireAuth, async (req: AuthRequest, res: Respons
   } catch (err) {
     console.error('[sop-pdf]', err);
     res.status(500).json({ error: 'pdf_render_failed' });
+  }
+});
+
+// Resolve the same id/collection query shape used by bundle + packet routes.
+function resolveSopsFromQuery(req: AuthRequest): { sops: Sop[]; collection: string | null } {
+  const idsParam = typeof req.query.ids === 'string' ? req.query.ids : '';
+  const collectionParam = typeof req.query.collection === 'string' ? req.query.collection : null;
+  let sops: Sop[] = [];
+  let collection: string | null = null;
+  if (idsParam) {
+    const ids = idsParam.split(',').map((s) => parseInt(s, 10)).filter(Boolean);
+    sops = ids.map((id) => loadSopById(id)).filter((s): s is Sop => !!s);
+    // If every sop shares a collection, surface it for the packet title.
+    const collections = new Set(sops.map((s) => s.collection || '').filter(Boolean));
+    if (collections.size === 1) collection = [...collections][0];
+  } else if (collectionParam) {
+    const rows = db.prepare('SELECT id FROM sops WHERE collection = ? ORDER BY name').all(collectionParam) as Array<{ id: number }>;
+    sops = rows.map((r) => loadSopById(r.id)).filter((s): s is Sop => !!s);
+    collection = collectionParam;
+  }
+  return { sops, collection };
+}
+
+router.get('/sops/packet.pdf', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { sops, collection } = resolveSopsFromQuery(req);
+  if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
+  const meta = collection
+    ? db.prepare('SELECT transition_note FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null } | undefined
+    : undefined;
+  try {
+    const buf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null);
+    const name = collection ? slugify(collection) : `packet-${sops.length}-sops`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${name}-packet.pdf"`);
+    res.send(buf);
+  } catch (err) {
+    console.error('[sop-packet-pdf]', err);
+    res.status(500).json({ error: 'pdf_render_failed' });
+  }
+});
+
+router.get('/sops/packet.zip', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { sops, collection } = resolveSopsFromQuery(req);
+  if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
+  const meta = collection
+    ? db.prepare('SELECT transition_note FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null } | undefined
+    : undefined;
+  try {
+    const packetBuf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null);
+    // Individual SOPs in parallel — each one is a small render.
+    const individuals = await Promise.all(
+      sops.filter((s) => s.sopRequired !== false).map(async (s) => ({ slug: s.slug, buf: await renderSopsToPdfBuffer([s]) }))
+    );
+    const zip = new JSZip();
+    const base = collection ? slugify(collection) : `packet-${sops.length}-sops`;
+    zip.file(`${base}-packet.pdf`, packetBuf);
+    const indivFolder = zip.folder('individual-sops');
+    for (const { slug: s, buf } of individuals) {
+      indivFolder?.file(`${s}.pdf`, buf);
+    }
+    const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${base}-packet.zip"`);
+    res.send(zipBuf);
+  } catch (err) {
+    console.error('[sop-packet-zip]', err);
+    res.status(500).json({ error: 'zip_render_failed' });
   }
 });
 

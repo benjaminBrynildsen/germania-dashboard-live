@@ -26,6 +26,24 @@ export type SopVariant = {
   rows: SopRow[];
 };
 
+export type Availability = 'All-Season' | '1st Half Only' | '2nd Half Only';
+
+export type SopCategory = {
+  key: string;        // stable id stored in DB
+  name: string;       // full label used on divider page and editor
+  shortName: string;  // shorter prefix used on the cover ("Sweet - Latte")
+};
+
+// Order matters — drives the order of category dividers + cover sections.
+export const SOP_CATEGORIES: SopCategory[] = [
+  { key: 'sweet', name: 'Sweet Coffee', shortName: 'Sweet' },
+  { key: 'bridge', name: 'Bridge Coffee', shortName: 'Bridge' },
+  { key: 'artisanal', name: 'Artisanal Coffee', shortName: 'Artisanal' },
+  { key: 'tsm', name: 'Tea, Smoothies, & More', shortName: 'TSM' },
+];
+
+export const AVAILABILITY_OPTIONS: Availability[] = ['All-Season', '1st Half Only', '2nd Half Only'];
+
 export type Sop = {
   id?: number;
   slug: string;
@@ -35,9 +53,19 @@ export type Sop = {
   syrupDietaryTags?: string | null;
   drinkContains?: string | null;
   refrigerationNote?: string | null;
+  category?: string | null;          // SOP_CATEGORIES key
+  availability?: Availability | null;
+  sopRequired?: boolean;             // false → parens on cover, no SOP page
+  subtitle?: string | null;          // e.g. The "Amar-tado"
+  availabilityNote?: string | null;  // e.g. "This drink will be available ONLY through early January 2026."
   variants: SopVariant[];
   createdAt?: number;
   updatedAt?: number;
+};
+
+export type CollectionMeta = {
+  collection: string;
+  transitionNote?: string | null;
 };
 
 export type SopPreset = {

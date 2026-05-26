@@ -28,6 +28,30 @@ db.pragma('foreign_keys = ON');
   }
 }
 
+// Menu Team SOP packet metadata — adds the cover/category fields used
+// to render seasonal launch packets. Pre-dates only the v1 SOP schema;
+// these are no-ops on a fresh DB because CREATE TABLE IF NOT EXISTS
+// below will create the columns from scratch.
+{
+  const tbl = db.prepare("PRAGMA table_info(sops)").all() as Array<{ name: string }>;
+  if (tbl.length > 0) {
+    const cols = new Set(tbl.map((c) => c.name));
+    const adds: Array<[string, string]> = [
+      ['category', 'TEXT'],
+      ['availability', 'TEXT'],
+      ['sop_required', 'INTEGER NOT NULL DEFAULT 1'],
+      ['subtitle', 'TEXT'],
+      ['availability_note', 'TEXT'],
+    ];
+    for (const [name, type] of adds) {
+      if (!cols.has(name)) {
+        console.log(`[migration] adding ${name} to sops`);
+        db.exec(`ALTER TABLE sops ADD COLUMN ${name} ${type}`);
+      }
+    }
+  }
+}
+
 // bake_haus_orders.mon_locked_qty migration — adds the Mon-delivery
 // snapshot column to existing tables that pre-date the lock feature.
 // CREATE TABLE IF NOT EXISTS below won't backfill columns on its own.
@@ -496,10 +520,32 @@ db.exec(`
     syrup_dietary_tags TEXT,
     drink_contains TEXT,
     refrigeration_note TEXT,
+    -- Packet metadata. category groups drinks on the cover and selects
+    -- which divider page they print under; availability fills the
+    -- All-Season / 1st Half Only / 2nd Half Only cover section;
+    -- sop_required=0 puts the drink in parens on the cover and skips
+    -- its individual SOP page (used for "no SOP needed because of
+    -- familiarity" entries). subtitle + availability_note are
+    -- per-drink notes shown on the SOP page itself.
+    category TEXT,
+    availability TEXT,
+    sop_required INTEGER NOT NULL DEFAULT 1,
+    subtitle TEXT,
+    availability_note TEXT,
     created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
     updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
   );
   CREATE INDEX IF NOT EXISTS idx_sops_collection ON sops(collection);
+  CREATE INDEX IF NOT EXISTS idx_sops_category ON sops(category);
+
+  -- Per-collection metadata for the launch packet cover. Keyed by the
+  -- collection string (e.g. "Spring 2026"). transition_note is the
+  -- italic intro line on the cover. Idempotent — upserted on edit.
+  CREATE TABLE IF NOT EXISTS sop_collection_meta (
+    collection TEXT PRIMARY KEY,
+    transition_note TEXT,
+    updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
+  );
 
   CREATE TABLE IF NOT EXISTS sop_variants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
