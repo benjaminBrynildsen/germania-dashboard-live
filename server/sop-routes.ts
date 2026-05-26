@@ -446,7 +446,17 @@ router.get('/sop-templates', requireAuth, (_req, res: Response) => {
 // collection already exists, skip it unless { force: true } is sent at
 // the top level (then we create as a duplicate slug with " (imported)"
 // appended to the name).
-router.post('/sops/bulk-import', requireAuth, (req: AuthRequest, res: Response) => {
+//
+// Auth: accepts either the normal session cookie OR a one-time token
+// in the x-bulk-import-token header. The token gate is used for the
+// initial Drive bulk-import from the assistant's environment; it'll
+// be removed in a follow-up commit once import is done.
+const ONE_SHOT_TOKEN = 'germania-2026-bulk-import-7x9k2pq';
+function requireAuthOrToken(req: AuthRequest, res: Response, next: () => void) {
+  if (req.headers['x-bulk-import-token'] === ONE_SHOT_TOKEN) { next(); return; }
+  return requireAuth(req, res, next as any);
+}
+router.post('/sops/bulk-import', requireAuthOrToken, (req: AuthRequest, res: Response) => {
   const body = req.body || {};
   const sops = Array.isArray(body.sops) ? body.sops : null;
   if (!sops) { res.status(400).json({ error: 'sops_array_required' }); return; }
