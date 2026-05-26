@@ -20,11 +20,11 @@ Font.register({ family: 'IBM Plex Mono', fonts: [
 ] });
 
 const INK = '#101010';
-const PAPER = '#f6f1e7';
-const PAPER_CUT = '#f0eee9';
+const PAPER = '#ffffff';
+const PAPER_CUT = '#f5f5f5';
 const RULE = '#101010';
-const MUTED = '#9a958b';
-const STEP_MUTED = '#b4b0a5';
+const MUTED = '#8e8e8e';
+const STEP_MUTED = '#bdbdbd';
 
 const SANS = 'IBM Plex Sans';
 const MONO = 'IBM Plex Mono';
