@@ -95,6 +95,41 @@ export const DEFAULT_SIZE_LABELS: Record<Temperature, string[]> = {
   hot: ['S', 'R', 'L'],
 };
 
+// Collection / season helpers — shared by the editor SeasonYearPicker
+// and the server's filter logic so a drink tagged "Spring & Summer 2026"
+// surfaces under both the Spring 2026 and Summer 2026 single-season
+// filters.
+const SEASON_WORDS = ['Spring', 'Summer', 'Fall', 'Winter'] as const;
+
+export function parseCollectionSeasons(collection: string | null | undefined): { seasons: Set<string>; year: number } | null {
+  if (!collection) return null;
+  const m = collection.match(/^(.+?)\s+(\d{4})\s*$/);
+  if (!m) return null;
+  const seasonsPart = m[1];
+  const year = parseInt(m[2], 10);
+  const seasons = new Set<string>();
+  for (const s of SEASON_WORDS) {
+    if (new RegExp(`\\b${s}\\b`, 'i').test(seasonsPart)) seasons.add(s);
+  }
+  if (seasons.size === 0) return null;
+  return { seasons, year };
+}
+
+// Does a stored SOP collection match a filter collection? Same string
+// = match. Otherwise overlap on at least one season AND same year — so
+// "Spring & Summer 2026" matches a filter of "Spring 2026" or
+// "Summer 2026", but not "Fall 2026" or "Spring 2027".
+export function collectionMatches(sopCollection: string | null | undefined, filter: string): boolean {
+  if (!sopCollection) return false;
+  if (sopCollection === filter) return true;
+  const a = parseCollectionSeasons(sopCollection);
+  const b = parseCollectionSeasons(filter);
+  if (!a || !b) return false;
+  if (a.year !== b.year) return false;
+  for (const s of a.seasons) if (b.seasons.has(s)) return true;
+  return false;
+}
+
 // Germania's house pump standard — iced and frozen share the
 // quantities; hot gets +1 pump per size. Falls back when a syrup or
 // sauce preset doesn't carry per-temperature defaults of its own.

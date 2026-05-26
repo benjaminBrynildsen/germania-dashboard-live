@@ -9,7 +9,7 @@ import { Router, Response } from 'express';
 import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
 import type { Sop, SopVariant, SopRow, SopFootnote, Temperature, Availability } from '../src/lib/sop-types.js';
-import { AVAILABILITY_OPTIONS, SOP_CATEGORIES } from '../src/lib/sop-types.js';
+import { AVAILABILITY_OPTIONS, SOP_CATEGORIES, collectionMatches, parseCollectionSeasons } from '../src/lib/sop-types.js';
 import JSZip from 'jszip';
 import { renderSopsToPdfBuffer } from './sop-pdf.js';
 import { renderPacketPdfBuffer } from './sop-packet-pdf.js';
@@ -244,9 +244,11 @@ function writeSop(id: number, payload: Partial<Sop>) {
 // ---------- list / read ----------
 router.get('/sops', requireAuth, (req: AuthRequest, res: Response) => {
   const collection = typeof req.query.collection === 'string' ? req.query.collection : null;
-  const rows = collection
-    ? db.prepare('SELECT * FROM sops WHERE collection = ? ORDER BY name').all(collection) as SopRowDb[]
-    : db.prepare('SELECT * FROM sops ORDER BY collection, name').all() as SopRowDb[];
+  const all = db.prepare('SELECT * FROM sops ORDER BY collection, name').all() as SopRowDb[];
+  // Use the shared collectionMatches helper so combo-season collections
+  // ("Spring & Summer 2026") surface when filtering by a single season
+  // ("Spring 2026" or "Summer 2026").
+  const rows = collection ? all.filter((r) => collectionMatches(r.collection, collection)) : all;
   // Include variant temperatures so the library view can show which
   // temps each SOP covers without N+1 fetching.
   const variantTemps = db.prepare('SELECT sop_id, temperature FROM sop_variants ORDER BY position').all() as Array<{ sop_id: number; temperature: Temperature }>;
@@ -289,8 +291,39 @@ router.put('/sop-collections/:name/meta', requireAuth, (req: AuthRequest, res: R
 });
 
 router.get('/sop-collections', requireAuth, (_req, res: Response) => {
-  const rows = db.prepare("SELECT collection, COUNT(*) as count FROM sops WHERE collection IS NOT NULL AND collection != '' GROUP BY collection ORDER BY collection DESC").all() as Array<{ collection: string; count: number }>;
-  res.json({ collections: rows });
+  const rows = db.prepare("SELECT collection, COUNT(*) as count FROM sops WHERE collection IS NOT NULL AND collection != '' GROUP BY collection").all() as Array<{ collection: string; count: number }>;
+  // Expand each stored combo collection into virtual single-season
+  // entries so the filter dropdown can show "Spring 2026" even when no
+  // drinks are tagged exactly that — they'll all be Spring & Summer 2026
+  // drinks. Counts merge across the stored + virtual entries.
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    counts.set(r.collection, (counts.get(r.collection) || 0) + r.count);
+    const parsed = parseCollectionSeasons(r.collection);
+    if (parsed && parsed.seasons.size > 1) {
+      for (const s of parsed.seasons) {
+        const single = `${s} ${parsed.year}`;
+        if (single !== r.collection) counts.set(single, (counts.get(single) || 0) + r.count);
+      }
+    }
+  }
+  const out = Array.from(counts.entries()).map(([collection, count]) => ({ collection, count }));
+  // Sort by year desc, then by SEASON order, then alphabetically.
+  const seasonRank = ['Spring', 'Summer', 'Fall', 'Winter', 'Spring & Summer', 'Fall & Winter'];
+  out.sort((a, b) => {
+    const ap = parseCollectionSeasons(a.collection);
+    const bp = parseCollectionSeasons(b.collection);
+    if (ap && bp) {
+      if (ap.year !== bp.year) return bp.year - ap.year;
+      const aLabel = a.collection.replace(/\s+\d{4}$/, '');
+      const bLabel = b.collection.replace(/\s+\d{4}$/, '');
+      const ai = seasonRank.indexOf(aLabel);
+      const bi = seasonRank.indexOf(bLabel);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+    }
+    return a.collection.localeCompare(b.collection);
+  });
+  res.json({ collections: out });
 });
 
 router.get('/sops/:slug', requireAuth, (req: AuthRequest, res: Response) => {
@@ -481,8 +514,11 @@ function resolveSopsFromQuery(req: AuthRequest): { sops: Sop[]; collection: stri
     const collections = new Set(sops.map((s) => s.collection || '').filter(Boolean));
     if (collections.size === 1) collection = [...collections][0];
   } else if (collectionParam) {
-    const rows = db.prepare('SELECT id FROM sops WHERE collection = ? ORDER BY name').all(collectionParam) as Array<{ id: number }>;
-    sops = rows.map((r) => loadSopById(r.id)).filter((s): s is Sop => !!s);
+    const rows = db.prepare('SELECT id, collection FROM sops ORDER BY name').all() as Array<{ id: number; collection: string | null }>;
+    sops = rows
+      .filter((r) => collectionMatches(r.collection, collectionParam))
+      .map((r) => loadSopById(r.id))
+      .filter((s): s is Sop => !!s);
     collection = collectionParam;
   }
   return { sops, collection };
@@ -543,8 +579,11 @@ router.get('/sops/bundle.pdf', requireAuth, async (req: AuthRequest, res: Respon
     const ids = idsParam.split(',').map((s) => parseInt(s, 10)).filter(Boolean);
     sops = ids.map((id) => loadSopById(id)).filter((s): s is Sop => !!s);
   } else if (collectionParam) {
-    const rows = db.prepare('SELECT id FROM sops WHERE collection = ? ORDER BY name').all(collectionParam) as Array<{ id: number }>;
-    sops = rows.map((r) => loadSopById(r.id)).filter((s): s is Sop => !!s);
+    const rows = db.prepare('SELECT id, collection FROM sops ORDER BY name').all() as Array<{ id: number; collection: string | null }>;
+    sops = rows
+      .filter((r) => collectionMatches(r.collection, collectionParam))
+      .map((r) => loadSopById(r.id))
+      .filter((s): s is Sop => !!s);
   } else {
     res.status(400).json({ error: 'ids_or_collection_required' }); return;
   }
