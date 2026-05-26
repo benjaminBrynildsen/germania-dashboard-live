@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { DEFAULT_SIZE_LABELS, TEMP_LABEL, TEMP_ORDER, type Sop, type SopFootnote, type SopPreset, type SopRow, type SopVariant, type Temperature } from '../../lib/sop-types';
+import { DEFAULT_SIZE_LABELS, TEMP_LABEL, TEMP_ORDER, standardPumpCells, type Sop, type SopFootnote, type SopPreset, type SopRow, type SopVariant, type Temperature } from '../../lib/sop-types';
 import SeasonYearPicker from './SeasonYearPicker';
 import ChipPicker from './ChipPicker';
 
@@ -336,9 +336,17 @@ function VariantEditor({ variant, presets, onChange, onRowField }: { variant: So
     const sizeCount = variant.sizeLabels.length;
     const tempKey = variant.temperature;
     const defaults = preset.defaultCells || {};
-    const fromPreset = defaults[tempKey] || defaults['any'] || [];
-    const cells: string[] = [];
-    for (let i = 0; i < sizeCount; i++) cells.push(fromPreset[i] ?? '');
+    const fromPreset = defaults[tempKey] || defaults['any'] || null;
+    let cells: string[];
+    if (fromPreset) {
+      cells = [];
+      for (let i = 0; i < sizeCount; i++) cells.push(fromPreset[i] ?? '');
+    } else {
+      // No per-temp default for this preset — fall back to the house
+      // pump standard if it's a syrup or sauce on a 3-size profile.
+      const std = standardPumpCells(preset.category, tempKey, sizeCount);
+      cells = std ? std : new Array(sizeCount).fill('');
+    }
     onChange((v) => ({
       ...v,
       rows: [...v.rows, { presetId: preset.id, name: preset.name, modifier: preset.defaultModifier ?? null, cells }],

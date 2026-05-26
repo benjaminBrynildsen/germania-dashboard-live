@@ -1,5 +1,6 @@
 import type { Database } from 'better-sqlite3';
 import type { Sop, SopRow, SopVariant, Temperature } from '../src/lib/sop-types.js';
+import { standardPumpCells } from '../src/lib/sop-types.js';
 
 // Bundled drink-shape starter templates. Each template defines the
 // variants + ordered rows that match a common Germania drink pattern;
@@ -220,12 +221,12 @@ export const TEMPLATES: DrinkTemplate[] = [
   },
 ];
 
-type PresetLookup = { name: string; default_modifier: string | null; default_cells_json: string | null };
+type PresetLookup = { category: string; name: string; default_modifier: string | null; default_cells_json: string | null };
 
 export function expandTemplate(db: Database, slug: string): Sop['variants'] | null {
   const tpl = TEMPLATES.find((t) => t.slug === slug);
   if (!tpl) return null;
-  const presetStmt = db.prepare('SELECT name, default_modifier, default_cells_json FROM sop_presets WHERE slug = ?');
+  const presetStmt = db.prepare('SELECT category, name, default_modifier, default_cells_json FROM sop_presets WHERE slug = ?');
   return tpl.variants.map((v, vi) => {
     const variant: SopVariant = {
       temperature: v.temperature,
@@ -236,9 +237,12 @@ export function expandTemplate(db: Database, slug: string): Sop['variants'] | nu
         let name = row.name ?? '';
         let modifier: string | null = row.modifier ?? null;
         let cells = row.cells ? [...row.cells] : new Array(v.sizeLabels.length).fill('');
+        let category: string | null = null;
+        let filledFromExplicit = !!row.cells;
         if (row.presetSlug) {
           const p = presetStmt.get(row.presetSlug) as PresetLookup | undefined;
           if (p) {
+            category = p.category;
             if (!name) name = p.name;
             // Row-level modifier wins; otherwise fall through to preset default.
             if (modifier === null) modifier = p.default_modifier;
@@ -248,10 +252,22 @@ export function expandTemplate(db: Database, slug: string): Sop['variants'] | nu
                 const fromTemp = defaults[v.temperature] || defaults['any'];
                 if (fromTemp) {
                   cells = v.sizeLabels.map((_, i) => fromTemp[i] ?? '');
+                  filledFromExplicit = true;
                 }
               } catch { /* malformed preset defaults — silently fall back to blanks */ }
             }
           }
+        }
+        // Fallback to house pump standard for syrups/sauces without an
+        // explicit per-temp default. Also fires when explicit cells are
+        // all blank strings — that's the "Haus Syrup" placeholder shape
+        // in templates where the user is expected to swap in a syrup
+        // name later but wants the pump quantities pre-calculated.
+        const cellsAllBlank = cells.every((c) => !c || !c.trim());
+        if (!filledFromExplicit || cellsAllBlank) {
+          const looksLikeSyrup = /syrup|sauce/i.test(name);
+          const std = standardPumpCells(category ?? (looksLikeSyrup ? (/sauce/i.test(name) ? 'sauce' : 'syrup-haus') : null), v.temperature, v.sizeLabels.length);
+          if (std) cells = std;
         }
         // Ensure cell count matches the variant's size column count
         cells = v.sizeLabels.map((_, i) => cells[i] ?? '');

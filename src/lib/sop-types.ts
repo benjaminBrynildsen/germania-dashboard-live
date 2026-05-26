@@ -65,3 +65,25 @@ export const DEFAULT_SIZE_LABELS: Record<Temperature, string[]> = {
   frozen: ['Kids', 'R', 'L'],
   hot: ['S', 'R', 'L'],
 };
+
+// Germania's house pump standard — iced and frozen share the
+// quantities; hot gets +1 pump per size. Falls back when a syrup or
+// sauce preset doesn't carry per-temperature defaults of its own.
+//   Syrups: 2 / 4 / 6 (iced+frozen), 3 / 5 / 7 (hot)
+//   Sauces: 1 / 2 / 3 (iced+frozen), 2 / 3 / 4 (hot)
+// Only applies to the standard 3-size table profile (Kids/R/L or S/R/L);
+// cortado-style single-column drinks bypass.
+const SYRUP_CATEGORIES = new Set(['syrup-haus', 'syrup-monin']);
+const SAUCE_CATEGORIES = new Set(['sauce']);
+
+export function standardPumpCells(category: string | null | undefined, temperature: Temperature, sizeCount: number): string[] | null {
+  if (sizeCount !== 3) return null;
+  const isSyrup = category ? SYRUP_CATEGORIES.has(category) : false;
+  const isSauce = category ? SAUCE_CATEGORIES.has(category) : false;
+  if (!isSyrup && !isSauce) return null;
+  if (isSyrup) {
+    return temperature === 'hot' ? ['3 pumps', '5 pumps', '7 pumps'] : ['2 pumps', '4 pumps', '6 pumps'];
+  }
+  // sauce
+  return temperature === 'hot' ? ['2 pumps', '3 pumps', '4 pumps'] : ['1 pump', '2 pumps', '3 pumps'];
+}
