@@ -39,10 +39,14 @@ function downloadFilename(base: string, year: number | null, ext: string): strin
   return `${withYear}.${ext}`;
 }
 
-function yearFromCollection(collection: string | null | undefined): number | null {
-  if (!collection) return null;
-  const parsed = parseCollectionSeasons(collection);
-  return parsed?.year ?? null;
+function yearFromCollection(collection: string | null | undefined): number {
+  if (collection) {
+    const parsed = parseCollectionSeasons(collection);
+    if (parsed) return parsed.year;
+  }
+  // Fall back to the current year so an untagged SOP still prints
+  // with a year — "Amaretto Cortado 2026.pdf" not just "Amaretto Cortado.pdf".
+  return new Date().getFullYear();
 }
 
 function safeJson<T>(s: string | null | undefined, fallback: T): T {
