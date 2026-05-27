@@ -176,7 +176,35 @@ router.post('/menu-seasons', requireAuth, (req: AuthRequest, res: Response) => {
   }
 
   const result = db.prepare('INSERT INTO menu_seasons (name, created_at, updated_at) VALUES (?, ?, ?)').run(name.trim(), now, now);
-  const season = assembleSeason(Number(result.lastInsertRowid));
+  const newId = Number(result.lastInsertRowid);
+
+  // Auto-create standard categories and lists for blank seasons
+  const insertCat = db.prepare('INSERT INTO menu_categories (season_id, name, subtitle, position, side) VALUES (?, ?, ?, ?, ?)');
+  insertCat.run(newId, 'Sweet Coffee', 'Delightfully Sweet', 0, 'front');
+  insertCat.run(newId, 'Bridge Coffee', 'Balanced', 1, 'front');
+  insertCat.run(newId, 'Artisanal Coffee', 'Coffee-Centric', 2, 'front');
+  insertCat.run(newId, 'Tea, Smoothies, & More', null, 0, 'back');
+  insertCat.run(newId, 'Bake Haus', 'Breakfast | Lunch | Snacks | Desserts', 1, 'back');
+
+  const insertList = db.prepare('INSERT INTO menu_lists (season_id, name, position, side) VALUES (?, ?, ?, ?)');
+  const insertListItem = db.prepare('INSERT INTO menu_list_items (list_id, name, position) VALUES (?, ?, ?)');
+
+  const mcId = Number(insertList.run(newId, 'More Coffee', 0, 'front').lastInsertRowid);
+  for (const [i, n] of ['Americano', 'Cold Brew', 'Cortado', 'Cappuccino'].entries()) insertListItem.run(mcId, n, i);
+
+  const cfId = Number(insertList.run(newId, 'Cold Foam', 1, 'front').lastInsertRowid);
+  insertListItem.run(cfId, 'Haus Vanilla', 0);
+
+  const aoId = Number(insertList.run(newId, 'Add-Ons', 2, 'front').lastInsertRowid);
+  for (const [i, n] of ['Oat Milk', 'Almond Milk', 'Heavy Cream', 'Skim Milk'].entries()) insertListItem.run(aoId, n, i);
+
+  const mfId = Number(insertList.run(newId, 'More Flavors', 0, 'back').lastInsertRowid);
+  for (const [i, n] of ['Haus Vanilla', 'Maple', 'Brown Sugar', 'Salted Caramel', 'Caramel', 'Haus Mocha'].entries()) insertListItem.run(mfId, n, i);
+
+  const mdId = Number(insertList.run(newId, 'More Drinks', 1, 'back').lastInsertRowid);
+  for (const [i, n] of ['Hot Cocoa', 'Green Tea', 'Black Tea', 'Matcha', 'Steamers', 'Milk Shakes'].entries()) insertListItem.run(mdId, n, i);
+
+  const season = assembleSeason(newId);
   res.status(201).json({ season });
 });
 

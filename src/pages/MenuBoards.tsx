@@ -20,9 +20,13 @@ export default function MenuBoards() {
 
 // ─── Season List ─────────────────────────────────────────────
 
+const SEASON_OPTIONS = ['Spring', 'Summer', 'Fall', 'Winter'];
+const YEAR_OPTIONS = [2025, 2026, 2027, 2028];
+
 function SeasonList() {
   const [seasons, setSeasons] = useState<Array<{ id: number; name: string; itemCount: number }>>([]);
-  const [newName, setNewName] = useState('');
+  const [seasonPick, setSeasonPick] = useState('Summer');
+  const [yearPick, setYearPick] = useState(2026);
   const [copyFrom, setCopyFrom] = useState<number | ''>('');
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
@@ -31,12 +35,15 @@ function SeasonList() {
     api.get('/api/menu-seasons').then((r) => setSeasons(r.seasons));
   }, []);
 
+  const newName = `${seasonPick} ${yearPick}`;
+  const alreadyExists = seasons.some((s) => s.name === newName);
+
   async function create() {
-    if (!newName.trim()) return;
+    if (alreadyExists) return;
     setCreating(true);
     try {
       const r = await api.post('/api/menu-seasons', {
-        name: newName.trim(),
+        name: newName,
         copyFromId: copyFrom || undefined,
       });
       navigate(`/menu-boards/${r.season.id}`);
@@ -50,28 +57,26 @@ function SeasonList() {
       <h2>Menu Boards</h2>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input
-          type="text"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          placeholder="New season name (e.g. Summer 2026)"
-          style={{ flex: 1, minWidth: 200, padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.15)', fontSize: 14 }}
-          onKeyDown={(e) => e.key === 'Enter' && create()}
-        />
+        <select value={seasonPick} onChange={(e) => setSeasonPick(e.target.value)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.15)', fontSize: 14 }}>
+          {SEASON_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={yearPick} onChange={(e) => setYearPick(Number(e.target.value))} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.15)', fontSize: 14 }}>
+          {YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
         {seasons.length > 0 && (
           <select
             value={copyFrom}
             onChange={(e) => setCopyFrom(e.target.value ? Number(e.target.value) : '')}
             style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }}
           >
-            <option value="">Start blank</option>
+            <option value="">Start with defaults</option>
             {seasons.map((s) => (
               <option key={s.id} value={s.id}>Copy from {s.name}</option>
             ))}
           </select>
         )}
-        <button className="btn btn-primary" onClick={create} disabled={creating || !newName.trim()}>
-          {creating ? 'Creating...' : '+ New Season'}
+        <button className="btn btn-primary" onClick={create} disabled={creating || alreadyExists}>
+          {alreadyExists ? `${newName} exists` : creating ? 'Creating...' : `+ ${newName}`}
         </button>
       </div>
 
