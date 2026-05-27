@@ -121,13 +121,13 @@ function SpotifyIcon({ size }: { size: number }) {
 
 function DrinkItem({ item, ctx, half }: { item: any; ctx: ScaleCtx; half?: boolean }) {
   const { s } = ctx;
-  const nameSize = half ? 52 * s : 79 * s;
-  const descSize = half ? 20 * s : 30 * s;
-  const sizeSize = half ? 24 * s : 32 * s;
-  const priceSize = half ? 26 * s : 32 * s;
-  const tempSize = half ? 24 * s : 32 * s;
-  const colW = half ? 100 * s : 140 * s;
-  const spotifySize = half ? 24 * s : 36 * s;
+  const nameSize = half ? 70 * s : 79 * s;
+  const descSize = half ? 24 * s : 30 * s;
+  const sizeSize = half ? 28 * s : 32 * s;
+  const priceSize = half ? 28 * s : 32 * s;
+  const tempSize = half ? 28 * s : 32 * s;
+  const colW = half ? 110 * s : 140 * s;
+  const spotifySize = half ? 28 * s : 36 * s;
 
   return (
     <View style={{ alignItems: 'center', marginBottom: 14 * s, ...(half ? { width: '100%' } : {}) }}>
