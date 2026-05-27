@@ -83,12 +83,12 @@ interface ScaleCtx {
 
 function CategoryHeader({ name, subtitle, ctx }: { name: string; subtitle: string | null; ctx: ScaleCtx }) {
   const { s, contentW } = ctx;
-  const nameSize = 80 * s;
-  const subSize = 18 * s;
+  const nameSize = 104 * s;
+  const subSize = 30 * s;
   const textEstW = name.length * nameSize * 0.55;
   const sideW = Math.max(60 * s, (contentW - textEstW) / 2 - 16 * s);
   return (
-    <View style={{ alignItems: 'center', marginTop: 10 * s, marginBottom: 16 * s }}>
+    <View style={{ alignItems: 'center', marginTop: 14 * s, marginBottom: 6 * s }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', width: contentW, justifyContent: 'center' }}>
         <View style={{ width: sideW }}><Divider width={sideW} scale={s} /></View>
         <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: nameSize, textTransform: 'uppercase', letterSpacing: 2 * s, textAlign: 'center', paddingHorizontal: 12 * s }}>
@@ -121,16 +121,16 @@ function SpotifyIcon({ size }: { size: number }) {
 
 function DrinkItem({ item, ctx, half }: { item: any; ctx: ScaleCtx; half?: boolean }) {
   const { s } = ctx;
-  const nameSize = half ? 48 * s : 60 * s;
-  const descSize = 14 * s;
-  const sizeSize = 16 * s;
-  const priceSize = 20 * s;
-  const tempSize = 16 * s;
-  const colW = 100 * s;
-  const spotifySize = half ? 24 * s : 30 * s;
+  const nameSize = half ? 60 * s : 79 * s;
+  const descSize = 30 * s;
+  const sizeSize = 32 * s;
+  const priceSize = 32 * s;
+  const tempSize = 32 * s;
+  const colW = 140 * s;
+  const spotifySize = half ? 28 * s : 36 * s;
 
   return (
-    <View style={{ alignItems: 'center', marginBottom: 24 * s, ...(half ? { width: '48%' } : {}) }}>
+    <View style={{ alignItems: 'center', marginBottom: 14 * s, ...(half ? { width: '48%' } : {}) }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center' }}>
         <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: nameSize, textTransform: 'uppercase', textAlign: 'center', letterSpacing: 1 * s }}>
           {item.name}
@@ -185,7 +185,7 @@ function DrinkItem({ item, ctx, half }: { item: any; ctx: ScaleCtx; half?: boole
 function FrozenNote({ ctx }: { ctx: ScaleCtx }) {
   const { s } = ctx;
   return (
-    <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 14 * s, textTransform: 'uppercase', letterSpacing: 1 * s, textAlign: 'center', marginTop: 8 * s, marginBottom: 8 * s, color: '#555' }}>
+    <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 22 * s, textTransform: 'uppercase', letterSpacing: 1 * s, textAlign: 'center', marginTop: 4 * s, marginBottom: 4 * s, color: '#555' }}>
       Frozen Prices Vary
     </Text>
   );
@@ -194,23 +194,23 @@ function FrozenNote({ ctx }: { ctx: ScaleCtx }) {
 function FoodItem({ item, ctx }: { item: any; ctx: ScaleCtx }) {
   const { s } = ctx;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingVertical: 6 * s, width: '100%' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 * s, flex: 1 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingVertical: 8 * s, width: '100%' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12 * s, flex: 1 }}>
         {item.isNew && (
-          <View style={{ backgroundColor: '#e74c3c', borderRadius: 12 * s, width: 50 * s, height: 24 * s, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: 'Open Sans', fontWeight: 800, fontSize: 10 * s, color: '#fff', textTransform: 'uppercase' }}>NEW</Text>
+          <View style={{ backgroundColor: '#e74c3c', borderRadius: 14 * s, width: 60 * s, height: 30 * s, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontFamily: 'Open Sans', fontWeight: 800, fontSize: 13 * s, color: '#fff', textTransform: 'uppercase' }}>NEW</Text>
           </View>
         )}
-        <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 28 * s, textTransform: 'uppercase' }}>
+        <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 40 * s, textTransform: 'uppercase' }}>
           {item.name}
         </Text>
         {item.foodSubtitle && (
-          <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 20 * s }}>
+          <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 28 * s }}>
             {item.foodSubtitle}
           </Text>
         )}
       </View>
-      <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 28 * s }}>
+      <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 40 * s }}>
         {item.foodPrice}
       </Text>
     </View>
@@ -222,10 +222,10 @@ function BottomLists({ lists, ctx }: { lists: any[]; ctx: ScaleCtx }) {
   const { s, contentW } = ctx;
   const colW = contentW / lists.length;
   return (
-    <View style={{ flexDirection: 'row', paddingTop: 20 * s }}>
+    <View style={{ flexDirection: 'row', marginTop: 'auto', paddingTop: 10 * s }}>
       {lists.map((list: any) => (
         <View key={list.id} style={{ width: colW, alignItems: 'center' }}>
-          <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 28 * s, textTransform: 'uppercase', letterSpacing: 2 * s, marginBottom: 6 * s, textAlign: 'center' }}>
+          <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 36 * s, textTransform: 'uppercase', letterSpacing: 2 * s, marginBottom: 8 * s, textAlign: 'center' }}>
             {list.name}
           </Text>
           <SmallDivider width={colW * 0.6} scale={s} />
@@ -235,10 +235,10 @@ function BottomLists({ lists, ctx }: { lists: any[]; ctx: ScaleCtx }) {
             const col1 = listItems.slice(0, half);
             const col2 = listItems.slice(half);
             return (
-              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12 * s, marginTop: 8 * s }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16 * s, marginTop: 10 * s }}>
                 <View style={{ alignItems: 'center' }}>
                   {col1.map((item: any, i: number) => (
-                    <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 16 * s, textAlign: 'center' }}>
+                    <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 24 * s, textAlign: 'center' }}>
                       ~{item.name}~
                     </Text>
                   ))}
@@ -246,7 +246,7 @@ function BottomLists({ lists, ctx }: { lists: any[]; ctx: ScaleCtx }) {
                 {col2.length > 0 && (
                   <View style={{ alignItems: 'center' }}>
                     {col2.map((item: any, i: number) => (
-                      <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 16 * s, textAlign: 'center' }}>
+                      <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 24 * s, textAlign: 'center' }}>
                         ~{item.name}~
                       </Text>
                     ))}
@@ -273,7 +273,7 @@ function MenuPage({ season, side, location, pageW, pageH, padH, scale }: {
 
   return (
     <Page size={[pageW, pageH]} style={{ paddingHorizontal: padH, paddingTop: 20 * scale, paddingBottom: 20 * scale, backgroundColor: '#ffffff' }}>
-      <View style={{ flex: 1, justifyContent: 'space-evenly' }}>
+      <View style={{ flex: 1 }}>
       {categories.map((cat: any) => {
         const items = cat.items.filter((item: any) => {
           if (item.kind === 'food' && item.locations && item.locations.length > 0) {
@@ -299,7 +299,7 @@ function MenuPage({ season, side, location, pageW, pageH, padH, scale }: {
                   const left = drinkItems[pairIdx * 2];
                   const right = drinkItems[pairIdx * 2 + 1];
                   return (
-                    <View key={pairIdx} style={{ flexDirection: 'row', justifyContent: 'center', gap: 40 * scale, marginBottom: 16 * scale }}>
+                    <View key={pairIdx} style={{ flexDirection: 'row', justifyContent: 'center', gap: 30 * scale, marginBottom: 8 * scale }}>
                       {left && <DrinkItem item={left} ctx={ctx} half />}
                       {right && <DrinkItem item={right} ctx={ctx} half />}
                     </View>
@@ -333,8 +333,8 @@ export async function renderMenuPdf(season: any, location: string): Promise<Buff
   const is18x48 = location === 'G4';
   const pageW = is18x48 ? 18 * 72 : 24 * 72;
   const pageH = is18x48 ? 48 * 72 : 36 * 72;
-  const padH = is18x48 ? 80 : 120;
-  const scale = is18x48 ? 0.85 : 1;
+  const padH = is18x48 ? 80 : 100;
+  const scale = is18x48 ? 0.75 : 1;
 
   const doc = (
     <Document>
