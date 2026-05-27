@@ -614,10 +614,13 @@ function ImportFromSops({ seasonId, onImported }: { seasonId: number; onImported
     }
   }
 
+  const [collectionFilter, setCollectionFilter] = useState('');
+
   const filtered = sops.filter((s) => {
+    if (collectionFilter && s.collection !== collectionFilter) return false;
     if (!filter) return true;
     const q = filter.toLowerCase();
-    return s.name.toLowerCase().includes(q) || (s.collection || '').toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q);
+    return s.name.toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q);
   });
 
   const collections = [...new Set(sops.map((s) => s.collection).filter(Boolean))];
@@ -636,17 +639,17 @@ function ImportFromSops({ seasonId, onImported }: { seasonId: number; onImported
         <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>Import Drinks from Menu Team SOPs</h3>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+          <select value={collectionFilter} onChange={(e) => setCollectionFilter(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }}>
+            <option value="">All seasons</option>
+            {collections.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
           <input
             type="text"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter by name or collection..."
+            placeholder="Search drinks..."
             style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }}
           />
-          <select value={filter} onChange={(e) => setFilter(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }}>
-            <option value="">All collections</option>
-            {collections.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
           <button className="btn btn-secondary btn-sm" onClick={() => selectAll(filtered)} style={{ fontSize: 11, whiteSpace: 'nowrap' }}>Select all</button>
         </div>
 
@@ -669,10 +672,11 @@ function ImportFromSops({ seasonId, onImported }: { seasonId: number; onImported
               <div style={{ flex: 1 }}>
                 <span style={{ fontWeight: 600, fontSize: 13 }}>{sop.name}</span>
                 {sop.alreadyImported && <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginLeft: 8 }}>already imported</span>}
+                {sop.temps && <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)', marginLeft: 8 }}>{sop.temps}</span>}
               </div>
-              <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)' }}>
-                {sop.category && <span style={{ textTransform: 'capitalize', marginRight: 8 }}>{sop.category}</span>}
-                {sop.collection}
+              <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', display: 'flex', gap: 8, alignItems: 'center' }}>
+                {sop.category && <span style={{ textTransform: 'capitalize', background: 'rgba(0,0,0,0.06)', padding: '1px 6px', borderRadius: 4, fontSize: 10 }}>{sop.category}</span>}
+                <span>{sop.collection}</span>
               </span>
             </label>
           ))}

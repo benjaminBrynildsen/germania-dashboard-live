@@ -432,6 +432,29 @@ router.put('/menu-items/reorder', requireAuth, (req: AuthRequest, res: Response)
 
 // ---- Import from SOPs ----
 
+function buildTempsString(sopId: number): string {
+  const variants = db.prepare('SELECT temperature FROM sop_variants WHERE sop_id = ? ORDER BY position').all(sopId) as { temperature: string }[];
+  const tempOrder = ['iced', 'frozen', 'hot'];
+  const temps = variants.map((v) => v.temperature).sort((a, b) => tempOrder.indexOf(a) - tempOrder.indexOf(b));
+  if (temps.length === 0) return '';
+  if (temps.length === 1) {
+    if (temps[0] === 'frozen') return 'FROZEN ONLY';
+    if (temps[0] === 'iced') return 'ICED ONLY';
+    return '';
+  }
+  return temps.map((t) => t.toUpperCase()).join(' · ');
+}
+
+function buildSizesForTemps(temps: string[]): { sizes: string[]; singleSize: boolean } {
+  if (temps.length === 1 && temps[0] === 'hot') {
+    return { sizes: ['8OZ HOT ONLY'], singleSize: true };
+  }
+  if (temps.includes('iced') || temps.includes('frozen')) {
+    return { sizes: ["KID'S", 'REGULAR', 'LARGE'], singleSize: false };
+  }
+  return { sizes: ['SMALL', 'REGULAR', 'LARGE'], singleSize: false };
+}
+
 router.get('/menu-seasons/:id/available-sops', requireAuth, (req: AuthRequest, res: Response) => {
   const seasonId = Number(req.params.id);
   const season = db.prepare('SELECT * FROM menu_seasons WHERE id = ?').get(seasonId) as SeasonRow | undefined;
@@ -455,6 +478,7 @@ router.get('/menu-seasons/:id/available-sops', requireAuth, (req: AuthRequest, r
       collection: s.collection,
       dietaryTags: s.dietary_tags,
       refrigerationNote: s.refrigeration_note,
+      temps: buildTempsString(s.id),
       alreadyImported: existingNames.has(s.name.toLowerCase()),
     })),
   });
@@ -513,9 +537,16 @@ router.post('/menu-seasons/:id/import-sops', requireAuth, (req: AuthRequest, res
 
       const pos = (db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM menu_items WHERE category_id = ?').get(cat.id) as any).p;
 
+      // Pull real temps from SOP variants
+      const tempsStr = buildTempsString(sop.id);
+      const variants = db.prepare('SELECT temperature FROM sop_variants WHERE sop_id = ? ORDER BY position').all(sop.id) as { temperature: string }[];
+      const tempList = variants.map((v) => v.temperature);
+      const { sizes, singleSize } = buildSizesForTemps(tempList);
+      const prices = singleSize ? ['4.50'] : defaults.prices;
+
       insertItem.run(
         cat.id, sop.name, sop.dietary_tags || null, 'drink', pos,
-        JSON.stringify(defaults.sizes), JSON.stringify(defaults.prices), defaults.temps,
+        JSON.stringify(sizes), JSON.stringify(prices), tempsStr,
         0, null, 'full', null, null, null, 0
       );
       imported++;
