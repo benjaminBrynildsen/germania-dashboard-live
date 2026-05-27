@@ -321,7 +321,7 @@ router.get('/sop-collections/:name/meta', requireAuth, (req: AuthRequest, res: R
 
 router.put('/sop-collections/:name/meta', requireAuth, (req: AuthRequest, res: Response) => {
   const name = String(req.params.name);
-  const note = typeof req.body?.transitionNote === 'string' ? req.body.transitionNote.slice(0, 500) : null;
+  const note = typeof req.body?.transitionNote === 'string' ? req.body.transitionNote.slice(0, 2000) : null;
   db.prepare(`INSERT INTO sop_collection_meta (collection, transition_note, updated_at) VALUES (?, ?, ?)
     ON CONFLICT(collection) DO UPDATE SET transition_note = excluded.transition_note, updated_at = excluded.updated_at`).run(name, note, Date.now());
   res.json({ ok: true });

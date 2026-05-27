@@ -309,33 +309,251 @@ function DownloadDropdown({ label, packetUrl, zipUrl, bundleUrl }: { label: stri
 const menuItemStyle: React.CSSProperties = { display: 'block', padding: '10px 12px', textDecoration: 'none', color: '#1a1a1a', fontSize: 13, borderRadius: 6 };
 const menuItemHint: React.CSSProperties = { fontSize: 11, color: 'rgba(0,0,0,0.5)', marginTop: 2 };
 
+type TransitionItem = { name: string; tag: string };
+
+function parseTransitionNote(note: string): { leaving: TransitionItem[]; coming: TransitionItem[] } {
+  const leaving: TransitionItem[] = [];
+  const coming: TransitionItem[] = [];
+  const lines = note.split('\n').map((l) => l.trim()).filter(Boolean);
+
+  let currentList: TransitionItem[] | null = null;
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+    if (lower.startsWith('leaving')) {
+      currentList = leaving;
+      const rest = line.replace(/^leaving[:\s]*/i, '').trim();
+      if (rest) parseItemsInto(rest, leaving);
+      continue;
+    }
+    if (lower.startsWith('coming in') || lower.startsWith('coming:')) {
+      currentList = coming;
+      const rest = line.replace(/^coming\s*in?[:\s]*/i, '').trim();
+      if (rest) parseItemsInto(rest, coming);
+      continue;
+    }
+    if (currentList) parseItemsInto(line, currentList);
+  }
+  return { leaving, coming };
+}
+
+function parseItemsInto(text: string, out: TransitionItem[]) {
+  const parts = text.split(/[,\n]/).map((p) => p.trim()).filter(Boolean);
+  for (const part of parts) {
+    const m = part.match(/^(.+?)\s*[(\|]\s*(.+?)\s*\)?$/);
+    if (m) {
+      out.push({ name: m[1].trim(), tag: m[2].trim() });
+    } else if (part) {
+      out.push({ name: part, tag: '' });
+    }
+  }
+}
+
+function serializeTransitionNote(leaving: TransitionItem[], coming: TransitionItem[]): string {
+  const parts: string[] = [];
+  if (leaving.length > 0) {
+    const items = leaving.map((it) => it.tag ? `${it.name} (${it.tag})` : it.name).join(', ');
+    parts.push(`Leaving:\n${items}`);
+  }
+  if (coming.length > 0) {
+    const items = coming.map((it) => it.tag ? `${it.name} (${it.tag})` : it.name).join(', ');
+    parts.push(`Coming in:\n${items}`);
+  }
+  return parts.join('\n');
+}
+
 function CollectionMetaEditor({ collection }: { collection: string }) {
   const [meta, setMeta] = useState<{ transitionNote: string | null } | null>(null);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
+  const [textMode, setTextMode] = useState(false);
+  const [rawDraft, setRawDraft] = useState('');
+  const [leaving, setLeaving] = useState<TransitionItem[]>([]);
+  const [coming, setComing] = useState<TransitionItem[]>([]);
+  const [saving, setSaving] = useState(false);
+
   useEffect(() => {
     api.get(`/api/sop-collections/${encodeURIComponent(collection)}/meta`).then((r) => {
       setMeta(r.meta);
-      setDraft(r.meta.transitionNote || '');
+      const note = r.meta.transitionNote || '';
+      setRawDraft(note);
+      const parsed = parseTransitionNote(note);
+      setLeaving(parsed.leaving);
+      setComing(parsed.coming);
     });
   }, [collection]);
-  async function save() {
-    await api.put(`/api/sop-collections/${encodeURIComponent(collection)}/meta`, { transitionNote: draft || null });
-    setMeta({ transitionNote: draft || null });
-    setEditing(false);
+
+  function openEditor() {
+    const note = meta?.transitionNote || '';
+    setRawDraft(note);
+    const parsed = parseTransitionNote(note);
+    setLeaving(parsed.leaving);
+    setComing(parsed.coming);
+    setTextMode(false);
+    setEditing(true);
   }
+
+  function switchToText() {
+    setRawDraft(serializeTransitionNote(leaving, coming));
+    setTextMode(true);
+  }
+
+  function switchToStructured() {
+    const parsed = parseTransitionNote(rawDraft);
+    setLeaving(parsed.leaving);
+    setComing(parsed.coming);
+    setTextMode(false);
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      const note = textMode ? rawDraft : serializeTransitionNote(leaving, coming);
+      await api.put(`/api/sop-collections/${encodeURIComponent(collection)}/meta`, { transitionNote: note || null });
+      setMeta({ transitionNote: note || null });
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function updateItem(list: TransitionItem[], setList: React.Dispatch<React.SetStateAction<TransitionItem[]>>, idx: number, field: 'name' | 'tag', value: string) {
+    setList(list.map((it, i) => i === idx ? { ...it, [field]: value } : it));
+  }
+
+  function removeItem(list: TransitionItem[], setList: React.Dispatch<React.SetStateAction<TransitionItem[]>>, idx: number) {
+    setList(list.filter((_, i) => i !== idx));
+  }
+
+  function addItem(setList: React.Dispatch<React.SetStateAction<TransitionItem[]>>) {
+    setList((prev) => [...prev, { name: '', tag: '' }]);
+  }
+
   if (!editing) {
     return (
-      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditing(true)} title="Edit cover transition note">
+      <button type="button" className="btn btn-secondary btn-sm" onClick={openEditor} title="Edit cover transition note">
         {meta?.transitionNote ? 'Edit transition note' : '+ Transition note'}
       </button>
     );
   }
+
   return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-      <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder='e.g. "transition will happen around early March"' style={{ minWidth: 320, fontSize: 12 }} />
-      <button type="button" className="btn btn-primary btn-sm" onClick={save}>Save</button>
-      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditing(false)}>Cancel</button>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)' }} onClick={() => setEditing(false)}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 680, maxWidth: '95vw', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Bottles &amp; Inventory -- Transition Note</h3>
+          <button
+            type="button"
+            onClick={() => textMode ? switchToStructured() : switchToText()}
+            style={{ background: 'none', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: 'rgba(0,0,0,0.55)' }}
+          >
+            {textMode ? 'Structured editor' : 'Edit as text'}
+          </button>
+        </div>
+
+        {textMode ? (
+          <textarea
+            value={rawDraft}
+            onChange={(e) => setRawDraft(e.target.value)}
+            rows={8}
+            style={{ width: '100%', fontSize: 13, fontFamily: 'monospace', borderRadius: 8, border: '1px solid rgba(0,0,0,0.15)', padding: 12, resize: 'vertical' }}
+            placeholder={'Leaving:\nPeppermint syrup (winter rotation)\nComing in:\nHaus Ube syrup (new -- ambient)'}
+          />
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            {/* Leaving column */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <span style={{ fontSize: 16 }}>{'<-'}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#c0392b' }}>Leaving</span>
+              </div>
+              {leaving.length === 0 && (
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '8px 0' }}>No items</div>
+              )}
+              {leaving.map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={item.name}
+                    onChange={(e) => updateItem(leaving, setLeaving, i, 'name', e.target.value)}
+                    placeholder="Item name"
+                    style={{ flex: 2, fontSize: 12, padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)' }}
+                  />
+                  <input
+                    type="text"
+                    value={item.tag}
+                    onChange={(e) => updateItem(leaving, setLeaving, i, 'tag', e.target.value)}
+                    placeholder="Tag"
+                    style={{ flex: 1, fontSize: 12, padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', color: 'rgba(0,0,0,0.6)' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeItem(leaving, setLeaving, i)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(0,0,0,0.3)', fontSize: 16, padding: '2px 6px', lineHeight: 1 }}
+                    title="Remove"
+                  >
+                    x
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => addItem(setLeaving)}
+                style={{ background: 'none', border: '1px dashed rgba(0,0,0,0.2)', borderRadius: 6, padding: '5px 12px', fontSize: 11, cursor: 'pointer', color: 'rgba(0,0,0,0.5)', marginTop: 4, width: '100%' }}
+              >
+                + Add
+              </button>
+            </div>
+
+            {/* Coming In column */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <span style={{ fontSize: 16 }}>{'->'}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#27ae60' }}>Coming In</span>
+              </div>
+              {coming.length === 0 && (
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', padding: '8px 0' }}>No items</div>
+              )}
+              {coming.map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={item.name}
+                    onChange={(e) => updateItem(coming, setComing, i, 'name', e.target.value)}
+                    placeholder="Item name"
+                    style={{ flex: 2, fontSize: 12, padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)' }}
+                  />
+                  <input
+                    type="text"
+                    value={item.tag}
+                    onChange={(e) => updateItem(coming, setComing, i, 'tag', e.target.value)}
+                    placeholder="Tag"
+                    style={{ flex: 1, fontSize: 12, padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', color: 'rgba(0,0,0,0.6)' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeItem(coming, setComing, i)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(0,0,0,0.3)', fontSize: 16, padding: '2px 6px', lineHeight: 1 }}
+                    title="Remove"
+                  >
+                    x
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => addItem(setComing)}
+                style={{ background: 'none', border: '1px dashed rgba(0,0,0,0.2)', borderRadius: 6, padding: '5px 12px', fontSize: 11, cursor: 'pointer', color: 'rgba(0,0,0,0.5)', marginTop: 4, width: '100%' }}
+              >
+                + Add
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+          <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+        </div>
+      </div>
     </div>
   );
 }

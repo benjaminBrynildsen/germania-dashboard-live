@@ -45,7 +45,7 @@ const s = StyleSheet.create({
   // --- giant title ---
   titleBlock: { marginTop: 14, marginBottom: 10 },
   titleRow: {
-    fontFamily: 'Anton', fontSize: 90, lineHeight: 0.88,
+    fontFamily: 'Anton', fontSize: 90, lineHeight: 1.0,
     textTransform: 'uppercase', letterSpacing: -1,
   },
   yearRow: {
@@ -181,7 +181,7 @@ const MENU_SVG_H = MENU_H * (TITLE_PT / UPEM);       // ~78
 
 function MenuOutline() {
   return (
-    <View style={{ width: MENU_SVG_W, height: MENU_SVG_H, marginTop: -6 }}>
+    <View style={{ width: MENU_SVG_W, height: MENU_SVG_H, marginTop: -2 }}>
       <Svg width={MENU_SVG_W} height={MENU_SVG_H} viewBox={`0 0 ${MENU_TOTAL_W} ${MENU_H}`}>
         <G transform={`translate(0,${MENU_H}) scale(1,-1)`}>
           {MENU_GLYPHS.map((g, i) => (
