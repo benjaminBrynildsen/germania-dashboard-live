@@ -81,7 +81,13 @@ function SeasonList() {
       </div>
 
       {seasons.length === 0 && (
-        <p style={{ color: 'rgba(0,0,0,0.5)' }}>No menu seasons yet. Create one above.</p>
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ color: 'rgba(0,0,0,0.5)', marginBottom: 8 }}>No menu seasons yet. Create one above, or seed demo data:</p>
+          <button className="btn btn-secondary btn-sm" onClick={async () => {
+            await api.post('/api/menu-seasons/seed-winter-2025');
+            api.get('/api/menu-seasons').then((r) => setSeasons(r.seasons));
+          }}>Seed Winter 2025 Demo</button>
+        </div>
       )}
 
       <div style={{ display: 'grid', gap: 12 }}>

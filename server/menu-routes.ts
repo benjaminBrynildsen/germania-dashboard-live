@@ -530,6 +530,74 @@ router.post('/menu-seasons/:id/import-sops', requireAuth, (req: AuthRequest, res
   res.json({ imported: count, season: updated });
 });
 
+// ---- Seed Winter 2025 demo ----
+
+router.post('/menu-seasons/seed-winter-2025', requireAuth, (_req: AuthRequest, res: Response) => {
+  const existing = db.prepare("SELECT id FROM menu_seasons WHERE name = 'Winter 2025'").get();
+  if (existing) { res.json({ status: 'already_exists', seasonId: (existing as any).id }); return; }
+
+  const now = Date.now();
+  const sid = Number(db.prepare('INSERT INTO menu_seasons (name, created_at, updated_at) VALUES (?, ?, ?)').run('Winter 2025', now, now).lastInsertRowid);
+  const ic = db.prepare('INSERT INTO menu_categories (season_id, name, subtitle, position, side) VALUES (?, ?, ?, ?, ?)');
+  const ii = db.prepare('INSERT INTO menu_items (category_id, name, description, kind, position, size_labels_json, prices_json, temps, has_spotify, frozen_note, layout, pair_position, food_price, food_subtitle, is_new) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  const il = db.prepare('INSERT INTO menu_lists (season_id, name, position, side) VALUES (?, ?, ?, ?)');
+  const ili = db.prepare('INSERT INTO menu_list_items (list_id, name, position) VALUES (?, ?, ?)');
+  const iloc = db.prepare('INSERT INTO menu_item_locations (item_id, location, price_override) VALUES (?, ?, ?)');
+
+  function drink(catId: number, pos: number, name: string, desc: string, sizes: string[], prices: string[], temps: string, o: any = {}) {
+    return Number(ii.run(catId, name, desc, 'drink', pos, JSON.stringify(sizes), JSON.stringify(prices), temps, o.spotify?1:0, o.frozen||null, o.layout||'full', o.pair||null, null, null, 0).lastInsertRowid);
+  }
+  function food(catId: number, pos: number, name: string, price: string, o: any = {}) {
+    const id = Number(ii.run(catId, name, null, 'food', pos, null, null, null, 0, null, 'full', null, price, o.sub||null, o.isNew?1:0).lastInsertRowid);
+    for (const loc of (o.locs || ['G1','G2','G3','G4'])) iloc.run(id, loc, null);
+    return id;
+  }
+
+  // Front
+  const sw = Number(ic.run(sid, 'Sweet Coffee', 'Delightfully Sweet', 0, 'front').lastInsertRowid);
+  drink(sw, 0, 'Peppermint Mocha', 'HAUS PEPPERMINT MOCHA SAUCE', ['SMALL','REGULAR','LARGE'], ['5.56','6.15','6.70'], 'ICED · FROZEN · HOT', { spotify:true, layout:'half', pair:'left' });
+  drink(sw, 1, 'Breakfast Latte', 'MAPLE + BROWN SUGAR', ['SMALL','REGULAR','LARGE'], ['5.35','5.95','6.50'], 'ICED · FROZEN · HOT', { spotify:true, layout:'half', pair:'right' });
+  drink(sw, 2, 'Cookie Butter Latte', 'HAUS MADE COOKIE BUTTER SAUCE', ['SMALL','REGULAR','LARGE'], ['5.56','6.15','6.70'], 'ICED · FROZEN · HOT', { layout:'half', pair:'left' });
+  drink(sw, 3, 'Haus Mocha Latte', 'MADE WITH A RICH HAUS CHOCOLATE SAUCE', ['SMALL','REGULAR','LARGE'], ['5.56','6.15','6.70'], 'ICED · FROZEN · HOT', { frozen:'FROZEN PRICES VARY', layout:'half', pair:'right' });
+
+  const br = Number(ic.run(sid, 'Bridge Coffee', 'Balanced', 1, 'front').lastInsertRowid);
+  drink(br, 0, 'Bourbon Butterscotch Latte', 'HAUS BOURBON BUTTERSCOTCH SAUCE + ESPRESSSO + MILK', ['SMALL','REGULAR','LARGE'], ['5.56','6.15','6.70'], 'ICED · FROZEN · HOT', { spotify:true });
+  drink(br, 1, 'Gingerbread Latte', 'HAUS MADE SAUCE WITH MOLASSES + GINGER + CINNAMON', ["KID'S",'REGULAR','LARGE'], ['5.56','6.15','6.70'], 'ICED · FROZEN · HOT', { frozen:'FROZEN PRICES VARY' });
+
+  const ar = Number(ic.run(sid, 'Artisanal Coffee', 'Coffee-Centric', 2, 'front').lastInsertRowid);
+  drink(ar, 0, 'Amaretto Cortado', 'HAUS MADE ALMOND - VANILLA SYRUP IN OUR CLASSIC CORTADO', ['8OZ HOT ONLY'], ['4.50'], '');
+
+  // Back
+  const tea = Number(ic.run(sid, 'Tea, Smoothies, & More', null, 0, 'back').lastInsertRowid);
+  drink(tea, 0, 'Haus Chai Latte', 'HAUS MADE CHAI (BLACK TEA + BROWN SUGAR + CINNAMON + CLOVE + STEAMED MILK)', ['SMALL','REGULAR','LARGE'], ['5.20','5.75','6.30'], 'ICED · FROZEN · HOT');
+  drink(tea, 1, 'Sugar Cookie Milkshake', 'OUR CLASSIC MILKSHAKE WITH SUGAR COOKIES BLENDED IN', ['SMALL','REGULAR','LARGE'], ['4.40','6.40','6.95'], 'FROZEN ONLY');
+  drink(tea, 2, 'Winter Cider', 'CRANBERRY-APPLE JUICE + CINNAMON STICKS + CLOVES + ORANGES', ['SMALL','REGULAR','LARGE'], ['5.50','6.00','6.65'], 'ICED · HOT');
+  drink(tea, 3, 'Hot Cocoa', 'COCOA SUGAR MIX + STEAMED MILK', ['SMALL','REGULAR','LARGE'], ['5.00','5.55','6.15'], 'FROZEN · HOT');
+
+  const bh = Number(ic.run(sid, 'Bake Haus', 'Breakfast | Lunch | Snacks | Desserts', 1, 'back').lastInsertRowid);
+  food(bh, 0, 'The Croffle', '7.00', { sub:'(HAM AND CHEESE -OR- BUFFALO CHICKEN)', isNew:true, locs:['G1','G2'] });
+  food(bh, 1, 'Jalapeno Sausage Biscuit Sandwich', '6.50', { isNew:true, locs:['G1','G2'] });
+  food(bh, 2, 'Bacon, Egg, & Cheese Strudel', '4.50');
+  food(bh, 3, 'Energy Bites', '3.50');
+  food(bh, 4, 'Overnight Oats', '6.50');
+  food(bh, 5, 'Waffle Wedge', '4.00', { sub:'(WITH APPLE BUTTER JAM)' });
+  food(bh, 6, 'Maple & Brown Sugar Scone', '2.55');
+
+  // Lists
+  const mc = Number(il.run(sid, 'More Coffee', 0, 'front').lastInsertRowid);
+  for (const [i,n] of ['Americano','Cold Brew','Cortado','Cappuccino'].entries()) ili.run(mc, n, i);
+  const cf = Number(il.run(sid, 'Cold Foam', 1, 'front').lastInsertRowid);
+  ili.run(cf, 'Haus Vanilla', 0);
+  const ao = Number(il.run(sid, 'Add-Ons', 2, 'front').lastInsertRowid);
+  for (const [i,n] of ['Oat Milk','Almond Milk','Heavy Cream','Skim Milk'].entries()) ili.run(ao, n, i);
+  const mf = Number(il.run(sid, 'More Flavors', 0, 'back').lastInsertRowid);
+  for (const [i,n] of ['Haus Vanilla','Maple','Brown Sugar','Salted Caramel','Caramel','Haus Mocha'].entries()) ili.run(mf, n, i);
+  const md = Number(il.run(sid, 'More Drinks', 1, 'back').lastInsertRowid);
+  for (const [i,n] of ['Hot Cocoa','Green Tea','Black Tea','Matcha','Steamers','Milk Shakes'].entries()) ili.run(md, n, i);
+
+  res.status(201).json({ status: 'seeded', seasonId: sid });
+});
+
 // ---- PDF export ----
 
 router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: Response) => {
