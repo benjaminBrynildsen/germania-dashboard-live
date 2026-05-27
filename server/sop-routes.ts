@@ -463,16 +463,7 @@ router.get('/sop-templates', requireAuth, (_req, res: Response) => {
 //   replace: true → delete the existing SOP, insert the new one
 //   force:   true → keep both; new one gets " (imported)" appended
 //   neither       → skip the new one
-//
-// One-shot token gate (x-bulk-import-token) so the assistant can drive
-// the importer without a session cookie. Removed in a follow-up commit
-// once the run is done.
-const ONE_SHOT_TOKEN = 'germania-2026-bulk-import-7x9k2pq';
-function requireAuthOrToken(req: AuthRequest, res: Response, next: () => void) {
-  if (req.headers['x-bulk-import-token'] === ONE_SHOT_TOKEN) { next(); return; }
-  return requireAuth(req, res, next as any);
-}
-router.post('/sops/bulk-import', requireAuthOrToken, (req: AuthRequest, res: Response) => {
+router.post('/sops/bulk-import', requireAuth, (req: AuthRequest, res: Response) => {
   const body = req.body || {};
   const sops = Array.isArray(body.sops) ? body.sops : null;
   if (!sops) { res.status(400).json({ error: 'sops_array_required' }); return; }
