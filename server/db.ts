@@ -73,6 +73,16 @@ db.pragma('foreign_keys = ON');
   }
 }
 
+// sop_collection_meta.cover_tagline — editable tagline text that
+// appears on the packet cover page below the giant title.
+{
+  const tbl = db.prepare("PRAGMA table_info(sop_collection_meta)").all() as Array<{ name: string }>;
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'cover_tagline')) {
+    console.log('[migration] adding cover_tagline to sop_collection_meta');
+    db.exec('ALTER TABLE sop_collection_meta ADD COLUMN cover_tagline TEXT');
+  }
+}
+
 // bake_haus_orders.mon_locked_qty migration — adds the Mon-delivery
 // snapshot column to existing tables that pre-date the lock feature.
 // CREATE TABLE IF NOT EXISTS below won't backfill columns on its own.

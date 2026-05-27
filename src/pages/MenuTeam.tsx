@@ -362,12 +362,13 @@ function serializeTransitionNote(leaving: TransitionItem[], coming: TransitionIt
 }
 
 function CollectionMetaEditor({ collection }: { collection: string }) {
-  const [meta, setMeta] = useState<{ transitionNote: string | null } | null>(null);
+  const [meta, setMeta] = useState<{ transitionNote: string | null; coverTagline: string | null } | null>(null);
   const [editing, setEditing] = useState(false);
   const [textMode, setTextMode] = useState(false);
   const [rawDraft, setRawDraft] = useState('');
   const [leaving, setLeaving] = useState<TransitionItem[]>([]);
   const [coming, setComing] = useState<TransitionItem[]>([]);
+  const [taglineDraft, setTaglineDraft] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -378,6 +379,7 @@ function CollectionMetaEditor({ collection }: { collection: string }) {
       const parsed = parseTransitionNote(note);
       setLeaving(parsed.leaving);
       setComing(parsed.coming);
+      setTaglineDraft(r.meta.coverTagline || '');
     });
   }, [collection]);
 
@@ -387,6 +389,7 @@ function CollectionMetaEditor({ collection }: { collection: string }) {
     const parsed = parseTransitionNote(note);
     setLeaving(parsed.leaving);
     setComing(parsed.coming);
+    setTaglineDraft(meta?.coverTagline || '');
     setTextMode(false);
     setEditing(true);
   }
@@ -407,8 +410,11 @@ function CollectionMetaEditor({ collection }: { collection: string }) {
     setSaving(true);
     try {
       const note = textMode ? rawDraft : serializeTransitionNote(leaving, coming);
-      await api.put(`/api/sop-collections/${encodeURIComponent(collection)}/meta`, { transitionNote: note || null });
-      setMeta({ transitionNote: note || null });
+      await api.put(`/api/sop-collections/${encodeURIComponent(collection)}/meta`, {
+        transitionNote: note || null,
+        coverTagline: taglineDraft.trim() || null,
+      });
+      setMeta({ transitionNote: note || null, coverTagline: taglineDraft.trim() || null });
       setEditing(false);
     } finally {
       setSaving(false);
@@ -429,8 +435,8 @@ function CollectionMetaEditor({ collection }: { collection: string }) {
 
   if (!editing) {
     return (
-      <button type="button" className="btn btn-secondary btn-sm" onClick={openEditor} title="Edit cover transition note">
-        {meta?.transitionNote ? 'Edit transition note' : '+ Transition note'}
+      <button type="button" className="btn btn-secondary btn-sm" onClick={openEditor} title="Edit packet cover details">
+        {(meta?.transitionNote || meta?.coverTagline) ? 'Edit cover details' : '+ Cover details'}
       </button>
     );
   }
@@ -439,7 +445,7 @@ function CollectionMetaEditor({ collection }: { collection: string }) {
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)' }} onClick={() => setEditing(false)}>
       <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 680, maxWidth: '95vw', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Bottles &amp; Inventory -- Transition Note</h3>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Packet Cover Details</h3>
           <button
             type="button"
             onClick={() => textMode ? switchToStructured() : switchToText()}
@@ -448,6 +454,22 @@ function CollectionMetaEditor({ collection }: { collection: string }) {
             {textMode ? 'Structured editor' : 'Edit as text'}
           </button>
         </div>
+
+        {/* Cover tagline */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'rgba(0,0,0,0.6)' }}>
+            Cover tagline (below title)
+          </label>
+          <textarea
+            value={taglineDraft}
+            onChange={(e) => setTaglineDraft(e.target.value)}
+            rows={2}
+            style={{ width: '100%', fontSize: 13, borderRadius: 8, border: '1px solid rgba(0,0,0,0.15)', padding: '8px 12px', resize: 'vertical' }}
+            placeholder="A complete book of standard operating procedures for the summer season.&#10;Bridge drinks, sweet builds, artisanal pours, tea & smoothies."
+          />
+        </div>
+
+        <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700 }}>Bottles &amp; Inventory</h4>
 
         {textMode ? (
           <textarea

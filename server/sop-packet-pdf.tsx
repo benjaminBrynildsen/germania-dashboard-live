@@ -128,7 +128,7 @@ const s = StyleSheet.create({
     color: INK, fontFamily: 'Helvetica',
     justifyContent: 'center', alignItems: 'center',
   },
-  dividerText: { fontSize: 64, fontFamily: 'Germania One', textAlign: 'center' },
+  dividerText: { fontSize: 64, fontFamily: 'IBM Plex Sans', fontWeight: 700, textAlign: 'center' },
 });
 
 function seasonLabel(collection: string | null): string {
@@ -200,7 +200,7 @@ function MenuOutline() {
   );
 }
 
-function CoverPage({ sops, collection, transitionNote }: { sops: Sop[]; collection: string | null; transitionNote: string | null }) {
+function CoverPage({ sops, collection, transitionNote, coverTagline }: { sops: Sop[]; collection: string | null; transitionNote: string | null; coverTagline: string | null }) {
   const grouped: Record<Availability | 'Unspecified', Sop[]> = {
     'All-Season': [],
     '1st Half Only': [],
@@ -250,8 +250,7 @@ function CoverPage({ sops, collection, transitionNote }: { sops: Sop[]; collecti
 
       {/* Tagline */}
       <Text style={s.tagline}>
-        A complete book of standard operating procedures for the {season.toLowerCase()} season.{'\n'}
-        Bridge drinks, sweet builds, artisanal pours, tea &amp; smoothies.
+        {coverTagline || `A complete book of standard operating procedures for the ${season.toLowerCase()} season.\nBridge drinks, sweet builds, artisanal pours, tea & smoothies.`}
       </Text>
 
       {/* 01 All-Season */}
@@ -436,7 +435,7 @@ function CategoryDividerPage({ label }: { label: string }) {
   );
 }
 
-export async function renderPacketPdfBuffer(sops: Sop[], collection: string | null, transitionNote: string | null): Promise<Buffer> {
+export async function renderPacketPdfBuffer(sops: Sop[], collection: string | null, transitionNote: string | null, coverTagline: string | null = null): Promise<Buffer> {
   const printable = sops.filter((sop) => sop.sopRequired !== false);
   const drinks = printable.filter((sop) => (sop.kind ?? 'drink') === 'drink');
   const recipes = printable.filter((sop) => sop.kind === 'recipe');
@@ -454,7 +453,7 @@ export async function renderPacketPdfBuffer(sops: Sop[], collection: string | nu
   ];
 
   const children: React.ReactElement[] = [
-    <CoverPage key="cover" sops={sops} collection={collection} transitionNote={transitionNote} />,
+    <CoverPage key="cover" sops={sops} collection={collection} transitionNote={transitionNote} coverTagline={coverTagline} />,
   ];
   for (const key of orderedKeys) {
     const cat = SOP_CATEGORIES.find((c) => c.key === key);

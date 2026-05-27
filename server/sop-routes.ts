@@ -315,15 +315,16 @@ router.get('/sops', requireAuth, (req: AuthRequest, res: Response) => {
 // ---------- collection metadata ----------
 router.get('/sop-collections/:name/meta', requireAuth, (req: AuthRequest, res: Response) => {
   const name = String(req.params.name);
-  const r = db.prepare('SELECT collection, transition_note FROM sop_collection_meta WHERE collection = ?').get(name) as { collection: string; transition_note: string | null } | undefined;
-  res.json({ meta: r ? { collection: r.collection, transitionNote: r.transition_note } : { collection: name, transitionNote: null } });
+  const r = db.prepare('SELECT collection, transition_note, cover_tagline FROM sop_collection_meta WHERE collection = ?').get(name) as { collection: string; transition_note: string | null; cover_tagline: string | null } | undefined;
+  res.json({ meta: r ? { collection: r.collection, transitionNote: r.transition_note, coverTagline: r.cover_tagline } : { collection: name, transitionNote: null, coverTagline: null } });
 });
 
 router.put('/sop-collections/:name/meta', requireAuth, (req: AuthRequest, res: Response) => {
   const name = String(req.params.name);
   const note = typeof req.body?.transitionNote === 'string' ? req.body.transitionNote.slice(0, 2000) : null;
-  db.prepare(`INSERT INTO sop_collection_meta (collection, transition_note, updated_at) VALUES (?, ?, ?)
-    ON CONFLICT(collection) DO UPDATE SET transition_note = excluded.transition_note, updated_at = excluded.updated_at`).run(name, note, Date.now());
+  const tagline = typeof req.body?.coverTagline === 'string' ? req.body.coverTagline.slice(0, 500) : null;
+  db.prepare(`INSERT INTO sop_collection_meta (collection, transition_note, cover_tagline, updated_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(collection) DO UPDATE SET transition_note = excluded.transition_note, cover_tagline = excluded.cover_tagline, updated_at = excluded.updated_at`).run(name, note, tagline, Date.now());
   res.json({ ok: true });
 });
 
@@ -389,10 +390,10 @@ router.get('/sops/packet.pdf', requireAuth, async (req: AuthRequest, res: Respon
   const { sops, collection } = resolveSopsFromQuery(req);
   if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
   const meta = collection
-    ? db.prepare('SELECT transition_note FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null } | undefined
+    ? db.prepare('SELECT transition_note, cover_tagline FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null; cover_tagline: string | null } | undefined
     : undefined;
   try {
-    const buf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null);
+    const buf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null, meta?.cover_tagline ?? null);
     const baseName = collection ? `${collection} Packet` : `Packet (${sops.length} SOPs)`;
     const filename = downloadFilename(baseName, null, 'pdf');
     res.setHeader('Content-Type', 'application/pdf');
@@ -408,10 +409,10 @@ router.get('/sops/packet.zip', requireAuth, async (req: AuthRequest, res: Respon
   const { sops, collection } = resolveSopsFromQuery(req);
   if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
   const meta = collection
-    ? db.prepare('SELECT transition_note FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null } | undefined
+    ? db.prepare('SELECT transition_note, cover_tagline FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null; cover_tagline: string | null } | undefined
     : undefined;
   try {
-    const packetBuf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null);
+    const packetBuf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null, meta?.cover_tagline ?? null);
     const individuals = await Promise.all(
       sops.filter((s) => s.sopRequired !== false).map(async (s) => ({
         sop: s,
