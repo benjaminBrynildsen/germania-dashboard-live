@@ -154,11 +154,12 @@ function volNumber(): string {
   return '12';
 }
 
-function availabilityTag(sop: Sop): string {
-  if (!sop.availability || sop.availability === 'All-Season') return '';
-  if (sop.availability === '1st Half Only') return '1st Half';
-  if (sop.availability === '2nd Half Only') return '2nd Half';
-  return sop.availability;
+function categoryShortName(sop: Sop): string {
+  if (!sop.category) return '';
+  const cat = SOP_CATEGORIES.find((c) => c.key === sop.category);
+  if (!cat) return '';
+  if (cat.key === 'tsm') return 'Tea/Smoothie';
+  return cat.shortName;
 }
 
 // Anton font glyph paths for "MENU" — extracted from the TTF at 2048 upem.
@@ -200,50 +201,29 @@ function MenuOutline() {
 }
 
 function CoverPage({ sops, collection, transitionNote, coverTagline }: { sops: Sop[]; collection: string | null; transitionNote: string | null; coverTagline: string | null }) {
-  // Group by category (Sweet, Bridge, Artisanal, TSM) — this matches
-  // the divider page order and keeps related drinks together on the TOC.
+  const grouped: Record<Availability | 'Unspecified', Sop[]> = {
+    'All-Season': [],
+    '1st Half Only': [],
+    '2nd Half Only': [],
+    'Unspecified': [],
+  };
+  for (const sop of sops) {
+    const key = (sop.availability ?? 'Unspecified') as keyof typeof grouped;
+    grouped[key].push(sop);
+  }
   const categoryOrder = new Map(SOP_CATEGORIES.map((c, i) => [c.key, i]));
-  const byCategory = new Map<string, Sop[]>();
-  for (const sop of sops) {
-    const key = sop.category ?? 'uncategorized';
-    const arr = byCategory.get(key) ?? [];
-    arr.push(sop);
-    byCategory.set(key, arr);
-  }
-  // Sort drinks within each category by availability then name.
-  const availOrder: Record<string, number> = { 'All-Season': 0, '1st Half Only': 1, '2nd Half Only': 2 };
-  byCategory.forEach((list) => list.sort((a, b) => {
-    const aa = availOrder[a.availability ?? ''] ?? 9;
-    const ba = availOrder[b.availability ?? ''] ?? 9;
-    return aa - ba || a.name.localeCompare(b.name);
-  }));
-  const orderedCatKeys = [
-    ...SOP_CATEGORIES.map((c) => c.key).filter((k) => byCategory.has(k)),
-    ...(byCategory.has('uncategorized') ? ['uncategorized'] : []),
-  ];
-
-  // Also gather 1st/2nd half availability groups for half-only sections.
-  const halfGroups: Record<string, Sop[]> = { '1st Half Only': [], '2nd Half Only': [] };
-  for (const sop of sops) {
-    if (sop.availability === '1st Half Only') halfGroups['1st Half Only'].push(sop);
-    else if (sop.availability === '2nd Half Only') halfGroups['2nd Half Only'].push(sop);
-  }
-  halfGroups['1st Half Only'].sort((a, b) => {
+  const sortByCategory = (a: Sop, b: Sop) => {
     const ai = a.category ? categoryOrder.get(a.category) ?? 99 : 99;
     const bi = b.category ? categoryOrder.get(b.category) ?? 99 : 99;
     return ai - bi || a.name.localeCompare(b.name);
-  });
-  halfGroups['2nd Half Only'].sort((a, b) => {
-    const ai = a.category ? categoryOrder.get(a.category) ?? 99 : 99;
-    const bi = b.category ? categoryOrder.get(b.category) ?? 99 : 99;
-    return ai - bi || a.name.localeCompare(b.name);
-  });
+  };
+  Object.values(grouped).forEach((list) => list.sort(sortByCategory));
 
   const season = seasonLabel(collection);
   const year = yearFromCollection(collection);
   const totalPages = sops.filter((sop) => sop.sopRequired !== false).length;
-  const has1st = halfGroups['1st Half Only'].length > 0;
-  const has2nd = halfGroups['2nd Half Only'].length > 0;
+  const has1st = grouped['1st Half Only'].length > 0;
+  const has2nd = grouped['2nd Half Only'].length > 0;
 
   let sectionNum = 0;
 
@@ -273,23 +253,17 @@ function CoverPage({ sops, collection, transitionNote, coverTagline }: { sops: S
         {coverTagline || `A complete book of standard operating procedures for the ${season.toLowerCase()} season.\nBridge drinks, sweet builds, artisanal pours, tea & smoothies.`}
       </Text>
 
-      {/* Category sections — Sweet, Bridge, Artisanal, TSM */}
-      {orderedCatKeys.map((key) => {
-        const cat = SOP_CATEGORIES.find((c) => c.key === key);
-        const label = cat ? cat.name : 'Other';
-        const items = byCategory.get(key) ?? [];
-        return (
-          <TocSection
-            key={key}
-            num={String(++sectionNum).padStart(2, '0')}
-            name={label}
-            items={items}
-            twoCol={items.length > 3}
-          />
-        );
-      })}
+      {/* 01 All-Season */}
+      {grouped['All-Season'].length > 0 && (
+        <TocSection
+          num={String(++sectionNum).padStart(2, '0')}
+          name="All-Season"
+          items={grouped['All-Season']}
+          twoCol
+        />
+      )}
 
-      {/* 1st/2nd half sections side by side, only if drinks have those availability values */}
+      {/* 02/03 half sections side by side, only if either exists */}
       {(has1st || has2nd) && (
         <View style={s.halfRow}>
           {has1st && (
@@ -297,7 +271,7 @@ function CoverPage({ sops, collection, transitionNote, coverTagline }: { sops: S
               <TocSection
                 num={String(++sectionNum).padStart(2, '0')}
                 name="1st Half Only"
-                items={halfGroups['1st Half Only']}
+                items={grouped['1st Half Only']}
                 twoCol={false}
               />
             </View>
@@ -307,7 +281,7 @@ function CoverPage({ sops, collection, transitionNote, coverTagline }: { sops: S
               <TocSection
                 num={String(++sectionNum).padStart(2, '0')}
                 name="2nd Half Only"
-                items={halfGroups['2nd Half Only']}
+                items={grouped['2nd Half Only']}
                 twoCol={false}
               />
             </View>
@@ -315,7 +289,17 @@ function CoverPage({ sops, collection, transitionNote, coverTagline }: { sops: S
         </View>
       )}
 
-      {/* Bottles & Inventory */}
+      {/* Unspecified */}
+      {grouped['Unspecified'].length > 0 && (
+        <TocSection
+          num={String(++sectionNum).padStart(2, '0')}
+          name="Other"
+          items={grouped['Unspecified']}
+          twoCol
+        />
+      )}
+
+      {/* 04 Bottles & Inventory */}
       {transitionNote && <InventorySection num={String(++sectionNum).padStart(2, '0')} note={transitionNote} season={season.toLowerCase()} />}
 
       {/* Footer */}
@@ -343,7 +327,7 @@ function TocSection({ num, name, items, twoCol }: { num: string; name: string; i
           return (
             <View key={sop.slug} style={isRight ? s.tocItemRight : (twoCol ? s.tocItem : { ...s.tocItem, width: '100%', paddingRight: 0 })}>
               <Text style={s.drinkName}>{sop.name}</Text>
-              <Text style={s.drinkKind}>{availabilityTag(sop)}</Text>
+              <Text style={s.drinkKind}>{categoryShortName(sop)}</Text>
             </View>
           );
         })}
