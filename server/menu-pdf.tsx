@@ -283,19 +283,21 @@ function MenuPage({ season, side, location, pageW, pageH, padH, scale }: {
         });
         if (items.length === 0) return null;
 
-        const halfItems = items.filter((i: any) => i.layout === 'half');
-        const fullItems = items.filter((i: any) => i.layout !== 'half');
+        const drinkItems = items.filter((i: any) => i.kind === 'drink');
+        const foodItems = items.filter((i: any) => i.kind === 'food');
         const hasFrozenNote = items.some((i: any) => i.frozenNote);
+        // Sweet Coffee always renders as a 2-column grid
+        const isGrid = cat.name.toLowerCase().includes('sweet');
 
         return (
           <View key={cat.id}>
             <CategoryHeader name={cat.name} subtitle={cat.subtitle} ctx={ctx} />
 
-            {halfItems.length > 0 && (
+            {isGrid && drinkItems.length > 0 ? (
               <View>
-                {Array.from({ length: Math.ceil(halfItems.length / 2) }, (_, pairIdx) => {
-                  const left = halfItems[pairIdx * 2];
-                  const right = halfItems[pairIdx * 2 + 1];
+                {Array.from({ length: Math.ceil(drinkItems.length / 2) }, (_, pairIdx) => {
+                  const left = drinkItems[pairIdx * 2];
+                  const right = drinkItems[pairIdx * 2 + 1];
                   return (
                     <View key={pairIdx} style={{ flexDirection: 'row', justifyContent: 'center', gap: 40 * scale, marginBottom: 16 * scale }}>
                       {left && <DrinkItem item={left} ctx={ctx} half />}
@@ -304,12 +306,14 @@ function MenuPage({ season, side, location, pageW, pageH, padH, scale }: {
                   );
                 })}
               </View>
+            ) : (
+              drinkItems.map((item: any) => (
+                <DrinkItem key={item.id} item={item} ctx={ctx} />
+              ))
             )}
 
-            {fullItems.map((item: any) => (
-              item.kind === 'food'
-                ? <FoodItem key={item.id} item={item} ctx={ctx} />
-                : <DrinkItem key={item.id} item={item} ctx={ctx} />
+            {foodItems.map((item: any) => (
+              <FoodItem key={item.id} item={item} ctx={ctx} />
             ))}
 
             {hasFrozenNote && <FrozenNote ctx={ctx} />}
