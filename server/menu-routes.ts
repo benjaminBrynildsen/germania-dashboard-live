@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
+import { renderMenuPdf } from './menu-pdf.js';
 
 const router = Router();
 
@@ -403,12 +404,23 @@ router.put('/menu-items/reorder', requireAuth, (req: AuthRequest, res: Response)
 
 // ---- PDF export (placeholder) ----
 
-router.get('/menu-seasons/:id/pdf', requireAuth, (req: AuthRequest, res: Response) => {
+router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
   if (!id) { res.status(400).json({ error: 'invalid_id' }); return; }
-  const season = db.prepare('SELECT id FROM menu_seasons WHERE id = ?').get(id);
+  const location = typeof req.query.location === 'string' ? req.query.location : 'G1';
+  const season = assembleSeason(id);
   if (!season) { res.status(404).json({ error: 'not_found' }); return; }
-  res.json({ status: 'pdf_not_implemented', seasonId: id, location: req.query.location || null });
+  try {
+    const buf = await renderMenuPdf(season, location);
+    const format = location === 'G4' ? '18x48' : '24x36';
+    const filename = `${season.name} - ${location} (${format}).pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.send(buf);
+  } catch (err) {
+    console.error('[menu-pdf]', err);
+    res.status(500).json({ error: 'pdf_render_failed' });
+  }
 });
 
 export default router;
