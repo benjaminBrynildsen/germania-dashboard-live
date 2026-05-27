@@ -121,16 +121,16 @@ function SpotifyIcon({ size }: { size: number }) {
 
 function DrinkItem({ item, ctx, half }: { item: any; ctx: ScaleCtx; half?: boolean }) {
   const { s } = ctx;
-  const nameSize = half ? 60 * s : 79 * s;
-  const descSize = 30 * s;
-  const sizeSize = 32 * s;
-  const priceSize = 32 * s;
-  const tempSize = 32 * s;
-  const colW = 140 * s;
-  const spotifySize = half ? 28 * s : 36 * s;
+  const nameSize = half ? 52 * s : 79 * s;
+  const descSize = half ? 20 * s : 30 * s;
+  const sizeSize = half ? 24 * s : 32 * s;
+  const priceSize = half ? 26 * s : 32 * s;
+  const tempSize = half ? 24 * s : 32 * s;
+  const colW = half ? 100 * s : 140 * s;
+  const spotifySize = half ? 24 * s : 36 * s;
 
   return (
-    <View style={{ alignItems: 'center', marginBottom: 14 * s, ...(half ? { width: '48%' } : {}) }}>
+    <View style={{ alignItems: 'center', marginBottom: 14 * s, ...(half ? { width: '100%' } : {}) }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center' }}>
         <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: nameSize, textTransform: 'uppercase', textAlign: 'center', letterSpacing: 1 * s }}>
           {item.name}
@@ -299,9 +299,13 @@ function MenuPage({ season, side, location, pageW, pageH, padH, scale }: {
                   const left = drinkItems[pairIdx * 2];
                   const right = drinkItems[pairIdx * 2 + 1];
                   return (
-                    <View key={pairIdx} style={{ flexDirection: 'row', justifyContent: 'center', gap: 30 * scale, marginBottom: 8 * scale }}>
-                      {left && <DrinkItem item={left} ctx={ctx} half />}
-                      {right && <DrinkItem item={right} ctx={ctx} half />}
+                    <View key={pairIdx} style={{ flexDirection: 'row', marginBottom: 8 * scale }}>
+                      <View style={{ width: '50%', alignItems: 'center' }}>
+                        {left && <DrinkItem item={left} ctx={ctx} half />}
+                      </View>
+                      <View style={{ width: '50%', alignItems: 'center' }}>
+                        {right && <DrinkItem item={right} ctx={ctx} half />}
+                      </View>
                     </View>
                   );
                 })}
