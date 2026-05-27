@@ -135,6 +135,7 @@ function SeasonEditor({ seasonId }: { seasonId: number }) {
         <button className="btn btn-secondary btn-sm" onClick={() => navigate('/menu-boards')}>← Back</button>
         <h2 style={{ margin: 0 }}>{season.name}</h2>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <ImportFromSops seasonId={seasonId} onImported={reload} />
           <ExportDropdown seasonId={seasonId} />
         </div>
       </div>
@@ -558,6 +559,129 @@ function ListEditor({ list, onUpdate }: { list: MenuList; onUpdate: () => void }
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Export Dropdown ──────────────────────────────────────────
+
+// ─── Import from SOPs ────────────────────────────────────────
+
+function ImportFromSops({ seasonId, onImported }: { seasonId: number; onImported: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [sops, setSops] = useState<any[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [filter, setFilter] = useState('');
+  const [importing, setImporting] = useState(false);
+
+  function openModal() {
+    setOpen(true);
+    api.get(`/api/menu-seasons/${seasonId}/available-sops`).then((r) => setSops(r.sops));
+  }
+
+  function toggle(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll(filtered: any[]) {
+    setSelected(new Set(filtered.filter((s) => !s.alreadyImported).map((s) => s.id)));
+  }
+
+  async function doImport() {
+    setImporting(true);
+    try {
+      await api.post(`/api/menu-seasons/${seasonId}/import-sops`, { sopIds: [...selected] });
+      setOpen(false);
+      setSelected(new Set());
+      onImported();
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const filtered = sops.filter((s) => {
+    if (!filter) return true;
+    const q = filter.toLowerCase();
+    return s.name.toLowerCase().includes(q) || (s.collection || '').toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q);
+  });
+
+  const collections = [...new Set(sops.map((s) => s.collection).filter(Boolean))];
+
+  if (!open) {
+    return (
+      <button className="btn btn-secondary btn-sm" onClick={openModal}>
+        Import from SOPs
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)' }} onClick={() => setOpen(false)}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 700, maxWidth: '95vw', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>Import Drinks from Menu Team SOPs</h3>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+          <input
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter by name or collection..."
+            style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }}
+          />
+          <select value={filter} onChange={(e) => setFilter(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }}>
+            <option value="">All collections</option>
+            {collections.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <button className="btn btn-secondary btn-sm" onClick={() => selectAll(filtered)} style={{ fontSize: 11, whiteSpace: 'nowrap' }}>Select all</button>
+        </div>
+
+        <div style={{ maxHeight: 400, overflow: 'auto', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 8 }}>
+          {filtered.map((sop) => (
+            <label
+              key={sop.id}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                borderBottom: '1px solid rgba(0,0,0,0.05)', cursor: sop.alreadyImported ? 'default' : 'pointer',
+                opacity: sop.alreadyImported ? 0.4 : 1,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(sop.id)}
+                onChange={() => toggle(sop.id)}
+                disabled={sop.alreadyImported}
+              />
+              <div style={{ flex: 1 }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{sop.name}</span>
+                {sop.alreadyImported && <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginLeft: 8 }}>already imported</span>}
+              </div>
+              <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)' }}>
+                {sop.category && <span style={{ textTransform: 'capitalize', marginRight: 8 }}>{sop.category}</span>}
+                {sop.collection}
+              </span>
+            </label>
+          ))}
+          {filtered.length === 0 && (
+            <div style={{ padding: 20, textAlign: 'center', color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>No SOPs found</div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>
+            {selected.size} selected — will import with default prices, auto-mapped to categories
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-secondary" onClick={() => setOpen(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={doImport} disabled={importing || selected.size === 0}>
+              {importing ? 'Importing...' : `Import ${selected.size} drink${selected.size !== 1 ? 's' : ''}`}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

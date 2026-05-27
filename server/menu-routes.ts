@@ -402,7 +402,107 @@ router.put('/menu-items/reorder', requireAuth, (req: AuthRequest, res: Response)
   res.json({ ok: true });
 });
 
-// ---- PDF export (placeholder) ----
+// ---- Import from SOPs ----
+
+router.get('/menu-seasons/:id/available-sops', requireAuth, (req: AuthRequest, res: Response) => {
+  const seasonId = Number(req.params.id);
+  const season = db.prepare('SELECT * FROM menu_seasons WHERE id = ?').get(seasonId) as SeasonRow | undefined;
+  if (!season) { res.status(404).json({ error: 'not_found' }); return; }
+
+  const sops = db.prepare(`
+    SELECT id, name, slug, category, collection, dietary_tags, refrigeration_note
+    FROM sops ORDER BY collection DESC, category, name
+  `).all() as any[];
+
+  const existingNames = new Set(
+    (db.prepare(`SELECT mi.name FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mc.season_id = ?`).all(seasonId) as any[]).map((r: any) => r.name.toLowerCase())
+  );
+
+  res.json({
+    sops: sops.map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      slug: s.slug,
+      category: s.category,
+      collection: s.collection,
+      dietaryTags: s.dietary_tags,
+      refrigerationNote: s.refrigeration_note,
+      alreadyImported: existingNames.has(s.name.toLowerCase()),
+    })),
+  });
+});
+
+const CATEGORY_MAP: Record<string, { name: string; subtitle: string; side: string }> = {
+  sweet: { name: 'Sweet Coffee', subtitle: 'Delightfully Sweet', side: 'front' },
+  bridge: { name: 'Bridge Coffee', subtitle: 'Balanced', side: 'front' },
+  artisanal: { name: 'Artisanal Coffee', subtitle: 'Coffee-Centric', side: 'front' },
+  tsm: { name: 'Tea, Smoothies, & More', subtitle: '', side: 'back' },
+};
+
+const DEFAULT_PRICES: Record<string, { sizes: string[]; prices: string[]; temps: string }> = {
+  sweet: { sizes: ['SMALL', 'REGULAR', 'LARGE'], prices: ['5.56', '6.15', '6.70'], temps: 'ICED · FROZEN · HOT' },
+  bridge: { sizes: ['SMALL', 'REGULAR', 'LARGE'], prices: ['5.56', '6.15', '6.70'], temps: 'ICED · FROZEN · HOT' },
+  artisanal: { sizes: ['8OZ HOT ONLY'], prices: ['4.50'], temps: '' },
+  tsm: { sizes: ['SMALL', 'REGULAR', 'LARGE'], prices: ['5.20', '5.75', '6.30'], temps: 'ICED · FROZEN · HOT' },
+};
+
+router.post('/menu-seasons/:id/import-sops', requireAuth, (req: AuthRequest, res: Response) => {
+  const seasonId = Number(req.params.id);
+  const { sopIds } = req.body || {};
+  if (!Array.isArray(sopIds) || sopIds.length === 0) { res.status(400).json({ error: 'sopIds_required' }); return; }
+
+  const season = db.prepare('SELECT * FROM menu_seasons WHERE id = ?').get(seasonId) as SeasonRow | undefined;
+  if (!season) { res.status(404).json({ error: 'not_found' }); return; }
+
+  const sops = sopIds.map((id: number) =>
+    db.prepare('SELECT id, name, category, collection, dietary_tags FROM sops WHERE id = ?').get(id)
+  ).filter(Boolean) as any[];
+
+  const tx = db.transaction(() => {
+    const existingCats = db.prepare('SELECT * FROM menu_categories WHERE season_id = ? ORDER BY position').all(seasonId) as CategoryRow[];
+    const catByName = new Map(existingCats.map((c) => [c.name, c]));
+
+    const insertCat = db.prepare('INSERT INTO menu_categories (season_id, name, subtitle, position, side) VALUES (?, ?, ?, ?, ?)');
+    const insertItem = db.prepare('INSERT INTO menu_items (category_id, name, description, kind, position, size_labels_json, prices_json, temps, has_spotify, frozen_note, layout, pair_position, food_price, food_subtitle, is_new) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+
+    let imported = 0;
+    for (const sop of sops) {
+      const catKey = sop.category || 'sweet';
+      const catInfo = CATEGORY_MAP[catKey] || CATEGORY_MAP.sweet;
+      const defaults = DEFAULT_PRICES[catKey] || DEFAULT_PRICES.sweet;
+
+      let cat = catByName.get(catInfo.name);
+      if (!cat) {
+        const maxPos = existingCats.length > 0 ? Math.max(...existingCats.map((c) => c.position)) + 1 : 0;
+        const result = insertCat.run(seasonId, catInfo.name, catInfo.subtitle || null, maxPos, catInfo.side);
+        cat = { id: Number(result.lastInsertRowid), season_id: seasonId, name: catInfo.name, subtitle: catInfo.subtitle, position: maxPos, side: catInfo.side };
+        catByName.set(catInfo.name, cat);
+        existingCats.push(cat);
+      }
+
+      const existingItems = db.prepare('SELECT name FROM menu_items WHERE category_id = ?').all(cat.id) as any[];
+      if (existingItems.some((i: any) => i.name.toLowerCase() === sop.name.toLowerCase())) continue;
+
+      const pos = (db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM menu_items WHERE category_id = ?').get(cat.id) as any).p;
+
+      insertItem.run(
+        cat.id, sop.name, sop.dietary_tags || null, 'drink', pos,
+        JSON.stringify(defaults.sizes), JSON.stringify(defaults.prices), defaults.temps,
+        0, null, 'full', null, null, null, 0
+      );
+      imported++;
+    }
+
+    db.prepare('UPDATE menu_seasons SET updated_at = ? WHERE id = ?').run(Date.now(), seasonId);
+    return imported;
+  });
+
+  const count = tx();
+  const updated = assembleSeason(seasonId);
+  res.json({ imported: count, season: updated });
+});
+
+// ---- PDF export ----
 
 router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
