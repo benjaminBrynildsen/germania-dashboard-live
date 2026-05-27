@@ -363,6 +363,109 @@ router.get('/sop-collections', requireAuth, (_req, res: Response) => {
   res.json({ collections: out });
 });
 
+// Resolve the same id/collection query shape used by bundle + packet routes.
+function resolveSopsFromQuery(req: AuthRequest): { sops: Sop[]; collection: string | null } {
+  const idsParam = typeof req.query.ids === 'string' ? req.query.ids : '';
+  const collectionParam = typeof req.query.collection === 'string' ? req.query.collection : null;
+  let sops: Sop[] = [];
+  let collection: string | null = null;
+  if (idsParam) {
+    const ids = idsParam.split(',').map((s) => parseInt(s, 10)).filter(Boolean);
+    sops = ids.map((id) => loadSopById(id)).filter((s): s is Sop => !!s);
+    const collections = new Set(sops.map((s) => s.collection || '').filter(Boolean));
+    if (collections.size === 1) collection = [...collections][0];
+  } else if (collectionParam) {
+    const rows = db.prepare('SELECT id, collection FROM sops ORDER BY name').all() as Array<{ id: number; collection: string | null }>;
+    sops = rows
+      .filter((r) => collectionMatches(r.collection, collectionParam))
+      .map((r) => loadSopById(r.id))
+      .filter((s): s is Sop => !!s);
+    collection = collectionParam;
+  }
+  return { sops, collection };
+}
+
+router.get('/sops/packet.pdf', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { sops, collection } = resolveSopsFromQuery(req);
+  if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
+  const meta = collection
+    ? db.prepare('SELECT transition_note FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null } | undefined
+    : undefined;
+  try {
+    const buf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null);
+    const baseName = collection ? `${collection} Packet` : `Packet (${sops.length} SOPs)`;
+    const filename = downloadFilename(baseName, null, 'pdf');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.send(buf);
+  } catch (err) {
+    console.error('[sop-packet-pdf]', err);
+    res.status(500).json({ error: 'pdf_render_failed' });
+  }
+});
+
+router.get('/sops/packet.zip', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { sops, collection } = resolveSopsFromQuery(req);
+  if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
+  const meta = collection
+    ? db.prepare('SELECT transition_note FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null } | undefined
+    : undefined;
+  try {
+    const packetBuf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null);
+    const individuals = await Promise.all(
+      sops.filter((s) => s.sopRequired !== false).map(async (s) => ({
+        sop: s,
+        buf: await renderSopsToPdfBuffer([s]),
+      }))
+    );
+    const zip = new JSZip();
+    const packetBaseName = collection ? `${collection} Packet` : `Packet (${sops.length} SOPs)`;
+    zip.file(downloadFilename(packetBaseName, null, 'pdf'), packetBuf);
+    const indivFolder = zip.folder('individual-sops');
+    for (const { sop: s, buf } of individuals) {
+      indivFolder?.file(downloadFilename(s.name, yearFromCollection(s.collection), 'pdf'), buf);
+    }
+    const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
+    const zipFilename = downloadFilename(packetBaseName, null, 'zip');
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
+    res.send(zipBuf);
+  } catch (err) {
+    console.error('[sop-packet-zip]', err);
+    res.status(500).json({ error: 'zip_render_failed' });
+  }
+});
+
+router.get('/sops/bundle.pdf', requireAuth, async (req: AuthRequest, res: Response) => {
+  const idsParam = typeof req.query.ids === 'string' ? req.query.ids : '';
+  const collectionParam = typeof req.query.collection === 'string' ? req.query.collection : null;
+  let sops: Sop[] = [];
+  if (idsParam) {
+    const ids = idsParam.split(',').map((s) => parseInt(s, 10)).filter(Boolean);
+    sops = ids.map((id) => loadSopById(id)).filter((s): s is Sop => !!s);
+  } else if (collectionParam) {
+    const rows = db.prepare('SELECT id, collection FROM sops ORDER BY name').all() as Array<{ id: number; collection: string | null }>;
+    sops = rows
+      .filter((r) => collectionMatches(r.collection, collectionParam))
+      .map((r) => loadSopById(r.id))
+      .filter((s): s is Sop => !!s);
+  } else {
+    res.status(400).json({ error: 'ids_or_collection_required' }); return;
+  }
+  if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
+  try {
+    const buf = await renderSopsToPdfBuffer(sops);
+    const baseName = collectionParam ? `${collectionParam} Bundle` : `Bundle (${sops.length} SOPs)`;
+    const filename = downloadFilename(baseName, null, 'pdf');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.send(buf);
+  } catch (err) {
+    console.error('[sop-pdf-bundle]', err);
+    res.status(500).json({ error: 'pdf_render_failed' });
+  }
+});
+
 router.get('/sops/:slug', requireAuth, (req: AuthRequest, res: Response) => {
   const sop = loadSop(String(req.params.slug));
   if (!sop) { res.status(404).json({ error: 'not_found' }); return; }
@@ -614,111 +717,6 @@ router.get('/sops/:slug/pdf', requireAuth, async (req: AuthRequest, res: Respons
     res.send(buf);
   } catch (err) {
     console.error('[sop-pdf]', err);
-    res.status(500).json({ error: 'pdf_render_failed' });
-  }
-});
-
-// Resolve the same id/collection query shape used by bundle + packet routes.
-function resolveSopsFromQuery(req: AuthRequest): { sops: Sop[]; collection: string | null } {
-  const idsParam = typeof req.query.ids === 'string' ? req.query.ids : '';
-  const collectionParam = typeof req.query.collection === 'string' ? req.query.collection : null;
-  let sops: Sop[] = [];
-  let collection: string | null = null;
-  if (idsParam) {
-    const ids = idsParam.split(',').map((s) => parseInt(s, 10)).filter(Boolean);
-    sops = ids.map((id) => loadSopById(id)).filter((s): s is Sop => !!s);
-    // If every sop shares a collection, surface it for the packet title.
-    const collections = new Set(sops.map((s) => s.collection || '').filter(Boolean));
-    if (collections.size === 1) collection = [...collections][0];
-  } else if (collectionParam) {
-    const rows = db.prepare('SELECT id, collection FROM sops ORDER BY name').all() as Array<{ id: number; collection: string | null }>;
-    sops = rows
-      .filter((r) => collectionMatches(r.collection, collectionParam))
-      .map((r) => loadSopById(r.id))
-      .filter((s): s is Sop => !!s);
-    collection = collectionParam;
-  }
-  return { sops, collection };
-}
-
-router.get('/sops/packet.pdf', requireAuth, async (req: AuthRequest, res: Response) => {
-  const { sops, collection } = resolveSopsFromQuery(req);
-  if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
-  const meta = collection
-    ? db.prepare('SELECT transition_note FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null } | undefined
-    : undefined;
-  try {
-    const buf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null);
-    const baseName = collection ? `${collection} Packet` : `Packet (${sops.length} SOPs)`;
-    const filename = downloadFilename(baseName, null, 'pdf');
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    res.send(buf);
-  } catch (err) {
-    console.error('[sop-packet-pdf]', err);
-    res.status(500).json({ error: 'pdf_render_failed' });
-  }
-});
-
-router.get('/sops/packet.zip', requireAuth, async (req: AuthRequest, res: Response) => {
-  const { sops, collection } = resolveSopsFromQuery(req);
-  if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
-  const meta = collection
-    ? db.prepare('SELECT transition_note FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null } | undefined
-    : undefined;
-  try {
-    const packetBuf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null);
-    // Individual SOPs in parallel — each one is a small render.
-    const individuals = await Promise.all(
-      sops.filter((s) => s.sopRequired !== false).map(async (s) => ({
-        sop: s,
-        buf: await renderSopsToPdfBuffer([s]),
-      }))
-    );
-    const zip = new JSZip();
-    const packetBaseName = collection ? `${collection} Packet` : `Packet (${sops.length} SOPs)`;
-    zip.file(downloadFilename(packetBaseName, null, 'pdf'), packetBuf);
-    const indivFolder = zip.folder('individual-sops');
-    for (const { sop: s, buf } of individuals) {
-      indivFolder?.file(downloadFilename(s.name, yearFromCollection(s.collection), 'pdf'), buf);
-    }
-    const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
-    const zipFilename = downloadFilename(packetBaseName, null, 'zip');
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
-    res.send(zipBuf);
-  } catch (err) {
-    console.error('[sop-packet-zip]', err);
-    res.status(500).json({ error: 'zip_render_failed' });
-  }
-});
-
-router.get('/sops/bundle.pdf', requireAuth, async (req: AuthRequest, res: Response) => {
-  const idsParam = typeof req.query.ids === 'string' ? req.query.ids : '';
-  const collectionParam = typeof req.query.collection === 'string' ? req.query.collection : null;
-  let sops: Sop[] = [];
-  if (idsParam) {
-    const ids = idsParam.split(',').map((s) => parseInt(s, 10)).filter(Boolean);
-    sops = ids.map((id) => loadSopById(id)).filter((s): s is Sop => !!s);
-  } else if (collectionParam) {
-    const rows = db.prepare('SELECT id, collection FROM sops ORDER BY name').all() as Array<{ id: number; collection: string | null }>;
-    sops = rows
-      .filter((r) => collectionMatches(r.collection, collectionParam))
-      .map((r) => loadSopById(r.id))
-      .filter((s): s is Sop => !!s);
-  } else {
-    res.status(400).json({ error: 'ids_or_collection_required' }); return;
-  }
-  if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
-  try {
-    const buf = await renderSopsToPdfBuffer(sops);
-    const baseName = collectionParam ? `${collectionParam} Bundle` : `Bundle (${sops.length} SOPs)`;
-    const filename = downloadFilename(baseName, null, 'pdf');
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    res.send(buf);
-  } catch (err) {
-    console.error('[sop-pdf-bundle]', err);
     res.status(500).json({ error: 'pdf_render_failed' });
   }
 });
