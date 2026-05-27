@@ -654,32 +654,43 @@ function ImportFromSops({ seasonId, onImported }: { seasonId: number; onImported
         </div>
 
         <div style={{ maxHeight: 400, overflow: 'auto', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 8 }}>
-          {filtered.map((sop) => (
-            <label
-              key={sop.id}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-                borderBottom: '1px solid rgba(0,0,0,0.05)', cursor: sop.alreadyImported ? 'default' : 'pointer',
-                opacity: sop.alreadyImported ? 0.4 : 1,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={selected.has(sop.id)}
-                onChange={() => toggle(sop.id)}
-                disabled={sop.alreadyImported}
-              />
-              <div style={{ flex: 1 }}>
-                <span style={{ fontWeight: 600, fontSize: 13 }}>{sop.name}</span>
-                {sop.alreadyImported && <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginLeft: 8 }}>already imported</span>}
-                {sop.temps && <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)', marginLeft: 8 }}>{sop.temps}</span>}
+          {(() => {
+            const catLabels: Record<string, string> = { sweet: 'Sweet Coffee (Front)', bridge: 'Bridge Coffee (Front)', artisanal: 'Artisanal Coffee (Front)', tsm: 'Tea, Smoothies & More (Back)' };
+            const catOrder = ['sweet', 'bridge', 'artisanal', 'tsm', ''];
+            const grouped = new Map<string, any[]>();
+            for (const sop of filtered) {
+              const key = sop.category || '';
+              const arr = grouped.get(key) ?? [];
+              arr.push(sop);
+              grouped.set(key, arr);
+            }
+            const sortedKeys = [...grouped.keys()].sort((a, b) => catOrder.indexOf(a || '') - catOrder.indexOf(b || ''));
+            return sortedKeys.map((catKey) => (
+              <div key={catKey}>
+                <div style={{ padding: '6px 12px', background: 'rgba(0,0,0,0.04)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'rgba(0,0,0,0.5)', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+                  {catLabels[catKey] || 'Uncategorized → Sweet Coffee'}
+                </div>
+                {(grouped.get(catKey) ?? []).map((sop: any) => (
+                  <label
+                    key={sop.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                      borderBottom: '1px solid rgba(0,0,0,0.05)', cursor: sop.alreadyImported ? 'default' : 'pointer',
+                      opacity: sop.alreadyImported ? 0.4 : 1,
+                    }}
+                  >
+                    <input type="checkbox" checked={selected.has(sop.id)} onChange={() => toggle(sop.id)} disabled={sop.alreadyImported} />
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>{sop.name}</span>
+                      {sop.alreadyImported && <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginLeft: 8 }}>already imported</span>}
+                    </div>
+                    <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)' }}>{sop.temps}</span>
+                    <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)' }}>{sop.collection}</span>
+                  </label>
+                ))}
               </div>
-              <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', display: 'flex', gap: 8, alignItems: 'center' }}>
-                {sop.category && <span style={{ textTransform: 'capitalize', background: 'rgba(0,0,0,0.06)', padding: '1px 6px', borderRadius: 4, fontSize: 10 }}>{sop.category}</span>}
-                <span>{sop.collection}</span>
-              </span>
-            </label>
-          ))}
+            ));
+          })()}
           {filtered.length === 0 && (
             <div style={{ padding: 20, textAlign: 'center', color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>No SOPs found</div>
           )}
