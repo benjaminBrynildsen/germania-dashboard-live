@@ -620,6 +620,66 @@ db.exec(`
     sort INTEGER NOT NULL DEFAULT 100
   );
   CREATE INDEX IF NOT EXISTS idx_sop_presets_category ON sop_presets(category);
+
+  -- Menu Board tables — digital menu seasons, categories, items, and
+  -- per-location price overrides. Powers the menu board editor + the
+  -- customer-facing display screens.
+  CREATE TABLE IF NOT EXISTS menu_seasons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
+  );
+
+  CREATE TABLE IF NOT EXISTS menu_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    season_id INTEGER NOT NULL REFERENCES menu_seasons(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    subtitle TEXT,
+    position INTEGER NOT NULL DEFAULT 0,
+    side TEXT NOT NULL DEFAULT 'front'
+  );
+
+  CREATE TABLE IF NOT EXISTS menu_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category_id INTEGER NOT NULL REFERENCES menu_categories(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    kind TEXT NOT NULL DEFAULT 'drink',
+    position INTEGER NOT NULL DEFAULT 0,
+    size_labels_json TEXT,
+    prices_json TEXT,
+    temps TEXT,
+    has_spotify INTEGER NOT NULL DEFAULT 0,
+    frozen_note TEXT,
+    layout TEXT NOT NULL DEFAULT 'full',
+    pair_position TEXT,
+    food_price TEXT,
+    food_subtitle TEXT,
+    is_new INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS menu_item_locations (
+    item_id INTEGER NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
+    location TEXT NOT NULL,
+    price_override TEXT,
+    PRIMARY KEY (item_id, location)
+  );
+
+  CREATE TABLE IF NOT EXISTS menu_lists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    season_id INTEGER NOT NULL REFERENCES menu_seasons(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    side TEXT NOT NULL DEFAULT 'front'
+  );
+
+  CREATE TABLE IF NOT EXISTS menu_list_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    list_id INTEGER NOT NULL REFERENCES menu_lists(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0
+  );
 `);
 
 // Seed SOP presets on boot (idempotent — keyed by slug).

@@ -25,6 +25,7 @@ import Pairings from './pages/Pairings';
 import MenuTeam from './pages/MenuTeam';
 import MenuTeamEdit from './pages/MenuTeam/EditView';
 import MenuTeamPresets from './pages/MenuTeam/PresetsView';
+import MenuBoards from './pages/MenuBoards';
 
 export default function App() {
   const { user, loading, logout } = useAuth();
@@ -85,6 +86,8 @@ export default function App() {
         <Route path="/patrons" element={<Patrons />} />
         <Route path="/holidays" element={<HolidayCalendar />} />
         <Route path="/pairings" element={<Pairings />} />
+        <Route path="/menu-boards" element={<MenuBoards />} />
+        <Route path="/menu-boards/:id" element={<MenuBoards />} />
         <Route path="/menu-team" element={<MenuTeam />} />
         <Route path="/menu-team/presets" element={<MenuTeamPresets />} />
         <Route path="/menu-team/:slug" element={<MenuTeamEdit />} />
