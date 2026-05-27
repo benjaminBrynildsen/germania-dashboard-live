@@ -28,8 +28,11 @@ const INK = '#101010';
 const PAPER = '#ffffff';
 const PAPER_CUT = '#f5f5f5';
 const RULE = '#101010';
-const MUTED = '#8e8e8e';
-const STEP_MUTED = '#bdbdbd';
+// Slightly off-black for body copy that wants to feel like a note but
+// still print cleanly at small sizes. Previous values (#8e8e8e / #bdbdbd)
+// were too light to read on screen and in print.
+const MUTED = '#3a3a3a';
+const STEP_MUTED = '#a0a0a0';
 
 const SANS = 'IBM Plex Sans';
 const MONO = 'IBM Plex Mono';
@@ -91,11 +94,11 @@ const styles = StyleSheet.create({
 
   // ── footer / extras ──────────────────────────────────────────
   footnotes: { marginTop: 10 },
-  footnote: { fontSize: 8.5, fontFamily: MONO, color: MUTED, marginTop: 2, letterSpacing: 0.4 },
+  footnote: { fontSize: 9.5, fontFamily: MONO, color: MUTED, marginTop: 3, letterSpacing: 0.4 },
   assemblyTitle: { marginTop: 16, fontSize: 10, fontFamily: SANS, fontWeight: 700, letterSpacing: 1.6, textTransform: 'uppercase' },
   assemblyRule: { marginTop: 4, marginBottom: 6, height: 1, backgroundColor: INK },
-  bigIdea: { fontSize: 9, fontFamily: MONO, color: MUTED, marginBottom: 4 },
-  assemblyStep: { marginTop: 3, fontSize: 10, fontFamily: MONO },
+  bigIdea: { fontSize: 10, fontFamily: MONO, color: MUTED, marginBottom: 6 },
+  assemblyStep: { marginTop: 3, fontSize: 10, fontFamily: MONO, color: INK },
   availabilityNote: { marginTop: 8, fontSize: 9.5, fontFamily: MONO, fontWeight: 700, textAlign: 'center', color: INK, letterSpacing: 0.6 },
   subtitle: { fontSize: 11, fontFamily: SANS, fontWeight: 700, color: INK, marginBottom: 6, marginTop: -4 },
 });
