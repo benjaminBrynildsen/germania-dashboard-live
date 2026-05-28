@@ -144,7 +144,7 @@ function SeasonEditor({ seasonId }: { seasonId: number }) {
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <button className="btn btn-secondary btn-sm" onClick={() => navigate('/menu-boards')}>← Back</button>
-        <h2 style={{ margin: 0 }}>{season.name}</h2>
+        <SeasonNameEditor season={season} onRenamed={reload} />
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <ImportFromSops seasonId={seasonId} onImported={reload} />
           {season.name.toLowerCase().includes('summer') && season.name.includes('2026') && (
@@ -198,6 +198,49 @@ function SeasonEditor({ seasonId }: { seasonId: number }) {
 }
 
 // ─── Category Section ────────────────────────────────────────
+
+function SeasonNameEditor({ season, onRenamed }: { season: MenuSeason; onRenamed: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const parsed = parseSeasonName(season.name);
+  const [seasonPick, setSeasonPick] = useState(parsed.season);
+  const [yearPick, setYearPick] = useState(parsed.year);
+
+  async function save() {
+    const newName = `${seasonPick} ${yearPick}`;
+    if (newName === season.name) { setEditing(false); return; }
+    await api.put(`/api/menu-seasons/${season.id}`, { name: newName });
+    setEditing(false);
+    onRenamed();
+  }
+
+  if (!editing) {
+    return (
+      <h2 style={{ margin: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => setEditing(true)}>
+        {season.name}
+        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', fontWeight: 400 }}>(click to rename)</span>
+      </h2>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <select value={seasonPick} onChange={(e) => setSeasonPick(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 14 }}>
+        {['Spring', 'Summer', 'Fall', 'Winter'].map((s) => <option key={s} value={s}>{s}</option>)}
+      </select>
+      <select value={yearPick} onChange={(e) => setYearPick(Number(e.target.value))} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 14 }}>
+        {[2024, 2025, 2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
+      </select>
+      <button className="btn btn-primary btn-sm" onClick={save}>Save</button>
+      <button className="btn btn-secondary btn-sm" onClick={() => setEditing(false)}>Cancel</button>
+    </div>
+  );
+}
+
+function parseSeasonName(name: string): { season: string; year: number } {
+  const m = name.match(/^(Spring|Summer|Fall|Winter)\s+(\d{4})$/i);
+  if (m) return { season: m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase(), year: Number(m[2]) };
+  return { season: 'Summer', year: 2026 };
+}
 
 function CategorySection({ category, onUpdate }: { category: MenuCategory; onUpdate: () => void }) {
   const [collapsed, setCollapsed] = useState(false);
