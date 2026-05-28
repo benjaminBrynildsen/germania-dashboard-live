@@ -226,7 +226,7 @@ function BottomLists({ lists, ctx }: { lists: any[]; ctx: ScaleCtx }) {
     <View style={{ flexDirection: 'row', marginTop: 'auto', paddingTop: 10 * s }}>
       {lists.map((list: any) => (
         <View key={list.id} style={{ width: colW, alignItems: 'center' }}>
-          <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 36 * s, textTransform: 'uppercase', letterSpacing: 2 * s, marginBottom: 8 * s, textAlign: 'center' }}>
+          <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 44 * s, textTransform: 'uppercase', letterSpacing: 2 * s, marginBottom: 8 * s, textAlign: 'center' }}>
             {list.name}
           </Text>
           <SmallDivider width={colW * 0.6} scale={s} />
@@ -239,7 +239,7 @@ function BottomLists({ lists, ctx }: { lists: any[]; ctx: ScaleCtx }) {
               <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16 * s, marginTop: 10 * s }}>
                 <View style={{ alignItems: 'center' }}>
                   {col1.map((item: any, i: number) => (
-                    <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 24 * s, textAlign: 'center' }}>
+                    <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 30 * s, textAlign: 'center' }}>
                       ~{item.name}~
                     </Text>
                   ))}
@@ -273,7 +273,7 @@ function MenuPage({ season, side, location, pageW, pageH, padH, scale }: {
   const lists = (season.lists || []).filter((l: any) => l.side === side);
 
   return (
-    <Page size={[pageW, pageH]} style={{ paddingHorizontal: padH, paddingTop: 20 * scale, paddingBottom: 80 * scale, backgroundColor: '#ffffff' }}>
+    <Page size={[pageW, pageH]} style={{ paddingHorizontal: padH, paddingTop: 20 * scale, paddingBottom: 140 * scale, backgroundColor: '#ffffff' }}>
       <View style={{ flex: 1 }}>
       {categories.map((cat: any) => {
         const items = cat.items.filter((item: any) => {
