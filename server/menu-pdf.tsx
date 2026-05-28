@@ -123,9 +123,9 @@ function DrinkItem({ item, ctx, half }: { item: any; ctx: ScaleCtx; half?: boole
   const { s } = ctx;
   const nameSize = half ? 70 * s : 79 * s;
   const descSize = half ? 24 * s : 30 * s;
-  const sizeSize = half ? 28 * s : 32 * s;
-  const priceSize = half ? 28 * s : 32 * s;
-  const tempSize = half ? 28 * s : 32 * s;
+  const sizeSize = half ? 22 * s : 26 * s;
+  const priceSize = half ? 24 * s : 28 * s;
+  const tempSize = half ? 22 * s : 26 * s;
   const colW = half ? 110 * s : 140 * s;
   const spotifySize = half ? 28 * s : 36 * s;
 
