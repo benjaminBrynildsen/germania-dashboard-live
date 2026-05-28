@@ -82,16 +82,23 @@ interface ScaleCtx {
 }
 
 function CategoryHeader({ name, subtitle, ctx }: { name: string; subtitle: string | null; ctx: ScaleCtx }) {
-  const { s } = ctx;
+  const { s, contentW } = ctx;
   const nameSize = 104 * s;
   const subSize = 30 * s;
-  // Fixed-length dividers sit right next to the text (which uses its
-  // natural width). Total header width varies with title length but
-  // dividers always look the same size relative to each other.
-  const sideW = 280 * s;
+  // Estimate text width per-character so the dividers fill exactly the
+  // remaining space, extending all the way to the page edges.
+  // Letters in Oswald ExtraLight are wide; spaces/punctuation are narrow.
+  let textW = 24 * s; // padding
+  for (const ch of name) {
+    if (ch === ' ') textW += nameSize * 0.18;
+    else if (ch === ',' || ch === '.' || ch === '&') textW += nameSize * 0.28;
+    else if (ch === 'I' || ch === 'i' || ch === 'l') textW += nameSize * 0.18;
+    else textW += nameSize * 0.52;
+  }
+  const sideW = Math.max(80 * s, (contentW - textW) / 2);
   return (
     <View style={{ alignItems: 'center', marginTop: 32 * s, marginBottom: 42 * s }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', width: contentW, justifyContent: 'center' }}>
         <Divider width={sideW} scale={s} />
         <Text wrap={false} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: nameSize, textTransform: 'uppercase', letterSpacing: 2 * s, textAlign: 'center', paddingHorizontal: 24 * s }}>
           {name}
@@ -228,7 +235,7 @@ function BottomLists({ lists, ctx }: { lists: any[]; ctx: ScaleCtx }) {
     <View style={{ flexDirection: 'row', marginTop: 'auto', paddingTop: 10 * s }}>
       {lists.map((list: any) => (
         <View key={list.id} style={{ width: colW, alignItems: 'center' }}>
-          <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 44 * s, textTransform: 'uppercase', letterSpacing: 2 * s, marginBottom: 8 * s, textAlign: 'center' }}>
+          <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 36 * s, textTransform: 'uppercase', letterSpacing: 2 * s, marginBottom: 4 * s, textAlign: 'center' }}>
             {list.name}
           </Text>
           <SmallDivider width={colW * 0.6} scale={s} />
@@ -241,7 +248,7 @@ function BottomLists({ lists, ctx }: { lists: any[]; ctx: ScaleCtx }) {
               <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16 * s, marginTop: 10 * s }}>
                 <View style={{ alignItems: 'center' }}>
                   {col1.map((item: any, i: number) => (
-                    <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 24 * s, lineHeight: 1.3, textAlign: 'center' }}>
+                    <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 20 * s, lineHeight: 1.2, textAlign: 'center' }}>
                       ~{item.name}~
                     </Text>
                   ))}
@@ -275,7 +282,7 @@ function MenuPage({ season, side, location, pageW, pageH, padH, scale }: {
   const lists = (season.lists || []).filter((l: any) => l.side === side);
 
   return (
-    <Page size={[pageW, pageH]} style={{ paddingHorizontal: padH, paddingTop: 20 * scale, paddingBottom: 140 * scale, backgroundColor: '#ffffff' }}>
+    <Page size={[pageW, pageH]} style={{ paddingHorizontal: padH, paddingTop: 20 * scale, paddingBottom: 90 * scale, backgroundColor: '#ffffff' }}>
       <View style={{ flex: 1 }}>
       {categories.map((cat: any) => {
         const items = cat.items.filter((item: any) => {
