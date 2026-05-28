@@ -82,14 +82,15 @@ interface ScaleCtx {
 }
 
 function CategoryHeader({ name, subtitle, ctx }: { name: string; subtitle: string | null; ctx: ScaleCtx }) {
-  const { s, contentW } = ctx;
+  const { s } = ctx;
   const nameSize = 104 * s;
   const subSize = 30 * s;
-  const textEstW = name.length * nameSize * 0.55;
-  const sideW = Math.max(60 * s, (contentW - textEstW) / 2 - 16 * s);
+  // Fixed divider width so all category headers have visually identical
+  // dividers regardless of text length. Text sits centered between them.
+  const sideW = 320 * s;
   return (
     <View style={{ alignItems: 'center', marginTop: 32 * s, marginBottom: 42 * s }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', width: contentW, justifyContent: 'center' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ width: sideW }}><Divider width={sideW} scale={s} /></View>
         <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: nameSize, textTransform: 'uppercase', letterSpacing: 2 * s, textAlign: 'center', paddingHorizontal: 12 * s }}>
           {name}
