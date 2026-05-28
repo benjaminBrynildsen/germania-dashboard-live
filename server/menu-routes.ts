@@ -643,6 +643,9 @@ router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: R
     const filename = `${season.name} - ${location} (${format}).pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.send(buf);
   } catch (err) {
     console.error('[menu-pdf]', err);

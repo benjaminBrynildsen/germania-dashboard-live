@@ -734,7 +734,7 @@ function ExportDropdown({ seasonId }: { seasonId: number }) {
   const [open, setOpen] = useState(false);
 
   function download(location: string) {
-    window.open(`/api/menu-seasons/${seasonId}/pdf?location=${location}`, '_blank');
+    window.open(`/api/menu-seasons/${seasonId}/pdf?location=${location}&t=${Date.now()}`, '_blank');
     setOpen(false);
   }
 
