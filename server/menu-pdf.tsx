@@ -194,23 +194,23 @@ function FrozenNote({ ctx }: { ctx: ScaleCtx }) {
 function FoodItem({ item, ctx }: { item: any; ctx: ScaleCtx }) {
   const { s } = ctx;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingVertical: 8 * s, width: '100%' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12 * s, flex: 1 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingVertical: 14 * s, width: '100%' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 14 * s, flex: 1 }}>
         {item.isNew && (
-          <View style={{ backgroundColor: '#e74c3c', borderRadius: 14 * s, width: 60 * s, height: 30 * s, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: 'Open Sans', fontWeight: 800, fontSize: 13 * s, color: '#fff', textTransform: 'uppercase' }}>NEW</Text>
+          <View style={{ backgroundColor: '#e74c3c', borderRadius: 16 * s, width: 70 * s, height: 32 * s, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontFamily: 'Open Sans', fontWeight: 800, fontSize: 14 * s, color: '#fff', textTransform: 'uppercase' }}>NEW</Text>
           </View>
         )}
-        <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 40 * s, textTransform: 'uppercase' }}>
+        <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 56 * s, textTransform: 'uppercase' }}>
           {item.name}
         </Text>
         {item.foodSubtitle && (
-          <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 28 * s }}>
+          <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 32 * s, textTransform: 'uppercase' }}>
             {item.foodSubtitle}
           </Text>
         )}
       </View>
-      <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 40 * s }}>
+      <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 56 * s }}>
         {item.foodPrice}
       </Text>
     </View>
