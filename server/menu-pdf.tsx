@@ -85,17 +85,18 @@ function CategoryHeader({ name, subtitle, ctx }: { name: string; subtitle: strin
   const { s, contentW } = ctx;
   const nameSize = 104 * s;
   const subSize = 30 * s;
-  // Estimate text width so we can size the dividers to fill the rest.
-  // Each header spans the full content width edge-to-edge — long titles
-  // get short dividers, short titles get long dividers.
-  const charW = nameSize * 0.45;
-  const textW = name.length * charW + 24 * s; // letterSpacing + padding
+  // Estimate text width — using a wider per-char value so short titles
+  // like "BAKE HAUS" don't get squeezed into wrapping. Spaces count as
+  // half a char. The remaining width on each side becomes the divider.
+  const visualLen = name.replace(/ /g, '  ').length * 0.5 + (name.match(/ /g)?.length ?? 0) * 0.25;
+  const charW = nameSize * 0.55;
+  const textW = name.length * charW + 40 * s;
   const sideW = Math.max(40 * s, (contentW - textW) / 2);
   return (
     <View style={{ alignItems: 'center', marginTop: 32 * s, marginBottom: 42 * s }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', width: contentW }}>
         <View style={{ width: sideW }}><Divider width={sideW} scale={s} /></View>
-        <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: nameSize, textTransform: 'uppercase', letterSpacing: 2 * s, textAlign: 'center', paddingHorizontal: 12 * s, flex: 1 }}>
+        <Text wrap={false} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: nameSize, textTransform: 'uppercase', letterSpacing: 2 * s, textAlign: 'center', paddingHorizontal: 12 * s, flex: 1, flexShrink: 0 }}>
           {name}
         </Text>
         <View style={{ width: sideW }}><Divider width={sideW} scale={s} /></View>
