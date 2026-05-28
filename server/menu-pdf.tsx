@@ -297,7 +297,9 @@ function MenuPage({ season, side, location, pageW, pageH, padH, scale }: {
         const foodItems = items.filter((i: any) => i.kind === 'food');
         const hasFrozenNote = items.some((i: any) => i.frozenNote);
         // Sweet Coffee always renders as a 2-column grid
-        const isGrid = cat.name.toLowerCase().includes('sweet');
+        // Sweet Coffee uses 2-column grid only on the wider 24x36 format.
+        // G4 (18x48) is narrow + tall, so single-column matches better.
+        const isGrid = cat.name.toLowerCase().includes('sweet') && location !== 'G4';
 
         return (
           <View key={cat.id}>
