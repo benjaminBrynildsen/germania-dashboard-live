@@ -195,7 +195,7 @@ function FrozenNote({ ctx }: { ctx: ScaleCtx }) {
 function FoodItem({ item, ctx }: { item: any; ctx: ScaleCtx }) {
   const { s } = ctx;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingVertical: 14 * s, width: '100%' }}>
+    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingVertical: 6 * s, width: '100%' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 * s, flex: 1 }}>
         {item.isNew && (
           <View style={{ backgroundColor: '#e74c3c', borderRadius: 16 * s, width: 70 * s, height: 32 * s, alignItems: 'center', justifyContent: 'center' }}>
