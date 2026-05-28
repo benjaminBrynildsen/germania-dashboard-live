@@ -543,11 +543,20 @@ function ListEditor({ list, onUpdate }: { list: MenuList; onUpdate: () => void }
     onUpdate();
   }
 
+  async function flipSide() {
+    const newSide = list.side === 'front' ? 'back' : 'front';
+    await api.put(`/api/menu-lists/${list.id}`, { side: newSide });
+    onUpdate();
+  }
+
   return (
     <div style={{ marginBottom: 12, padding: '10px 14px', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: editing ? 8 : 0 }}>
         <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{list.name}</span>
         <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{list.items.length} items</span>
+        <button className="btn btn-secondary btn-sm" onClick={flipSide} style={{ fontSize: 11 }} title={`Move to ${list.side === 'front' ? 'back' : 'front'}`}>
+          → {list.side === 'front' ? 'Back' : 'Front'}
+        </button>
         <button className="btn btn-secondary btn-sm" onClick={() => { setItems(list.items.map((i) => i.name)); setEditing(!editing); }} style={{ fontSize: 11 }}>
           {editing ? 'Cancel' : 'Edit'}
         </button>
