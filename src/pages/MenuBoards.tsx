@@ -380,25 +380,52 @@ function ItemRow({ item, onUpdate }: { item: MenuItem; onUpdate: () => void }) {
 
       {item.kind === 'drink' ? (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 2 }}>Sizes (comma-sep)</label>
-              <input
-                value={(form.sizeLabels || []).join(', ')}
-                onChange={(e) => set('sizeLabels', e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
-                placeholder="Small, Regular, Large"
-                style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }}
-              />
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>Sizes & Prices</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {Array.from({ length: Math.max((form.sizeLabels || []).length, (form.prices || []).length, 3) }).map((_, i) => (
+                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <input
+                    value={(form.sizeLabels || [])[i] || ''}
+                    onChange={(e) => {
+                      const next = [...(form.sizeLabels || [])];
+                      next[i] = e.target.value;
+                      set('sizeLabels', next);
+                    }}
+                    placeholder={['Small','Regular','Large'][i] || 'Size'}
+                    style={{ width: '100%', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 12, textAlign: 'center' }}
+                  />
+                  <input
+                    value={(form.prices || [])[i] || ''}
+                    onChange={(e) => {
+                      const next = [...(form.prices || [])];
+                      next[i] = e.target.value;
+                      set('prices', next);
+                    }}
+                    placeholder="0.00"
+                    style={{ width: '100%', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 12, textAlign: 'center' }}
+                  />
+                </div>
+              ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => { set('sizeLabels', [...(form.sizeLabels || []), '']); set('prices', [...(form.prices || []), '']); }}
+                  style={{ background: 'none', border: '1px dashed rgba(0,0,0,0.15)', borderRadius: 4, padding: '2px 8px', fontSize: 14, cursor: 'pointer', color: 'rgba(0,0,0,0.5)' }}
+                  title="Add column"
+                >+</button>
+                {(form.sizeLabels || []).length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => { set('sizeLabels', (form.sizeLabels || []).slice(0, -1)); set('prices', (form.prices || []).slice(0, -1)); }}
+                    style={{ background: 'none', border: '1px dashed rgba(0,0,0,0.15)', borderRadius: 4, padding: '2px 8px', fontSize: 14, cursor: 'pointer', color: 'rgba(0,0,0,0.5)' }}
+                    title="Remove last column"
+                  >−</button>
+                )}
+              </div>
             </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 2 }}>Prices (comma-sep)</label>
-              <input
-                value={(form.prices || []).join(', ')}
-                onChange={(e) => set('prices', e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
-                placeholder="5.56, 6.15, 6.70"
-                style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }}
-              />
-            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginBottom: 8 }}>
             <div>
               <label style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 2 }}>Temps</label>
               <input value={form.temps || ''} onChange={(e) => set('temps', e.target.value)} placeholder="ICED · FROZEN · HOT" style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }} />
