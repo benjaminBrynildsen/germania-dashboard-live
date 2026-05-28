@@ -239,7 +239,7 @@ function BottomLists({ lists, ctx }: { lists: any[]; ctx: ScaleCtx }) {
               <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16 * s, marginTop: 10 * s }}>
                 <View style={{ alignItems: 'center' }}>
                   {col1.map((item: any, i: number) => (
-                    <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 30 * s, textAlign: 'center' }}>
+                    <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 24 * s, lineHeight: 1.3, textAlign: 'center' }}>
                       ~{item.name}~
                     </Text>
                   ))}
@@ -247,7 +247,7 @@ function BottomLists({ lists, ctx }: { lists: any[]; ctx: ScaleCtx }) {
                 {col2.length > 0 && (
                   <View style={{ alignItems: 'center' }}>
                     {col2.map((item: any, i: number) => (
-                      <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 24 * s, textAlign: 'center' }}>
+                      <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 24 * s, lineHeight: 1.3, textAlign: 'center' }}>
                         ~{item.name}~
                       </Text>
                     ))}
