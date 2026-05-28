@@ -272,7 +272,7 @@ function MenuPage({ season, side, location, pageW, pageH, padH, scale }: {
   const lists = (season.lists || []).filter((l: any) => l.side === side);
 
   return (
-    <Page size={[pageW, pageH]} style={{ paddingHorizontal: padH, paddingTop: 20 * scale, paddingBottom: 20 * scale, backgroundColor: '#ffffff' }}>
+    <Page size={[pageW, pageH]} style={{ paddingHorizontal: padH, paddingTop: 20 * scale, paddingBottom: 80 * scale, backgroundColor: '#ffffff' }}>
       <View style={{ flex: 1 }}>
       {categories.map((cat: any) => {
         const items = cat.items.filter((item: any) => {
