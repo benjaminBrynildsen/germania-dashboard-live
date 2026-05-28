@@ -147,6 +147,18 @@ function SeasonEditor({ seasonId }: { seasonId: number }) {
         <h2 style={{ margin: 0 }}>{season.name}</h2>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <ImportFromSops seasonId={seasonId} onImported={reload} />
+          {season.name.toLowerCase().includes('summer') && season.name.includes('2026') && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={async () => {
+                const r = await api.post('/api/menu-seasons/apply-summer-2026-descriptions', {});
+                alert(`Updated ${r.updated.length} drinks.\n\nNot found: ${r.not_found_patterns.join(', ') || 'none'}\n\nDrinks in season:\n${r.all_drinks_in_season.join('\n')}`);
+                reload();
+              }}
+            >
+              Apply S26 Descriptions
+            </button>
+          )}
           <ExportDropdown seasonId={seasonId} />
         </div>
       </div>

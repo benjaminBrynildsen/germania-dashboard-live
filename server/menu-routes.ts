@@ -561,6 +561,59 @@ router.post('/menu-seasons/:id/import-sops', requireAuth, (req: AuthRequest, res
   res.json({ imported: count, season: updated });
 });
 
+// ---- Apply Summer 2026 drink descriptions (manual trigger) ----
+
+router.post('/menu-seasons/apply-summer-2026-descriptions', requireAuth, (_req: AuthRequest, res: Response) => {
+  const summer = db.prepare("SELECT id, name FROM menu_seasons WHERE LOWER(name) LIKE 'summer%2026%' ORDER BY id DESC LIMIT 1").get() as { id: number; name: string } | undefined;
+  if (!summer) {
+    const allSeasons = db.prepare('SELECT name FROM menu_seasons').all() as any[];
+    res.status(404).json({ error: 'no_summer_2026_season', existing_seasons: allSeasons.map((s) => s.name) });
+    return;
+  }
+
+  // Use LIKE matching for flexibility — e.g. "Coconut Cloud" matches "Coconut Cloud Latte"
+  const subs: Array<{ namePattern: string; description: string }> = [
+    { namePattern: 'coconut cloud', description: 'BLUE WHITE MOCHA LATTE + COCONUT COLD FOAM' },
+    { namePattern: 'sunshine', description: 'ALMOND & HONEY SYRUP + HONEY DRIZZLE' },
+    { namePattern: 'haus white mocha', description: 'HAUS SAUCE W/ REAL COCOA BUTTER + VANILLA BEANS' },
+    { namePattern: 'haus vanilla', description: 'NOW AVAILABLE AS SUGAR FREE' },
+    { namePattern: 'ube latte', description: 'HAUS MADE UBE SYRUP FROM THE PURPLE YAM IN SOUTHEAST ASIA. VANILLA AND NUTTY VIBES' },
+    { namePattern: 'cinnamon honey', description: 'HAUS MADE CINNAMON HONEY SYRUP MADE EXCLUSIVELY WITH ESPRESSO' },
+    { namePattern: 'single origin', description: 'ETHIOPIAN SINGLE ORIGIN. LIGHT ROAST. NOTES OF BLUEBERRY, STONE FRUIT, AND CITRUS' },
+    { namePattern: 'pistachio', description: 'PISTACHIO + COCONUT + CEREMONIAL GRADE MATCHA + MILK' },
+    { namePattern: 'fruity pebbles', description: 'FRUITY PEBBLES + STRAWBERRY + VANILLA + MILKSHAKE' },
+    { namePattern: 'summer cider', description: 'CRANBERRY JUICE + WHITE PEACH SYRUP + CINNAMON STICKS + SIMMERED TO PERFECTION' },
+    { namePattern: 'frozen lemonade', description: 'LEMONADE + HAUS LEMON SYRUP + ICE: CLASSIC SUMMER TREAT' },
+  ];
+
+  // Get all drinks in this season for diagnostics
+  const allDrinks = db.prepare(`SELECT mi.id, mi.name, mi.description FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mc.season_id = ? AND mi.kind = 'drink'`).all(summer.id) as any[];
+
+  const updated: Array<{ name: string; description: string }> = [];
+  const notFound: string[] = [];
+
+  for (const { namePattern, description } of subs) {
+    const matched = allDrinks.filter((d) => d.name.toLowerCase().includes(namePattern));
+    if (matched.length === 0) {
+      notFound.push(namePattern);
+      continue;
+    }
+    for (const drink of matched) {
+      db.prepare('UPDATE menu_items SET description = ? WHERE id = ?').run(description, drink.id);
+      updated.push({ name: drink.name, description });
+    }
+  }
+
+  db.prepare('UPDATE menu_seasons SET updated_at = ? WHERE id = ?').run(Date.now(), summer.id);
+
+  res.json({
+    season: summer.name,
+    updated,
+    not_found_patterns: notFound,
+    all_drinks_in_season: allDrinks.map((d) => d.name),
+  });
+});
+
 // ---- Seed Winter 2025 demo ----
 
 router.post('/menu-seasons/seed-winter-2025', requireAuth, (_req: AuthRequest, res: Response) => {
