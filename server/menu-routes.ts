@@ -2,6 +2,8 @@ import { Router, Response } from 'express';
 import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
 import { renderMenuPdf } from './menu-pdf.js';
+import { pdfToPng } from 'pdf-to-png-converter';
+import JSZip from 'jszip';
 
 const router = Router();
 
@@ -688,18 +690,44 @@ router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: R
   const id = Number(req.params.id);
   if (!id) { res.status(400).json({ error: 'invalid_id' }); return; }
   const location = typeof req.query.location === 'string' ? req.query.location : 'G1';
+  const fileFormat = typeof req.query.format === 'string' ? req.query.format : 'pdf'; // 'pdf' | 'png'
   const season = assembleSeason(id);
   if (!season) { res.status(404).json({ error: 'not_found' }); return; }
   try {
-    const buf = await renderMenuPdf(season, location);
-    const format = location === 'G4' ? '18x48' : '24x36';
-    const filename = `${season.name} - ${location} (${format}).pdf`;
+    const pdfBuf = await renderMenuPdf(season, location);
+    const dim = location === 'G4' ? '18x48' : '24x36';
+    const baseName = `${season.name} - ${location} (${dim})`;
+
+    if (fileFormat === 'png') {
+      // Render the PDF to PNG pages at 2x scale for print-quality output,
+      // then bundle front + back into a ZIP since menus are two pages.
+      const pngPages = await pdfToPng(pdfBuf, { viewportScale: 2.0 });
+      if (pngPages.length === 1) {
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Content-Disposition', `attachment; filename="${baseName}.png"`);
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.send(Buffer.from((pngPages[0] as any).content as Uint8Array));
+        return;
+      }
+      const zip = new JSZip();
+      pngPages.forEach((p: any, i) => {
+        const side = i === 0 ? 'Front' : i === 1 ? 'Back' : `Page ${i + 1}`;
+        zip.file(`${baseName} - ${side}.png`, Buffer.from(p.content as Uint8Array));
+      });
+      const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${baseName}.zip"`);
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.send(zipBuf);
+      return;
+    }
+
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.setHeader('Content-Disposition', `inline; filename="${baseName}.pdf"`);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.send(buf);
+    res.send(pdfBuf);
   } catch (err) {
     console.error('[menu-pdf]', err);
     res.status(500).json({ error: 'pdf_render_failed' });

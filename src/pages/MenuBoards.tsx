@@ -814,24 +814,42 @@ function ImportFromSops({ seasonId, onImported }: { seasonId: number; onImported
 
 function ExportDropdown({ seasonId }: { seasonId: number }) {
   const [open, setOpen] = useState(false);
+  const [fileFormat, setFileFormat] = useState<'pdf' | 'png'>('pdf');
 
   function download(location: string) {
-    window.open(`/api/menu-seasons/${seasonId}/pdf?location=${location}&t=${Date.now()}`, '_blank');
+    window.open(`/api/menu-seasons/${seasonId}/pdf?location=${location}&format=${fileFormat}&t=${Date.now()}`, '_blank');
     setOpen(false);
   }
 
   return (
     <div style={{ position: 'relative' }}>
       <button className="btn btn-primary btn-sm" onClick={() => setOpen(!open)}>
-        Download PDF ▾
+        Download ▾
       </button>
       {open && (
         <div style={{
           position: 'absolute', right: 0, top: '100%', marginTop: 4,
           background: '#fff', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 8,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100, minWidth: 180,
-          padding: 4,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100, minWidth: 220,
+          padding: 8,
         }}>
+          <div style={{ display: 'flex', gap: 4, padding: '0 4px 8px', borderBottom: '1px solid rgba(0,0,0,0.08)', marginBottom: 4 }}>
+            {(['pdf', 'png'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFileFormat(f)}
+                style={{
+                  flex: 1, padding: '6px 8px', borderRadius: 6,
+                  background: fileFormat === f ? '#1f2937' : 'transparent',
+                  color: fileFormat === f ? '#fff' : 'rgba(0,0,0,0.6)',
+                  border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                  textTransform: 'uppercase', letterSpacing: 0.5,
+                }}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
           {LOCATIONS_LIST.map((loc) => (
             <button
               key={loc.key}
@@ -847,6 +865,11 @@ function ExportDropdown({ seasonId }: { seasonId: number }) {
               <strong>{loc.key}</strong> — {loc.name} <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>({loc.format})</span>
             </button>
           ))}
+          {fileFormat === 'png' && (
+            <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.45)', padding: '4px 12px 0', borderTop: '1px solid rgba(0,0,0,0.05)', marginTop: 4 }}>
+              PNG downloads as ZIP (front + back pages)
+            </div>
+          )}
         </div>
       )}
     </div>
