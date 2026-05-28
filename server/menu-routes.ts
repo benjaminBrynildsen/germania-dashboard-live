@@ -192,17 +192,17 @@ router.post('/menu-seasons', requireAuth, (req: AuthRequest, res: Response) => {
   const mcId = Number(insertList.run(newId, 'More Coffee', 0, 'front').lastInsertRowid);
   for (const [i, n] of ['Americano', 'Cold Brew', 'Cortado', 'Cappuccino'].entries()) insertListItem.run(mcId, n, i);
 
-  const cfId = Number(insertList.run(newId, 'Cold Foam', 1, 'front').lastInsertRowid);
-  insertListItem.run(cfId, 'Haus Vanilla', 0);
-
-  const aoId = Number(insertList.run(newId, 'Add-Ons', 2, 'front').lastInsertRowid);
-  for (const [i, n] of ['Oat Milk', 'Almond Milk', 'Heavy Cream', 'Skim Milk'].entries()) insertListItem.run(aoId, n, i);
-
-  const mfId = Number(insertList.run(newId, 'More Flavors', 0, 'back').lastInsertRowid);
+  const mfId = Number(insertList.run(newId, 'More Flavors', 1, 'front').lastInsertRowid);
   for (const [i, n] of ['Haus Vanilla', 'Maple', 'Brown Sugar', 'Salted Caramel', 'Caramel', 'Haus Mocha'].entries()) insertListItem.run(mfId, n, i);
 
-  const mdId = Number(insertList.run(newId, 'More Drinks', 1, 'back').lastInsertRowid);
+  const cfId = Number(insertList.run(newId, 'Cold Foam', 2, 'front').lastInsertRowid);
+  insertListItem.run(cfId, 'Haus Vanilla', 0);
+
+  const mdId = Number(insertList.run(newId, 'More Drinks', 3, 'front').lastInsertRowid);
   for (const [i, n] of ['Hot Cocoa', 'Green Tea', 'Black Tea', 'Matcha', 'Steamers', 'Milk Shakes'].entries()) insertListItem.run(mdId, n, i);
+
+  const aoId = Number(insertList.run(newId, 'Add-Ons', 4, 'front').lastInsertRowid);
+  for (const [i, n] of ['Oat Milk', 'Almond Milk', 'Heavy Cream', 'Skim Milk'].entries()) insertListItem.run(aoId, n, i);
 
   const season = assembleSeason(newId);
   res.status(201).json({ season });
@@ -614,17 +614,17 @@ router.post('/menu-seasons/seed-winter-2025', requireAuth, (_req: AuthRequest, r
   food(bh, 5, 'Waffle Wedge', '4.00', { sub:'(WITH APPLE BUTTER JAM)' });
   food(bh, 6, 'Maple & Brown Sugar Scone', '2.55');
 
-  // Lists
+  // Lists (all on front page)
   const mc = Number(il.run(sid, 'More Coffee', 0, 'front').lastInsertRowid);
   for (const [i,n] of ['Americano','Cold Brew','Cortado','Cappuccino'].entries()) ili.run(mc, n, i);
-  const cf = Number(il.run(sid, 'Cold Foam', 1, 'front').lastInsertRowid);
-  ili.run(cf, 'Haus Vanilla', 0);
-  const ao = Number(il.run(sid, 'Add-Ons', 2, 'front').lastInsertRowid);
-  for (const [i,n] of ['Oat Milk','Almond Milk','Heavy Cream','Skim Milk'].entries()) ili.run(ao, n, i);
-  const mf = Number(il.run(sid, 'More Flavors', 0, 'back').lastInsertRowid);
+  const mf = Number(il.run(sid, 'More Flavors', 1, 'front').lastInsertRowid);
   for (const [i,n] of ['Haus Vanilla','Maple','Brown Sugar','Salted Caramel','Caramel','Haus Mocha'].entries()) ili.run(mf, n, i);
-  const md = Number(il.run(sid, 'More Drinks', 1, 'back').lastInsertRowid);
+  const cf = Number(il.run(sid, 'Cold Foam', 2, 'front').lastInsertRowid);
+  ili.run(cf, 'Haus Vanilla', 0);
+  const md = Number(il.run(sid, 'More Drinks', 3, 'front').lastInsertRowid);
   for (const [i,n] of ['Hot Cocoa','Green Tea','Black Tea','Matcha','Steamers','Milk Shakes'].entries()) ili.run(md, n, i);
+  const ao = Number(il.run(sid, 'Add-Ons', 4, 'front').lastInsertRowid);
+  for (const [i,n] of ['Oat Milk','Almond Milk','Heavy Cream','Skim Milk'].entries()) ili.run(ao, n, i);
 
   res.status(201).json({ status: 'seeded', seasonId: sid });
 });
