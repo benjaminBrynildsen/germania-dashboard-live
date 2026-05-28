@@ -97,7 +97,7 @@ function CategoryHeader({ name, subtitle, ctx }: { name: string; subtitle: strin
         <View style={{ width: sideW }}><Divider width={sideW} scale={s} /></View>
       </View>
       {subtitle && (
-        <Text style={{ fontFamily: 'Open Sans', fontWeight: 800, fontSize: subSize, textTransform: 'uppercase', letterSpacing: 4 * s, marginTop: 4 * s, textAlign: 'center' }}>
+        <Text style={{ fontFamily: 'Open Sans', fontWeight: 800, fontSize: subSize, textTransform: 'uppercase', letterSpacing: 4 * s, marginTop: -10 * s, textAlign: 'center' }}>
           {subtitle}
         </Text>
       )}
