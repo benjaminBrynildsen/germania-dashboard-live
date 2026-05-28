@@ -195,23 +195,23 @@ function FrozenNote({ ctx }: { ctx: ScaleCtx }) {
 function FoodItem({ item, ctx }: { item: any; ctx: ScaleCtx }) {
   const { s } = ctx;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingVertical: 0, marginBottom: 2 * s, width: '100%' }}>
+    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingVertical: 0, marginBottom: 14 * s, width: '100%' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 * s, flex: 1 }}>
         {item.isNew && (
           <View style={{ backgroundColor: '#e74c3c', borderRadius: 16 * s, width: 70 * s, height: 32 * s, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ fontFamily: 'Open Sans', fontWeight: 800, fontSize: 14 * s, color: '#fff', textTransform: 'uppercase' }}>NEW</Text>
           </View>
         )}
-        <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 46 * s, lineHeight: 1.1, textTransform: 'uppercase' }}>
+        <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 50 * s, lineHeight: 1.2, textTransform: 'uppercase' }}>
           {item.name}
         </Text>
         {item.foodSubtitle && (
-          <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 26 * s, lineHeight: 1.1, textTransform: 'uppercase' }}>
+          <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 28 * s, lineHeight: 1.2, textTransform: 'uppercase' }}>
             {item.foodSubtitle}
           </Text>
         )}
       </View>
-      <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 46 * s, lineHeight: 1.1 }}>
+      <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 50 * s, lineHeight: 1.2 }}>
         {item.foodPrice}
       </Text>
     </View>
