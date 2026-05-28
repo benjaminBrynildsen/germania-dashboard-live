@@ -88,7 +88,7 @@ function CategoryHeader({ name, subtitle, ctx }: { name: string; subtitle: strin
   const textEstW = name.length * nameSize * 0.55;
   const sideW = Math.max(60 * s, (contentW - textEstW) / 2 - 16 * s);
   return (
-    <View style={{ alignItems: 'center', marginTop: 28 * s, marginBottom: 20 * s }}>
+    <View style={{ alignItems: 'center', marginTop: 32 * s, marginBottom: 42 * s }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', width: contentW, justifyContent: 'center' }}>
         <View style={{ width: sideW }}><Divider width={sideW} scale={s} /></View>
         <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: nameSize, textTransform: 'uppercase', letterSpacing: 2 * s, textAlign: 'center', paddingHorizontal: 12 * s }}>
