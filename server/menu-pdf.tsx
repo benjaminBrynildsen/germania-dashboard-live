@@ -82,17 +82,20 @@ interface ScaleCtx {
 }
 
 function CategoryHeader({ name, subtitle, ctx }: { name: string; subtitle: string | null; ctx: ScaleCtx }) {
-  const { s } = ctx;
+  const { s, contentW } = ctx;
   const nameSize = 104 * s;
   const subSize = 30 * s;
-  // Fixed divider width so all category headers have visually identical
-  // dividers regardless of text length. Text sits centered between them.
-  const sideW = 320 * s;
+  // Estimate text width so we can size the dividers to fill the rest.
+  // Each header spans the full content width edge-to-edge — long titles
+  // get short dividers, short titles get long dividers.
+  const charW = nameSize * 0.45;
+  const textW = name.length * charW + 24 * s; // letterSpacing + padding
+  const sideW = Math.max(40 * s, (contentW - textW) / 2);
   return (
     <View style={{ alignItems: 'center', marginTop: 32 * s, marginBottom: 42 * s }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', width: contentW }}>
         <View style={{ width: sideW }}><Divider width={sideW} scale={s} /></View>
-        <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: nameSize, textTransform: 'uppercase', letterSpacing: 2 * s, textAlign: 'center', paddingHorizontal: 12 * s }}>
+        <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: nameSize, textTransform: 'uppercase', letterSpacing: 2 * s, textAlign: 'center', paddingHorizontal: 12 * s, flex: 1 }}>
           {name}
         </Text>
         <View style={{ width: sideW }}><Divider width={sideW} scale={s} /></View>
