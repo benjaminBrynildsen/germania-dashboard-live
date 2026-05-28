@@ -455,6 +455,7 @@ function AddCategoryButton({ seasonId, side, position, onCreated }: { seasonId: 
 function AddItemButton({ categoryId, kind, position, onCreated }: { categoryId: number; kind: 'drink' | 'food'; position: number; onCreated: () => void }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
 
   async function create() {
     if (!name.trim()) return;
@@ -463,9 +464,12 @@ function AddItemButton({ categoryId, kind, position, onCreated }: { categoryId: 
       body.sizeLabels = ['Small', 'Regular', 'Large'];
       body.prices = ['0.00', '0.00', '0.00'];
       body.temps = 'ICED · FROZEN · HOT';
+    } else {
+      body.foodPrice = price.trim() || '0.00';
     }
     await api.post('/api/menu-items', body);
     setName('');
+    setPrice('');
     setAdding(false);
     onCreated();
   }
@@ -484,6 +488,9 @@ function AddItemButton({ categoryId, kind, position, onCreated }: { categoryId: 
   return (
     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === 'drink' ? 'Drink name' : 'Food item name'} style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }} onKeyDown={(e) => e.key === 'Enter' && create()} autoFocus />
+      {kind === 'food' && (
+        <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price" style={{ width: 80, padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }} onKeyDown={(e) => e.key === 'Enter' && create()} />
+      )}
       <button className="btn btn-primary btn-sm" onClick={create}>Add</button>
       <button className="btn btn-secondary btn-sm" onClick={() => setAdding(false)}>×</button>
     </div>
