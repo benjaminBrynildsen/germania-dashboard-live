@@ -132,6 +132,7 @@ function DrinkItem({ item, ctx, half }: { item: any; ctx: ScaleCtx; half?: boole
   return (
     <View style={{ alignItems: 'center', marginBottom: 14 * s, ...(half ? { width: '100%' } : {}) }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center' }}>
+        {item.hasSpotify && <View style={{ width: spotifySize + 4 * s }} />}
         <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: nameSize, textTransform: 'uppercase', textAlign: 'center', letterSpacing: 1 * s }}>
           {item.name}
         </Text>
