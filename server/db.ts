@@ -83,6 +83,27 @@ db.pragma('foreign_keys = ON');
   }
 }
 
+// menu_lists: move "More Flavors" and "More Drinks" from back to front for
+// existing seasons. New seasons get this layout by default; this one-shot
+// migration fixes any seasons created before the layout change.
+{
+  const tbl = db.prepare("PRAGMA table_info(menu_lists)").all() as Array<{ name: string }>;
+  if (tbl.length > 0) {
+    const stale = db.prepare("SELECT COUNT(*) as c FROM menu_lists WHERE name IN ('More Flavors', 'More Drinks') AND side = 'back'").get() as { c: number };
+    if (stale.c > 0) {
+      console.log(`[migration] moving ${stale.c} More Flavors/More Drinks lists from back to front`);
+      db.exec("UPDATE menu_lists SET side = 'front' WHERE name IN ('More Flavors', 'More Drinks') AND side = 'back'");
+      // Re-position to avoid conflicts: put More Flavors after More Coffee, More Drinks after Cold Foam
+      db.exec(`
+        UPDATE menu_lists SET position = 1 WHERE name = 'More Flavors' AND side = 'front';
+        UPDATE menu_lists SET position = 2 WHERE name = 'Cold Foam' AND side = 'front';
+        UPDATE menu_lists SET position = 3 WHERE name = 'More Drinks' AND side = 'front';
+        UPDATE menu_lists SET position = 4 WHERE name = 'Add-Ons' AND side = 'front';
+      `);
+    }
+  }
+}
+
 // bake_haus_orders.mon_locked_qty migration — adds the Mon-delivery
 // snapshot column to existing tables that pre-date the lock feature.
 // CREATE TABLE IF NOT EXISTS below won't backfill columns on its own.
