@@ -83,6 +83,40 @@ db.pragma('foreign_keys = ON');
   }
 }
 
+// One-shot: set Summer 2026 drink descriptions from the latest reference menu.
+// Matches by drink name within the Summer 2026 season. Idempotent — running
+// again just re-sets to the same values.
+{
+  const tbl = db.prepare("PRAGMA table_info(menu_items)").all() as Array<{ name: string }>;
+  if (tbl.length > 0) {
+    const summer = db.prepare("SELECT id FROM menu_seasons WHERE name = 'Summer 2026'").get() as { id: number } | undefined;
+    if (summer) {
+      const subs: Record<string, string> = {
+        'Coconut Cloud': 'BLUE WHITE MOCHA LATTE + COCONUT COLD FOAM',
+        'Sunshine Latte': 'ALMOND & HONEY SYRUP + HONEY DRIZZLE',
+        'Haus White Mocha': 'HAUS SAUCE W/ REAL COCOA BUTTER + VANILLA BEANS',
+        'Haus Vanilla Latte': 'NOW AVAILABLE AS SUGAR FREE',
+        'Ube Latte': 'HAUS MADE UBE SYRUP FROM THE PURPLE YAM IN SOUTHEAST ASIA. VANILLA AND NUTTY VIBES',
+        'Cinnamon Honey Latte': 'HAUS MADE CINNAMON HONEY SYRUP MADE EXCLUSIVELY WITH ESPRESSO',
+        'Single Origin Cold Brew': 'ETHIOPIAN SINGLE ORIGIN. LIGHT ROAST. NOTES OF BLUEBERRY, STONE FRUIT, AND CITRUS',
+        'Pistachio Coconut Matcha': 'PISTACHIO + COCONUT + CEREMONIAL GRADE MATCHA + MILK',
+        'Fruity Pebbles Milkshake': 'FRUITY PEBBLES + STRAWBERRY + VANILLA + MILKSHAKE',
+        'Summer Cider': 'CRANBERRY JUICE + WHITE PEACH SYRUP + CINNAMON STICKS + SIMMERED TO PERFECTION',
+        'Frozen Lemonade': 'LEMONADE + HAUS LEMON SYRUP + ICE: CLASSIC SUMMER TREAT',
+      };
+      const upd = db.prepare(`UPDATE menu_items SET description = ?
+        WHERE LOWER(name) = LOWER(?)
+        AND category_id IN (SELECT id FROM menu_categories WHERE season_id = ?)`);
+      let count = 0;
+      for (const [name, desc] of Object.entries(subs)) {
+        const r = upd.run(desc, name, summer.id);
+        if (r.changes > 0) count += r.changes;
+      }
+      if (count > 0) console.log(`[migration] updated ${count} Summer 2026 drink descriptions`);
+    }
+  }
+}
+
 // menu_lists: move "More Flavors" and "More Drinks" from back to front for
 // existing seasons. New seasons get this layout by default; this one-shot
 // migration fixes any seasons created before the layout change.
