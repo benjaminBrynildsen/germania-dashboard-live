@@ -421,6 +421,13 @@ export interface BakeHausOrderRow {
   includeMonday: boolean;
 }
 
+/** Metadata for a single locked delivery day. */
+export interface DayLockMeta {
+  lockedAt: number;
+  lockedBy: string | null;
+  source: 'manual' | 'auto';
+}
+
 export interface BakeHausWeekReport {
   weekStartIso: string;
   /** When each store's order was last saved (ms epoch). null = never
@@ -454,14 +461,16 @@ export interface BakeHausWeekReport {
    *  When true, the save endpoint rejects edits from non-allowlist users
    *  and the UI shows 🔒 on every delivery cell. */
   weekLocked: boolean;
-  /** Per-day lock metadata. Each day's `lockedAt` is the timestamp the
-   *  snapshot was captured (typically the same value across all three
-   *  for whole-week locks). `lockedBy` is the user who triggered the
-   *  lock (null for the auto-cron-fired version). */
+  /** Per-day lock metadata. Each day is independently lockable: the
+   *  kitchen can freeze Monday's delivery (cut off Mon orders) while
+   *  Wed/Fri stay live & editable. A whole-week lock sets all three to
+   *  the same value. `lockedAt` is when the day's snapshot was captured,
+   *  `lockedBy` the user who triggered it (null for auto-cron), `source`
+   *  distinguishes a manual cutoff from the Monday auto-lock. */
   dayLocks: {
-    mon: { lockedAt: number; lockedBy: string | null } | null;
-    wed: { lockedAt: number; lockedBy: string | null } | null;
-    fri: { lockedAt: number; lockedBy: string | null } | null;
+    mon: DayLockMeta | null;
+    wed: DayLockMeta | null;
+    fri: DayLockMeta | null;
   };
   /** 'manual' (someone pressed Lock) or 'auto' (Mon 23:59 cron fired).
    *  Null when no lock exists. Surfaced in the UI so a manual unlock
@@ -508,6 +517,10 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
   const lockSource = (lockRow?.lock_source === 'auto' || lockRow?.lock_source === 'manual')
     ? lockRow.lock_source as 'manual' | 'auto'
     : (lockRow ? 'manual' : null);
+  // Per-day lock state — a whole-week lock reads as all three days
+  // locked; otherwise individual day locks apply. Drives both the split
+  // (which days freeze) and the dayLocks metadata returned below.
+  const dayLockState = getDayLockState(weekStartIso);
 
   // Pull current Dripos inventory in parallel with everything else. Cache
   // protects us if Dripos is slow/down — falls back to empty map.
@@ -540,21 +553,22 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
     // Out-of-stock at this store → prioritize the earliest delivery
     // so the next truck gets the bigger chunk.
     const prioritizeEarly = onHand === 0 && netQty > 0;
-    // Lock semantics: when the week is locked, every per-row
-    // *_locked_qty value that's non-null is authoritative for its
-    // day. If the lock exists but a particular column is NULL (e.g.,
-    // legacy rows that pre-date the Wed/Fri columns), compute that
-    // day's value from the unlocked split as a fallback.
+    // Lock semantics: each delivery day freezes independently. For a
+    // locked day, the per-row *_locked_qty snapshot is authoritative;
+    // if it's NULL (legacy row predating the column, or a row added
+    // after the lock) we fall back to the unlocked split for that day.
+    // Unlocked days stay null so they recompute from the remainder.
+    const lockMon = dayLockState.mon !== null && includeMonday;
+    const lockWed = dayLockState.wed !== null;
+    const lockFri = dayLockState.fri !== null;
     let monLockedQty: number | null = null;
     let wedLockedQty: number | null = null;
     let friLockedQty: number | null = null;
-    if (weekLocked) {
+    if (lockMon || lockWed || lockFri) {
       const unlockedSplit = splitForDeliveries(netQty, null, includeMonday, prioritizeEarly);
-      if (includeMonday) {
-        monLockedQty = r.mon_locked_qty != null ? r.mon_locked_qty : unlockedSplit.mon;
-      }
-      wedLockedQty = r.wed_locked_qty != null ? r.wed_locked_qty : unlockedSplit.wed;
-      friLockedQty = r.fri_locked_qty != null ? r.fri_locked_qty : unlockedSplit.fri;
+      if (lockMon) monLockedQty = r.mon_locked_qty != null ? r.mon_locked_qty : unlockedSplit.mon;
+      if (lockWed) wedLockedQty = r.wed_locked_qty != null ? r.wed_locked_qty : unlockedSplit.wed;
+      if (lockFri) friLockedQty = r.fri_locked_qty != null ? r.fri_locked_qty : unlockedSplit.fri;
     }
     const split = splitForDeliveries(
       netQty,
@@ -602,12 +616,6 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
   for (const store of STORES) savedAtByStore[store.label] = null;
   for (const r of savedRows) savedAtByStore[r.store_label] = r.saved_at;
 
-  // Per-day lock metadata. All three days share the same timestamp
-  // for a whole-week lock (Mon = the canonical "week locked at" value).
-  const dayLockEntry = monLock
-    ? { lockedAt: monLock.lockedAt, lockedBy: monLock.lockedBy }
-    : null;
-
   return {
     weekStartIso,
     savedAtByStore,
@@ -617,11 +625,7 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
     inventoryFetchedAt: inventoryMapCache?.fetchedAt ?? Date.now(),
     monLock,
     weekLocked,
-    dayLocks: {
-      mon: dayLockEntry,
-      wed: dayLockEntry,
-      fri: dayLockEntry,
-    },
+    dayLocks: dayLockState,
     lockSource,
   };
 }
@@ -710,6 +714,10 @@ export async function lockWeek(
 
 export function unlockWeek(weekStartIso: string): void {
   db.prepare('DELETE FROM bake_haus_week_locks WHERE week_start_iso = ?').run(weekStartIso);
+  // Also clear any individual day locks — otherwise a per-day lock row
+  // would keep that day frozen after a full unlock (the day-lock state
+  // is an OR of week + per-day rows).
+  db.prepare('DELETE FROM bake_haus_day_locks WHERE week_start_iso = ?').run(weekStartIso);
   // Clear per-row snapshots so the next lock captures fresh values
   // (otherwise stale Wed/Fri qtys from an earlier lock would carry
   // forward and we'd snapshot pre-lock state on the next freeze).
@@ -730,6 +738,194 @@ export function isWeekLocked(weekStartIso: string): boolean {
   return !!row;
 }
 
+export type DeliveryDay = 'mon' | 'wed' | 'fri';
+const LOCK_COL: Record<DeliveryDay, 'mon_locked_qty' | 'wed_locked_qty' | 'fri_locked_qty'> = {
+  mon: 'mon_locked_qty', wed: 'wed_locked_qty', fri: 'fri_locked_qty',
+};
+
+/** Combined per-day lock state for a week. A day reads as locked when
+ *  the whole-week lock is set (it dominates and wins on metadata) OR an
+ *  individual day-lock row exists for it. */
+export function getDayLockState(weekStartIso: string): {
+  mon: DayLockMeta | null; wed: DayLockMeta | null; fri: DayLockMeta | null;
+} {
+  const weekRow = db.prepare(
+    'SELECT mon_locked_at, locked_by, lock_source FROM bake_haus_week_locks WHERE week_start_iso = ?',
+  ).get(weekStartIso) as { mon_locked_at: number; locked_by: string | null; lock_source: string | null } | undefined;
+  const weekMeta: DayLockMeta | null = weekRow
+    ? {
+        lockedAt: weekRow.mon_locked_at,
+        lockedBy: weekRow.locked_by ?? null,
+        source: weekRow.lock_source === 'auto' ? 'auto' : 'manual',
+      }
+    : null;
+  const dayRows = db.prepare(
+    'SELECT day, locked_at, locked_by, lock_source FROM bake_haus_day_locks WHERE week_start_iso = ?',
+  ).all(weekStartIso) as Array<{ day: string; locked_at: number; locked_by: string | null; lock_source: string | null }>;
+  const byDay = new Map<string, DayLockMeta>();
+  for (const r of dayRows) {
+    byDay.set(r.day, {
+      lockedAt: r.locked_at,
+      lockedBy: r.locked_by ?? null,
+      source: r.lock_source === 'auto' ? 'auto' : 'manual',
+    });
+  }
+  const pick = (day: DeliveryDay): DayLockMeta | null => weekMeta ?? byDay.get(day) ?? null;
+  return { mon: pick('mon'), wed: pick('wed'), fri: pick('fri') };
+}
+
+/** True when the given delivery day is frozen for the week. */
+export function isDayLocked(weekStartIso: string, day: DeliveryDay): boolean {
+  return getDayLockState(weekStartIso)[day] !== null;
+}
+
+/** Lock-status summary for one item: which of its active delivery days
+ *  are frozen, and whether *every* active day is locked (in which case
+ *  the item is fully frozen — no qty edits possible for non-allowlist
+ *  users). Items that skip Monday have only Wed/Fri as active days. */
+export function getItemLockInfo(weekStartIso: string, itemName: string): {
+  activeDays: DeliveryDay[];
+  lockedDays: DeliveryDay[];
+  fullyLocked: boolean;
+} {
+  const catEntry = getMergedCatalog().find((c) => c.name === itemName);
+  const includeMonday = catEntry?.includeMonday ?? true;
+  const activeDays: DeliveryDay[] = includeMonday ? ['mon', 'wed', 'fri'] : ['wed', 'fri'];
+  const state = getDayLockState(weekStartIso);
+  const lockedDays = activeDays.filter((d) => state[d] !== null);
+  return { activeDays, lockedDays, fullyLocked: lockedDays.length === activeDays.length };
+}
+
+/** Floor qty for one (week, store, item): the sum of frozen delivery
+ *  qtys across that item's locked days. A qty edit may not drop below
+ *  this, since doing so would shrink an already-locked day's delivery.
+ *  Returns 0 when no day is locked or no snapshot exists yet. */
+export function lockedFloorForRow(weekStartIso: string, storeLabel: string, itemName: string): number {
+  const { lockedDays } = getItemLockInfo(weekStartIso, itemName);
+  if (lockedDays.length === 0) return 0;
+  const row = db.prepare(
+    `SELECT mon_locked_qty, wed_locked_qty, fri_locked_qty
+       FROM bake_haus_orders
+      WHERE week_start_iso = ? AND store_label = ? AND item_name = ?`,
+  ).get(weekStartIso, storeLabel, itemName) as
+    | { mon_locked_qty: number | null; wed_locked_qty: number | null; fri_locked_qty: number | null }
+    | undefined;
+  if (!row) return 0;
+  let floor = 0;
+  for (const d of lockedDays) {
+    const v = row[LOCK_COL[d]];
+    if (v != null && Number.isFinite(v)) floor += v;
+  }
+  return floor;
+}
+
+/** Lock a single delivery day for the week — snapshots each row's
+ *  current split value for that day into the matching *_locked_qty
+ *  column and writes a `bake_haus_day_locks` row. The other days stay
+ *  live & editable. The snapshot honors days already locked, so locking
+ *  Wed after Mon captures the Wed qty as currently shown. Idempotent:
+ *  re-locking preserves the existing snapshot (locks are additive). */
+export async function lockDay(
+  weekStartIso: string,
+  day: DeliveryDay,
+  lockedBy: string | null = null,
+  source: 'manual' | 'auto' = 'manual',
+  asOfMs?: number | null,
+): Promise<{ rowsSnapshotted: number; mode: 'live' | 'reconstructed' }> {
+  const rows = db.prepare(
+    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes,
+            mon_locked_qty, wed_locked_qty, fri_locked_qty
+     FROM bake_haus_orders
+     WHERE week_start_iso = ?`,
+  ).all(weekStartIso) as DbRow[];
+
+  const useReconstruction = asOfMs != null && Number.isFinite(asOfMs) && asOfMs < Date.now() - 60_000;
+  const inventoryByStore = useReconstruction
+    ? await reconstructOnHandAt(asOfMs!).catch(async () => {
+        console.warn('[bake-haus] reconstructOnHandAt failed; falling back to live inventory for day-lock');
+        return getBakeHausInventoryByStore().catch(() => ({} as Record<string, Record<string, number>>));
+      })
+    : await getBakeHausInventoryByStore().catch(() => ({} as Record<string, Record<string, number>>));
+
+  const catalogByName = new Map<string, BakeHausCatalogItem>();
+  for (const c of getMergedCatalog()) catalogByName.set(c.name, c);
+
+  // Other days already locked — their frozen qty must feed the split so
+  // the day we're locking now snapshots the value currently shown.
+  const otherState = getDayLockState(weekStartIso);
+  const col = LOCK_COL[day];
+
+  const updateRow = db.prepare(
+    `UPDATE bake_haus_orders SET ${col} = ?
+       WHERE week_start_iso = ? AND store_label = ? AND item_name = ?`,
+  );
+  const insertLock = db.prepare(
+    `INSERT INTO bake_haus_day_locks (week_start_iso, day, locked_at, locked_by, lock_source)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(week_start_iso, day) DO UPDATE SET
+       locked_at = excluded.locked_at,
+       locked_by = COALESCE(excluded.locked_by, bake_haus_day_locks.locked_by),
+       lock_source = excluded.lock_source`,
+  );
+
+  const lockedAt = Date.now();
+  const txn = db.transaction(() => {
+    for (const r of rows) {
+      const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
+      const netQty = Math.max(0, r.weekly_qty - onHand);
+      const catEntry = catalogByName.get(r.item_name);
+      const includeMonday = catEntry?.includeMonday ?? true;
+      const prioritizeEarly = onHand === 0 && netQty > 0;
+
+      // Items that skip Monday never freeze a Mon qty.
+      if (day === 'mon' && !includeMonday) {
+        updateRow.run(0, r.week_start_iso, r.store_label, r.item_name);
+        continue;
+      }
+      // Preserve an existing snapshot — re-lock is additive.
+      const existing = r[col];
+      if (existing != null) continue;
+
+      // Build the split with the OTHER already-locked days pinned so the
+      // value we capture matches what the report currently shows.
+      const unlockedSplit = splitForDeliveries(netQty, null, includeMonday, prioritizeEarly);
+      const locks: DayLocks = {};
+      if (day !== 'mon' && otherState.mon && includeMonday) {
+        locks.mon = r.mon_locked_qty != null ? r.mon_locked_qty : unlockedSplit.mon;
+      }
+      if (day !== 'wed' && otherState.wed) {
+        locks.wed = r.wed_locked_qty != null ? r.wed_locked_qty : unlockedSplit.wed;
+      }
+      if (day !== 'fri' && otherState.fri) {
+        locks.fri = r.fri_locked_qty != null ? r.fri_locked_qty : unlockedSplit.fri;
+      }
+      const split = splitForDeliveries(netQty, locks, includeMonday, prioritizeEarly);
+      updateRow.run(split[day], r.week_start_iso, r.store_label, r.item_name);
+    }
+    insertLock.run(weekStartIso, day, lockedAt, lockedBy, source);
+  });
+  txn();
+
+  return { rowsSnapshotted: rows.length, mode: useReconstruction ? 'reconstructed' : 'live' };
+}
+
+/** Clear a single day's lock — removes the day-lock row and nulls that
+ *  day's snapshot column so it recomputes live. No-op on the whole-week
+ *  lock (use `unlockWeek` for that); a day that's locked only via the
+ *  week lock can't be individually unlocked. */
+export function unlockDay(weekStartIso: string, day: DeliveryDay): void {
+  db.prepare('DELETE FROM bake_haus_day_locks WHERE week_start_iso = ? AND day = ?').run(weekStartIso, day);
+  const col = LOCK_COL[day];
+  db.prepare(
+    `UPDATE bake_haus_orders SET ${col} = NULL WHERE week_start_iso = ?`,
+  ).run(weekStartIso);
+}
+
+/** Emails that always have bakery lock/unlock powers, regardless of
+ *  env config. Lowercase. Keep this short — env (BAKE_HAUS_UNLOCK_EMAILS)
+ *  is the real source of truth; this is a hardcoded fallback. */
+const BUILTIN_BAKE_HAUS_UNLOCK_EMAILS = ['ben@germaniabrewhaus.com'];
+
 /** Allowlist gate for unlock + post-lock edits. Reads
  *  BAKE_HAUS_UNLOCK_EMAILS (comma-separated) and accepts admins listed
  *  in ADMIN_EMAILS as a backstop. Comparison is case-insensitive
@@ -738,6 +934,10 @@ export function isUserAllowedToUnlock(email: string | null | undefined): boolean
   if (!email) return false;
   const target = email.trim().toLowerCase();
   if (!target) return false;
+  // Built-in bakery allowlist — works even when the Render
+  // BAKE_HAUS_UNLOCK_EMAILS env var isn't set or is mid-update. Ben is
+  // here so he can test bakery lock/unlock without an env round-trip.
+  if (BUILTIN_BAKE_HAUS_UNLOCK_EMAILS.includes(target)) return true;
   const allowlist = (process.env.BAKE_HAUS_UNLOCK_EMAILS || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())

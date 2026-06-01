@@ -12,6 +12,7 @@ import {
   deleteSyrup,
   getCatalogImageMap,
   getDeliverySnapshot,
+  getItemLockInfo,
   getMergedCatalog,
   getWeekReport,
   listDeliverySnapshots,
@@ -19,17 +20,24 @@ import {
   isWeekLocked,
   listSavedOrders,
   listSyrups,
+  lockDay,
+  lockedFloorForRow,
   lockWeek,
   lockWeekMonday,
   markOrderSaved,
   mondayOfWeek,
   snapshotMonForStoreWeek,
+  unlockDay,
   unlockWeek,
   unlockWeekMonday,
   unmarkOrderSaved,
   updateSyrup,
   upsertOrderItem,
+  type DeliveryDay,
 } from './bake-haus.js';
+
+const DAY_LABELS: Record<DeliveryDay, string> = { mon: 'Monday', wed: 'Wednesday', fri: 'Friday' };
+const isDeliveryDay = (d: unknown): d is DeliveryDay => d === 'mon' || d === 'wed' || d === 'fri';
 
 const router = Router();
 
@@ -178,21 +186,37 @@ router.put('/bake-haus/item', requireAuth, (req: AuthRequest, res: Response) => 
     res.status(400).json({ error: 'invalid_item' });
     return;
   }
-  // Locked-week gate: once the week is locked, only Chef Maggie (and
-  // emails listed in BAKE_HAUS_UNLOCK_EMAILS / ADMIN_EMAILS) can edit
-  // quantities. Everyone else gets a 403 with the user-facing message
-  // the frontend turns into a modal.
-  if (isWeekLocked(week) && !isUserAllowedToUnlock(req.user?.email ?? null)) {
-    res.status(403).json({
-      error: 'week_locked',
-      message: 'Bake quantities for this week were locked Monday night. Contact Chef Maggie to request a change.',
-    });
-    return;
-  }
   const weeklyQty = Number(rawQty);
   if (!Number.isFinite(weeklyQty) || weeklyQty < 0 || weeklyQty > 100000) {
     res.status(400).json({ error: 'invalid_qty', message: 'Must be a non-negative number under 100000.' });
     return;
+  }
+  // Per-day lock gate. Chef Maggie + the bakery allowlist edit freely.
+  // For everyone else: if every active delivery day for this item is
+  // locked, it's fully frozen (matches the old whole-week behavior). If
+  // only some days are locked (e.g. Monday cut off), edits are allowed
+  // as long as they don't drop below the already-frozen days' total —
+  // the open days (Wed/Fri) absorb the change.
+  if (!isUserAllowedToUnlock(req.user?.email ?? null)) {
+    const lockInfo = getItemLockInfo(week, item);
+    if (lockInfo.fullyLocked) {
+      res.status(403).json({
+        error: 'week_locked',
+        message: 'Bake quantities for this item are locked. Contact Chef Maggie to request a change.',
+      });
+      return;
+    }
+    if (lockInfo.lockedDays.length > 0) {
+      const floor = lockedFloorForRow(week, store, item);
+      if (weeklyQty < floor) {
+        const names = lockInfo.lockedDays.map((d) => DAY_LABELS[d]).join(' & ');
+        res.status(403).json({
+          error: 'day_locked',
+          message: `${names} ${lockInfo.lockedDays.length > 1 ? 'are' : 'is'} locked for this item — you can't drop below ${floor}. Adjust the open delivery days instead.`,
+        });
+        return;
+      }
+    }
   }
   upsertOrderItem({
     weekStartIso: week,
@@ -310,6 +334,75 @@ router.delete('/bake-haus/lock-week', requireAuth, (req: AuthRequest, res: Respo
 });
 
 /**
+ * Lock a single delivery day (mon/wed/fri) for the week — freezes that
+ * day's qtys while the other days stay live. Lets the kitchen cut off
+ * e.g. Monday's order earlier in the day without locking the week.
+ *
+ * Body: { week: YYYY-MM-DD, day: 'mon'|'wed'|'fri', asOfMs?: number }
+ * Gated to the bakery allowlist (Chef Maggie / admins / Ben) — locking
+ * a cutoff is a kitchen decision, not a per-store one.
+ */
+router.post('/bake-haus/lock-day', requireAuth, async (req: AuthRequest, res: Response) => {
+  const week = String(req.body?.week ?? '').trim();
+  const day = req.body?.day;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
+    res.status(400).json({ error: 'invalid_week' });
+    return;
+  }
+  if (!isDeliveryDay(day)) {
+    res.status(400).json({ error: 'invalid_day', message: "day must be 'mon', 'wed', or 'fri'." });
+    return;
+  }
+  if (!isUserAllowedToUnlock(req.user?.email ?? null)) {
+    res.status(403).json({
+      error: 'lock_not_allowed',
+      message: 'Only the bakery can lock a delivery day. Contact Chef Maggie.',
+    });
+    return;
+  }
+  const asOfMs = req.body?.asOfMs;
+  const asOf = (typeof asOfMs === 'number' && Number.isFinite(asOfMs) && asOfMs > 0) ? asOfMs : null;
+  try {
+    const result = await lockDay(week, day, req.user?.name ?? null, 'manual', asOf);
+    res.json({ ok: true, lockedAt: Date.now(), ...result });
+  } catch (err) {
+    console.error('[bake-haus-lock-day] failed:', err);
+    res.status(500).json({ error: 'lock_failed', message: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+router.delete('/bake-haus/lock-day', requireAuth, (req: AuthRequest, res: Response) => {
+  const week = String(req.body?.week ?? '').trim();
+  const day = req.body?.day;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
+    res.status(400).json({ error: 'invalid_week' });
+    return;
+  }
+  if (!isDeliveryDay(day)) {
+    res.status(400).json({ error: 'invalid_day', message: "day must be 'mon', 'wed', or 'fri'." });
+    return;
+  }
+  if (!isUserAllowedToUnlock(req.user?.email ?? null)) {
+    res.status(403).json({
+      error: 'unlock_not_allowed',
+      message: 'Only the bakery can unlock a delivery day. Contact Chef Maggie.',
+    });
+    return;
+  }
+  // When the whole week is locked, an individual day can't be unlocked —
+  // direct the user to the whole-week unlock instead.
+  if (isWeekLocked(week)) {
+    res.status(409).json({
+      error: 'week_locked',
+      message: 'The whole week is locked. Use “Unlock week” to reopen edits.',
+    });
+    return;
+  }
+  unlockDay(week, day);
+  res.json({ ok: true });
+});
+
+/**
  * Legacy Mon-only lock — preserved so existing frontends keep working
  * during deploy. New code should call /lock-week instead. Delegates
  * to lockWeek under the hood (snapshots all three days, not just Mon).
@@ -374,12 +467,17 @@ router.delete('/bake-haus/item', requireAuth, (req: AuthRequest, res: Response) 
     res.status(400).json({ error: 'invalid_request' });
     return;
   }
-  if (isWeekLocked(week) && !isUserAllowedToUnlock(req.user?.email ?? null)) {
-    res.status(403).json({
-      error: 'week_locked',
-      message: 'Bake quantities for this week were locked Monday night. Contact Chef Maggie to request a change.',
-    });
-    return;
+  // Removing a row drops every delivery day for the item, so block it
+  // whenever ANY of its days is locked (non-allowlist users).
+  if (!isUserAllowedToUnlock(req.user?.email ?? null)) {
+    const lockInfo = getItemLockInfo(week, item);
+    if (lockInfo.lockedDays.length > 0) {
+      res.status(403).json({
+        error: 'week_locked',
+        message: 'This item has locked delivery days and can’t be removed. Contact Chef Maggie to request a change.',
+      });
+      return;
+    }
   }
   deleteOrderItem(week, store, item);
   res.json({ ok: true });

@@ -18,6 +18,12 @@ interface OrderRow {
   includeMonday: boolean;
 }
 
+interface DayLockMeta {
+  lockedAt: number;
+  lockedBy: string | null;
+  source: 'manual' | 'auto';
+}
+
 interface Syrup {
   id: number;
   displayName: string;
@@ -50,9 +56,9 @@ interface WeekReport {
   monLock: { lockedAt: number; lockedBy: string | null } | null;
   weekLocked: boolean;
   dayLocks: {
-    mon: { lockedAt: number; lockedBy: string | null } | null;
-    wed: { lockedAt: number; lockedBy: string | null } | null;
-    fri: { lockedAt: number; lockedBy: string | null } | null;
+    mon: DayLockMeta | null;
+    wed: DayLockMeta | null;
+    fri: DayLockMeta | null;
   };
   lockSource: 'manual' | 'auto' | null;
 }
@@ -225,6 +231,8 @@ export default function BakeHaus() {
   // stays in sync with whatever Chef Maggie's allowlist says.
   const [lockedEditMsg, setLockedEditMsg] = useState<string | null>(null);
   const [weekLockBusy, setWeekLockBusy] = useState(false);
+  // Which day's lock toggle is mid-request ('mon'|'wed'|'fri'), or null.
+  const [dayLockBusy, setDayLockBusy] = useState<'mon' | 'wed' | 'fri' | null>(null);
   const [weekIso, setWeekIso] = useState<string>(isoMondayOf(new Date()));
   const [report, setReport] = useState<WeekReport | null>(null);
   const [stores, setStores] = useState<string[]>(['G1', 'G2', 'G3', 'G4']);
@@ -432,6 +440,36 @@ export default function BakeHaus() {
     }
   };
 
+  /** Lock or unlock a single delivery day (mon/wed/fri). Locking freezes
+   *  that day's qtys while the other days stay live & editable — the
+   *  kitchen cutting off Monday orders without locking the whole week.
+   *  Allowlist-gated on the server; buttons are hidden for users without
+   *  permission. */
+  const setDayLock = async (day: 'mon' | 'wed' | 'fri', lock: boolean): Promise<void> => {
+    setDayLockBusy(day);
+    setError(null);
+    try {
+      const r = await fetch('/api/bake-haus/lock-day', {
+        method: lock ? 'POST' : 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ week: weekIso, day }),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        if (r.status === 403) {
+          setLockedEditMsg(body.message || 'Only the bakery can lock a delivery day.');
+          return;
+        }
+        throw new Error(body.message || body.error || (lock ? 'Lock' : 'Unlock') + ' failed');
+      }
+      await loadWeek(weekIso);
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      setDayLockBusy(null);
+    }
+  };
+
   /** Click handler for the per-store Save button. If this store has
    *  already been saved this week, opens the update confirm modal
    *  (so the user picks Wed+Fri-only vs. update-everything). First-time
@@ -502,7 +540,7 @@ export default function BakeHaus() {
         // unlock allowlist. Pop the explanatory modal instead of a
         // raw error toast; also refresh so the cell snaps back to
         // the locked value the user just tried to override.
-        if (r.status === 403 && body.error === 'week_locked') {
+        if (r.status === 403 && (body.error === 'week_locked' || body.error === 'day_locked')) {
           setLockedEditMsg(body.message || 'Bake quantities for this week are locked.');
           await loadWeek(weekIso);
           return;
@@ -524,7 +562,7 @@ export default function BakeHaus() {
       });
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
-        if (r.status === 403 && body.error === 'week_locked') {
+        if (r.status === 403 && (body.error === 'week_locked' || body.error === 'day_locked')) {
           setLockedEditMsg(body.message || 'Bake quantities for this week are locked.');
           await loadWeek(weekIso);
           return;
@@ -834,6 +872,74 @@ export default function BakeHaus() {
             );
           })()}
 
+          {/* Per-day cutoffs. Lets the bakery freeze one delivery day
+              (e.g. cut off Monday's order earlier in the day) while the
+              other days stay live & editable. Hidden once the whole week
+              is locked — at that point every day is frozen anyway. Only
+              the bakery allowlist (Chef Maggie / admins / Ben) sees it. */}
+          {!report.weekLocked && canUnlock && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 14px', borderRadius: 10, marginTop: 10,
+              background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.08)',
+              fontSize: 13, flexWrap: 'wrap',
+            }}>
+              <span style={{ color: 'rgba(0,0,0,0.55)', fontWeight: 600 }}>Cut off a day early:</span>
+              {(['mon', 'wed', 'fri'] as const).map((day) => {
+                const label = { mon: 'Monday', wed: 'Wednesday', fri: 'Friday' }[day];
+                const lock = report.dayLocks[day];
+                const busy = dayLockBusy === day;
+                return (
+                  <div key={day} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {lock ? (
+                      <>
+                        <span style={{ color: '#a16207', fontWeight: 600 }}>
+                          🔒 {label}
+                          {lock.source === 'manual' && lock.lockedBy ? ` · ${lock.lockedBy}` : ''}
+                        </span>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Reopen ${label} for edits? Stores will be able to change ${label}'s order again.`)) {
+                              void setDayLock(day, false);
+                            }
+                          }}
+                          disabled={busy}
+                          style={{
+                            padding: '3px 9px', borderRadius: 6,
+                            border: '1px solid rgba(202, 138, 4, 0.4)',
+                            background: '#fff', color: '#a16207',
+                            fontSize: 12, fontWeight: 600,
+                            cursor: busy ? 'wait' : 'pointer',
+                          }}
+                        >
+                          {busy ? '…' : 'Reopen'}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          if (confirm(`Lock ${label}'s order now?\n\n${label}'s qtys freeze at their current values. Wednesday & Friday stay open for edits.`)) {
+                            void setDayLock(day, true);
+                          }
+                        }}
+                        disabled={busy}
+                        style={{
+                          padding: '3px 9px', borderRadius: 6,
+                          border: '1px solid rgba(0,0,0,0.12)',
+                          background: '#fff', color: '#1a1a1a',
+                          fontSize: 12, fontWeight: 600,
+                          cursor: busy ? 'wait' : 'pointer',
+                        }}
+                      >
+                        {busy ? '…' : `Lock ${label}`}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Per-day delivery breakdown. */}
           <div style={{
             display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
@@ -864,9 +970,9 @@ export default function BakeHaus() {
             gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(540px, 1fr))',
             gap: 12,
           }}>
-            <DeliveryCard day="Monday"    items={report.deliverySummary.mon} stores={stores} catalog={catalog} />
-            <DeliveryCard day="Wednesday" items={report.deliverySummary.wed} stores={stores} catalog={catalog} />
-            <DeliveryCard day="Friday"    items={report.deliverySummary.fri} stores={stores} catalog={catalog} />
+            <DeliveryCard day="Monday"    items={report.deliverySummary.mon} stores={stores} catalog={catalog} locked={report.dayLocks.mon} />
+            <DeliveryCard day="Wednesday" items={report.deliverySummary.wed} stores={stores} catalog={catalog} locked={report.dayLocks.wed} />
+            <DeliveryCard day="Friday"    items={report.deliverySummary.fri} stores={stores} catalog={catalog} locked={report.dayLocks.fri} />
           </div>
         </>
       )}
@@ -2780,12 +2886,13 @@ function PrintableDayPage({
 }
 
 function DeliveryCard({
-  day, items, stores, catalog,
+  day, items, stores, catalog, locked,
 }: {
   day: string;
   items: Record<string, Record<string, number>>;
   stores: string[];
   catalog: CatalogItem[];
+  locked?: DayLockMeta | null;
 }) {
   const itemNames = useMemo(() => {
     return Object.keys(items).sort((a, b) => {
@@ -2817,7 +2924,17 @@ function DeliveryCard({
         padding: '12px 16px', borderBottom: '1px solid rgba(0,0,0,0.05)',
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
       }}>
-        <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: -0.2 }}>{day}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: -0.2 }}>
+          {day}
+          {locked && (
+            <span
+              title={`Locked${locked.lockedBy ? ` by ${locked.lockedBy}` : ''} — qtys frozen`}
+              style={{ marginLeft: 6, fontSize: 11, fontWeight: 600, color: '#a16207' }}
+            >
+              🔒 locked
+            </span>
+          )}
+        </span>
         <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{grandTotal} units</span>
       </div>
       {/* overflow-x: auto so on narrow viewports (chromebooks/tablets)

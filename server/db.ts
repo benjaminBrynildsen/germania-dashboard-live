@@ -406,6 +406,23 @@ db.exec(`
     PRIMARY KEY (week_start_iso)
   );
 
+  -- Per-day delivery locks. A row freezes ONE delivery day (mon/wed/fri)
+  -- for a week while the other days stay live & editable — the kitchen
+  -- can cut off Monday orders earlier in the day without locking the
+  -- whole week. The matching <day>_locked_qty column on bake_haus_orders
+  -- holds the frozen per-row qty. A whole-week lock (bake_haus_week_locks)
+  -- supersedes these: when it exists every day reads as locked. This
+  -- table is cleared alongside the week lock on unlock so stale per-day
+  -- rows can't keep a day frozen after a full unlock.
+  CREATE TABLE IF NOT EXISTS bake_haus_day_locks (
+    week_start_iso TEXT NOT NULL,
+    day TEXT NOT NULL CHECK(day IN ('mon', 'wed', 'fri')),
+    locked_at INTEGER NOT NULL,
+    locked_by TEXT,
+    lock_source TEXT NOT NULL DEFAULT 'manual',
+    PRIMARY KEY (week_start_iso, day)
+  );
+
   -- Editable syrup/sauce catalog. Unlike the hardcoded food list in
   -- BAKE_HAUS_ITEMS, syrups rotate seasonally — Chef Maggie can
   -- add/remove/rename and toggle active without a deploy. Each entry
