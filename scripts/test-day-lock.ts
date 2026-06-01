@@ -59,6 +59,18 @@ async function main() {
   check('weekLocked false (per-day only)', report.weekLocked, false);
   check('Mon unchanged right after lock', rowFor(report).delivery.mon, FROZEN_MON);
 
+  // 1b. DRIFT REGRESSION (the G3 / East Alton bug): once Monday is
+  // locked, its delivery must stay at the snapshot even if netQty later
+  // drops BELOW the frozen value. Live inventory rising does this in
+  // prod; here we reproduce it by dropping weekly_qty under FROZEN_MON.
+  // The old code clamped the locked day down to netQty → numbers drifted
+  // and the lock looked like it "didn't take" for that store.
+  upsertOrderItem({ weekStartIso: WEEK, storeLabel: STORE, itemName: ITEM, weeklyQty: Math.max(1, FROZEN_MON - 5) });
+  check('locked Mon holds snapshot even when netQty < snapshot',
+    rowFor(await getWeekReport(WEEK)).delivery.mon, FROZEN_MON);
+  // Restore the baseline so the later steps behave as written.
+  upsertOrderItem({ weekStartIso: WEEK, storeLabel: STORE, itemName: ITEM, weeklyQty: 21 });
+
   // 2. Bump weekly_qty 21 → 31. Mon stays frozen; Wed+Fri absorb the +10.
   upsertOrderItem({ weekStartIso: WEEK, storeLabel: STORE, itemName: ITEM, weeklyQty: 31 });
   report = await getWeekReport(WEEK);

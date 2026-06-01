@@ -576,6 +576,17 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
       includeMonday,
       prioritizeEarly,
     );
+    // A locked day must show its frozen snapshot EXACTLY — once a day is
+    // locked, live inventory is irrelevant (the snapshot already had
+    // inventory subtracted at lock time). splitForDeliveries clamps a
+    // locked day down to the live netQty, which is right pre-lock but
+    // wrong after: a store whose on-hand rises (or whose netQty otherwise
+    // dips below the snapshot — e.g. East Alton/G3) would see its
+    // "locked" numbers keep drifting down instead of staying put. Pin
+    // locked days back to their snapshot here so the freeze actually holds.
+    if (lockMon && monLockedQty != null) split.mon = Math.max(0, Math.round(monLockedQty));
+    if (lockWed && wedLockedQty != null) split.wed = Math.max(0, Math.round(wedLockedQty));
+    if (lockFri && friLockedQty != null) split.fri = Math.max(0, Math.round(friLockedQty));
     const row: BakeHausOrderRow = {
       weekStartIso: r.week_start_iso,
       storeLabel: r.store_label,
