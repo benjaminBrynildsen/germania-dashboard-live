@@ -170,6 +170,18 @@ db.pragma('foreign_keys = ON');
     db.exec("ALTER TABLE bake_haus_week_locks ADD COLUMN lock_source TEXT NOT NULL DEFAULT 'manual'");
   }
 }
+// Waffles → Waffle Wedge rename migration. The catalog item was renamed
+// to match the Dripos product name ("Waffle Wedge") so inventory matches;
+// existing order rows are keyed by item_name, so re-key them to the new
+// canonical name or they'd orphan (show blank on the form, no inventory).
+// Idempotent: once renamed there are no 'Waffles' rows left to update.
+{
+  const tbl = db.prepare("PRAGMA table_info(bake_haus_orders)").all() as Array<{ name: string }>;
+  if (tbl.length > 0) {
+    const info = db.prepare("UPDATE bake_haus_orders SET item_name = 'Waffle Wedge' WHERE item_name = 'Waffles'").run();
+    if (info.changes > 0) console.log(`[migration] renamed ${info.changes} 'Waffles' order row(s) to 'Waffle Wedge'`);
+  }
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (

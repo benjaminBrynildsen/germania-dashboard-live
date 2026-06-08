@@ -33,12 +33,6 @@ export interface BakeHausItem {
   aliases: string[];
   /** Sort order on the entry form. */
   sort: number;
-  /** Optional Dripos product-name phrase to fuzzy-match inventory/image
-   *  against, when the canonical display name doesn't share enough tokens
-   *  with the Dripos name. E.g. we show "Waffles" but Dripos calls the
-   *  product "Waffle Wedge" — the singular/extra-word difference means the
-   *  display name matches 0 tokens and inventory reads 0 everywhere. */
-  driposMatch?: string;
 }
 
 /** Unified catalog item — covers both the hardcoded food list AND
@@ -68,7 +62,7 @@ export const BAKE_HAUS_ITEMS: BakeHausItem[] = [
   { name: 'Energy Bites',                  aliases: ['energy bites', 'energy bite'], sort: 60 },
   { name: 'Overnight Oats',                aliases: ['overnight oats', 'overnite oats'], sort: 70 },
   { name: 'Maple Brown Sugar Scone',       aliases: ['mbs scone', 'maple brown sugar scone', 'maple scone', 'scones', 'scone'], sort: 80 },
-  { name: 'Waffles',                       aliases: ['waffles', 'waffle'], sort: 90, driposMatch: 'Waffle Wedge' },
+  { name: 'Waffle Wedge',                  aliases: ['waffle wedge', 'waffles', 'waffle'], sort: 90 },
 ];
 
 /** Normalize an incoming item name to its canonical form if we recognize
@@ -103,7 +97,7 @@ function findImageForCatalogItem(
   item: BakeHausItem,
   products: Array<{ NAME: string; LOGO?: string | null }>,
 ): string | null {
-  const wantTokens = new Set(normalizeForMatch(item.driposMatch ?? item.name).split(' ').filter(Boolean));
+  const wantTokens = new Set(normalizeForMatch(item.name).split(' ').filter(Boolean));
   // Aliases give us more match surface (e.g., "BEC" should match
   // "Bacon, Egg, & Cheese Strudel" via the BEC alias if we ever add it
   // to the product side, but the canonical token-set match is the
@@ -216,7 +210,7 @@ function findProductForCatalogItem(
   item: BakeHausItem,
   products: Array<{ NAME: string; INVENTORY?: number | null; LOGO?: string | null; ARCHIVED?: number }>,
 ): { NAME: string; INVENTORY?: number | null; LOGO?: string | null } | null {
-  const wantTokens = new Set(normalizeForMatch(item.driposMatch ?? item.name).split(' ').filter(Boolean));
+  const wantTokens = new Set(normalizeForMatch(item.name).split(' ').filter(Boolean));
   const candidates: Array<{ p: typeof products[number]; score: number }> = [];
   for (const p of products) {
     if (p.ARCHIVED) continue;
