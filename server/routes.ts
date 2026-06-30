@@ -1,4 +1,7 @@
 import { Router, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import db from './db.js';
 import { requireAuth, requireRole, AuthRequest } from './auth.js';
 import { createIdeaForm, createVotingForm, getFormResponses, createDriveFolder } from './google.js';
@@ -772,6 +775,51 @@ router.post('/cog/ingredients/master', requireAuth, requireRole('admin', 'manage
 router.delete('/cog/ingredients/master/:id', requireAuth, requireRole('admin', 'manager'), (req: AuthRequest, res: Response) => {
   db.prepare('DELETE FROM cog_ingredient_master WHERE id = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// Import the master ingredient catalog from the bundled Cost-of-Goods export
+// (server/germania-cog-ingredients.json, parsed from the GOODS sheet). Idempotent:
+// upserts by name, so re-running just refreshes prices. Safe to click repeatedly.
+const __routesDir = path.dirname(fileURLToPath(import.meta.url));
+router.post('/cog/ingredients/import', requireAuth, requireRole('admin', 'manager'), (_req: AuthRequest, res: Response) => {
+  try {
+    const dataPath = path.join(__routesDir, 'germania-cog-ingredients.json');
+    if (!fs.existsSync(dataPath)) { res.status(404).json({ error: 'Ingredient catalog file not found on server' }); return; }
+    const items = JSON.parse(fs.readFileSync(dataPath, 'utf-8')) as Array<{
+      name: string; ap_pack_cost: number | null; pack_size: number | null; pack_unit: string | null; supplier: string | null;
+    }>;
+
+    const exists = db.prepare('SELECT 1 FROM cog_ingredient_master WHERE name = ?');
+    const upsert = db.prepare(`
+      INSERT INTO cog_ingredient_master (name, ap_pack_cost, pack_size, pack_unit, supplier)
+      VALUES (@name, @ap_pack_cost, @pack_size, @pack_unit, @supplier)
+      ON CONFLICT(name) DO UPDATE SET
+        ap_pack_cost = excluded.ap_pack_cost,
+        pack_size = excluded.pack_size,
+        pack_unit = excluded.pack_unit,
+        supplier = excluded.supplier,
+        last_updated = datetime('now')
+    `);
+    let inserted = 0, updated = 0;
+    const run = db.transaction(() => {
+      for (const it of items) {
+        if (!it.name) continue;
+        if (exists.get(it.name)) updated++; else inserted++;
+        upsert.run({
+          name: it.name,
+          ap_pack_cost: it.ap_pack_cost ?? null,
+          pack_size: it.pack_size ?? null,
+          pack_unit: it.pack_unit ?? null,
+          supplier: it.supplier ?? null,
+        });
+      }
+    });
+    run();
+    res.json({ success: true, total: items.length, inserted, updated });
+  } catch (err: any) {
+    console.error('Ingredient import error:', err);
+    res.status(500).json({ error: err.message || 'Import failed' });
+  }
 });
 
 // --- COG: finished drinks + recommended pricing ---

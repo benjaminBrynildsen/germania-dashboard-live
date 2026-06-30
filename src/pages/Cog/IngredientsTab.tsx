@@ -26,6 +26,7 @@ export default function IngredientsTab() {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<MasterIngredient | null>(null);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const load = async () => {
     try {
@@ -53,6 +54,20 @@ export default function IngredientsTab() {
     }
   };
 
+  const importCatalog = async () => {
+    if (!confirm('Import the ingredient catalog from the Cost-of-Goods spreadsheet? Existing ingredients with the same name get their prices refreshed; nothing is deleted.')) return;
+    setImporting(true);
+    try {
+      const r = await api.post('/api/cog/ingredients/import', {});
+      alert(`Imported: ${r.inserted} new, ${r.updated} updated (${r.total} total).`);
+      load();
+    } catch (e: any) {
+      alert(`Import failed: ${e.message}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (loading) return <div style={{ color: 'rgba(0,0,0,0.3)', padding: 40 }}>Loading...</div>;
 
   return (
@@ -64,7 +79,14 @@ export default function IngredientsTab() {
           onChange={(e) => setSearch(e.target.value)}
           style={{ ...inputStyle, maxWidth: 280 }}
         />
-        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}>+ Add ingredient</button>}
+        {canEdit && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-secondary" onClick={importCatalog} disabled={importing}>
+              {importing ? 'Importing...' : '↓ Import catalog'}
+            </button>
+            <button className="btn btn-primary" onClick={() => setCreating(true)}>+ Add ingredient</button>
+          </div>
+        )}
       </div>
 
       <div className="card" style={{ overflowX: 'auto' }}>

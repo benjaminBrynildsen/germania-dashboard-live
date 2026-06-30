@@ -1,0 +1,474 @@
+[
+  {
+    "name": "Cold Brew",
+    "category": "Coffee",
+    "ap_pack_cost": 48.5,
+    "pack_size": 448.0,
+    "pack_unit": "oz",
+    "supplier": "Crimson Cup"
+  },
+  {
+    "name": "Espresso",
+    "category": "Coffee",
+    "ap_pack_cost": 48.5,
+    "pack_size": 2268.0,
+    "pack_unit": "g",
+    "supplier": "Crimson Cup"
+  },
+  {
+    "name": "Sleeve",
+    "category": "Disposable",
+    "ap_pack_cost": 59.9,
+    "pack_size": 1000.0,
+    "pack_unit": "item",
+    "supplier": "Useful Products"
+  },
+  {
+    "name": "Cup - Cold - 10",
+    "category": "Disposable",
+    "ap_pack_cost": 43.49,
+    "pack_size": 1000.0,
+    "pack_unit": "item",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Cup - Hot - 12",
+    "category": "Disposable",
+    "ap_pack_cost": 41.99,
+    "pack_size": 1000.0,
+    "pack_unit": "item",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Cup - Hot - 16",
+    "category": "Disposable",
+    "ap_pack_cost": 47.99,
+    "pack_size": 1000.0,
+    "pack_unit": "item",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Cup - Hot - 20",
+    "category": "Disposable",
+    "ap_pack_cost": 37.49,
+    "pack_size": 600.0,
+    "pack_unit": "item",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Lid - Hot",
+    "category": "Disposable",
+    "ap_pack_cost": 36.49,
+    "pack_size": 1000.0,
+    "pack_unit": "item",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Lid - Kids",
+    "category": "Disposable",
+    "ap_pack_cost": 30.99,
+    "pack_size": 1000.0,
+    "pack_unit": "item",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Straw",
+    "category": "Disposable",
+    "ap_pack_cost": 30.0,
+    "pack_size": 1800.0,
+    "pack_unit": "item",
+    "supplier": "Crimson Cup"
+  },
+  {
+    "name": "Cup - Cold - 16",
+    "category": "Disposable",
+    "ap_pack_cost": 138.49,
+    "pack_size": 1000.0,
+    "pack_unit": "item",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Cup - Cold - 24",
+    "category": "Disposable",
+    "ap_pack_cost": 106.49,
+    "pack_size": 600.0,
+    "pack_unit": "item",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Lid - Sip",
+    "category": "Disposable",
+    "ap_pack_cost": 84.99,
+    "pack_size": 1000.0,
+    "pack_unit": "item",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Stopper",
+    "category": "Disposable",
+    "ap_pack_cost": 82.99,
+    "pack_size": 2000.0,
+    "pack_unit": "item",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Hot Chocolate Powder",
+    "category": "Drink Base",
+    "ap_pack_cost": 93.375,
+    "pack_size": 10886.4,
+    "pack_unit": "g",
+    "supplier": "Crimson Cup"
+  },
+  {
+    "name": "Polar Powder",
+    "category": "Drink Base",
+    "ap_pack_cost": 93.375,
+    "pack_size": 10886.4,
+    "pack_unit": "g",
+    "supplier": "Crimson Cup"
+  },
+  {
+    "name": "Chai - Spiced Chai (red carton)",
+    "category": "Drink Base",
+    "ap_pack_cost": 4.19,
+    "pack_size": 32.0,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Matcha - Ceremonial",
+    "category": "Drink Base",
+    "ap_pack_cost": 78.99,
+    "pack_size": 400.0,
+    "pack_unit": "g",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Whole Milk",
+    "category": "Milk / Dairy",
+    "ap_pack_cost": 3.7,
+    "pack_size": 128.0,
+    "pack_unit": "oz",
+    "supplier": "Instacart - Schnucks"
+  },
+  {
+    "name": "Oat Milk",
+    "category": "Milk / Dairy",
+    "ap_pack_cost": 33.36,
+    "pack_size": 384.0,
+    "pack_unit": "oz",
+    "supplier": "Sysco"
+  },
+  {
+    "name": "Almond Milk",
+    "category": "Milk / Dairy",
+    "ap_pack_cost": 33.26,
+    "pack_size": 384.0,
+    "pack_unit": "oz",
+    "supplier": "Sysco"
+  },
+  {
+    "name": "Half & Half",
+    "category": "Milk / Dairy",
+    "ap_pack_cost": 29.11,
+    "pack_size": 384.0,
+    "pack_unit": "oz",
+    "supplier": "Sysco"
+  },
+  {
+    "name": "Heavy Cream",
+    "category": "Milk / Dairy",
+    "ap_pack_cost": 56.69,
+    "pack_size": 384.0,
+    "pack_unit": "oz",
+    "supplier": "Sysco"
+  },
+  {
+    "name": "Whipped Cream - Extra Creamy",
+    "category": "Milk / Dairy",
+    "ap_pack_cost": 56.29,
+    "pack_size": 180.0,
+    "pack_unit": "oz",
+    "supplier": "Sysco"
+  },
+  {
+    "name": "Ice",
+    "category": "Other",
+    "ap_pack_cost": 0.01,
+    "pack_size": 1.0,
+    "pack_unit": "oz",
+    "supplier": "n/a"
+  },
+  {
+    "name": "Caramel",
+    "category": "Sauce",
+    "ap_pack_cost": 16.99,
+    "pack_size": 64.0,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Dark Chocolate",
+    "category": "Sauce",
+    "ap_pack_cost": 15.99,
+    "pack_size": 64.0,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Sea Salt Caramel Toffee",
+    "category": "Sauce",
+    "ap_pack_cost": 17.49,
+    "pack_size": 64.0,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "White Chocolate",
+    "category": "Sauce",
+    "ap_pack_cost": 16.49,
+    "pack_size": 64.0,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Mango",
+    "category": "Smoothie",
+    "ap_pack_cost": 8.69,
+    "pack_size": 46.0,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Strawberry",
+    "category": "Smoothie",
+    "ap_pack_cost": 8.69,
+    "pack_size": 46.0,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Strawberry Banana",
+    "category": "Smoothie",
+    "ap_pack_cost": 9.19,
+    "pack_size": 46.0,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Caramel - Zero",
+    "category": "Syrup",
+    "ap_pack_cost": 10.49,
+    "pack_size": 33.8,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Chocolate - Zero",
+    "category": "Syrup",
+    "ap_pack_cost": 7.89,
+    "pack_size": 25.4,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Hazelnut",
+    "category": "Syrup",
+    "ap_pack_cost": 9.29,
+    "pack_size": 33.8,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Honey",
+    "category": "Syrup",
+    "ap_pack_cost": 9.29,
+    "pack_size": 33.8,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Lavender",
+    "category": "Syrup",
+    "ap_pack_cost": 9.29,
+    "pack_size": 33.8,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Pure Cane",
+    "category": "Syrup",
+    "ap_pack_cost": 8.69,
+    "pack_size": 33.8,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Raspberry",
+    "category": "Syrup",
+    "ap_pack_cost": 9.29,
+    "pack_size": 33.8,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Raspberry - Zero",
+    "category": "Syrup",
+    "ap_pack_cost": 10.49,
+    "pack_size": 33.8,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Rose",
+    "category": "Syrup",
+    "ap_pack_cost": 9.29,
+    "pack_size": 33.8,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Wild Strawberry",
+    "category": "Syrup",
+    "ap_pack_cost": 9.29,
+    "pack_size": 33.8,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Vanilla",
+    "category": "Syrup",
+    "ap_pack_cost": 6.29,
+    "pack_size": 25.4,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Vanilla (SF)",
+    "category": "Syrup",
+    "ap_pack_cost": 6.29,
+    "pack_size": 25.4,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "White Chocolate (SF)",
+    "category": "Syrup",
+    "ap_pack_cost": 6.29,
+    "pack_size": 25.4,
+    "pack_unit": "oz",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Cinnamon Honey",
+    "category": "Haus Syrup",
+    "ap_pack_cost": 4.83,
+    "pack_size": 25.4,
+    "pack_unit": "oz",
+    "supplier": "Germania Kitchen"
+  },
+  {
+    "name": "Cola",
+    "category": "Haus Syrup",
+    "ap_pack_cost": 8.86,
+    "pack_size": 25.4,
+    "pack_unit": "oz",
+    "supplier": "Germania Kitchen"
+  },
+  {
+    "name": "Schweppes Club Soda",
+    "category": "Drink Base",
+    "ap_pack_cost": 8.23,
+    "pack_size": 6.0,
+    "pack_unit": "can",
+    "supplier": "Instacart - Schnucks"
+  },
+  {
+    "name": "PB Chocoalte Sauce",
+    "category": "Haus Sauce",
+    "ap_pack_cost": 14.06,
+    "pack_size": 64.0,
+    "pack_unit": "oz",
+    "supplier": "Germania Kitchen"
+  },
+  {
+    "name": "Lemon White Chocolate Sauce",
+    "category": "Haus Sauce",
+    "ap_pack_cost": 8.63,
+    "pack_size": 64.0,
+    "pack_unit": "oz",
+    "supplier": "Germania Kitchen"
+  },
+  {
+    "name": "Rosewater Matcha Concentrate",
+    "category": "Drink Base",
+    "ap_pack_cost": 5.98,
+    "pack_size": 32.0,
+    "pack_unit": "oz",
+    "supplier": "Germania Kitchen"
+  },
+  {
+    "name": "Raw Sugar Packet",
+    "category": "Other",
+    "ap_pack_cost": 18.99,
+    "pack_size": 1000.0,
+    "pack_unit": "packet",
+    "supplier": "Webstaurant"
+  },
+  {
+    "name": "Green or Black Tea",
+    "category": "Tea",
+    "ap_pack_cost": 39.43,
+    "pack_size": 40.0,
+    "pack_unit": "batch bag",
+    "supplier": "Crimson Cup"
+  },
+  {
+    "name": "Tea Sachet (EGL, JDP)",
+    "category": "Tea",
+    "ap_pack_cost": 20.75,
+    "pack_size": 50.0,
+    "pack_unit": "sachet",
+    "supplier": "Crimson Cup"
+  },
+  {
+    "name": "Winter Cider",
+    "category": "Tea",
+    "ap_pack_cost": 13.84,
+    "pack_size": 1.0,
+    "pack_unit": "gallon",
+    "supplier": "Germania Kitchen"
+  },
+  {
+    "name": "Canada Dry Ginger Ale",
+    "category": "Drink Base",
+    "ap_pack_cost": 12.0,
+    "pack_size": 12.0,
+    "pack_unit": "can",
+    "supplier": "Instacart - Schnucks"
+  },
+  {
+    "name": "Lime",
+    "category": "Drink Base",
+    "ap_pack_cost": 0.67,
+    "pack_size": 4.0,
+    "pack_unit": "lime quarter",
+    "supplier": "Instacart - Schnucks"
+  },
+  {
+    "name": "Orange Blossom Matcha Concentrate",
+    "category": "Drink Base",
+    "ap_pack_cost": 7.68,
+    "pack_size": 32.0,
+    "pack_unit": "oz",
+    "supplier": "Germania Kitchen"
+  },
+  {
+    "name": "Lemonade",
+    "category": "Drink Base",
+    "ap_pack_cost": 5.12,
+    "pack_size": 128.0,
+    "pack_unit": "oz",
+    "supplier": "Germania Kitchen"
+  }
+]
