@@ -22,14 +22,23 @@ export default function CogManager() {
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>COGS</h1>
-        <p style={{ color: 'rgba(0,0,0,0.4)', fontSize: 14, marginTop: 4 }}>
-          Drink cost of goods, ingredient costs, and recommended pricing
-        </p>
+      <div style={{ marginBottom: isMobile ? 14 : 18 }}>
+        <h1 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, letterSpacing: -0.5, margin: 0 }}>COGS</h1>
+        {!isMobile && (
+          <p style={{ color: 'rgba(0,0,0,0.4)', fontSize: 14, marginTop: 4 }}>
+            Drink cost of goods, ingredient costs, and recommended pricing
+          </p>
+        )}
       </div>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 22, flexWrap: 'wrap' }}>
+      {/* Underline tab bar — matches the Bake Haus page. */}
+      <div style={{
+        display: 'flex',
+        gap: isMobile ? 0 : 4,
+        marginBottom: isMobile ? 16 : 22,
+        borderBottom: '1px solid rgba(0,0,0,0.08)',
+        overflowX: 'auto',
+      }}>
         {TABS.map((t) => {
           const active = tab === t.id;
           return (
@@ -37,16 +46,20 @@ export default function CogManager() {
               key={t.id}
               onClick={() => setTab(t.id)}
               style={{
-                padding: isMobile ? '8px 14px' : '9px 18px',
-                borderRadius: 9,
-                fontSize: 14,
+                padding: isMobile ? '10px 12px' : '10px 18px',
+                background: 'transparent',
+                border: 0,
+                borderBottom: `2px solid ${active ? '#1a1a1a' : 'transparent'}`,
+                color: active ? '#1a1a1a' : 'rgba(0,0,0,0.45)',
+                fontSize: isMobile ? 12 : 13,
                 fontWeight: 600,
-                border: 'none',
-                background: active ? '#1a1a1a' : 'rgba(0,0,0,0.06)',
-                color: active ? '#fff' : 'rgba(0,0,0,0.55)',
+                letterSpacing: isMobile ? '0.04em' : '0.06em',
+                textTransform: 'uppercase',
                 cursor: 'pointer',
+                marginBottom: -1,
+                flex: isMobile ? 1 : '0 0 auto',
+                whiteSpace: 'nowrap',
                 fontFamily: 'inherit',
-                transition: 'all 0.2s',
               }}
             >
               {isMobile ? t.short : t.label}
