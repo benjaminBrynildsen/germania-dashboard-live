@@ -1,12 +1,12 @@
 import { useAuth } from '../../hooks/useAuth';
 
-// Roles allowed to mutate COGS data (mirrors the server's requireRole on the
-// create/update endpoints).
-const EDIT_ROLES = ['admin', 'manager', 'menu_team'];
-
+// COGS editing is open to any authenticated employee (login is already
+// restricted to the company Google domain). The `role` column defaults to
+// 'staff' and is only promoted by hand, so role-gating here would lock out
+// most real users — including the owner — so we gate on being logged in only.
 export function useCanEdit(): boolean {
   const { user } = useAuth();
-  return !!user && EDIT_ROLES.includes(user.role);
+  return !!user;
 }
 
 export const inputStyle: React.CSSProperties = {

@@ -583,7 +583,7 @@ function generateLaunchTasks(launchId: number, launchDate: string) {
 // --- COG Manager ---
 
 // Seed COG data from JSON
-router.post('/cog/seed', requireAuth, requireRole('admin', 'manager'), (_req: AuthRequest, res: Response) => {
+router.post('/cog/seed', requireAuth, (_req: AuthRequest, res: Response) => {
   try {
     const result = seedCogData();
     res.json(result);
@@ -652,7 +652,7 @@ router.get('/cog/recipes/:id', requireAuth, (req: AuthRequest, res: Response) =>
 });
 
 // Create recipe
-router.post('/cog/recipes', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.post('/cog/recipes', requireAuth, (req: AuthRequest, res: Response) => {
   const { name, season, category, total_yield, yield_unit, labor_time_hrs, labor_quantity, labor_cook_rate, labor_cost_per_unit } = req.body;
   
   const result = db.prepare(`
@@ -665,7 +665,7 @@ router.post('/cog/recipes', requireAuth, requireRole('admin', 'manager', 'menu_t
 });
 
 // Update recipe
-router.put('/cog/recipes/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.put('/cog/recipes/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const { name, season, category, total_yield, yield_unit, labor_time_hrs, labor_quantity, labor_cook_rate, labor_cost_per_unit } = req.body;
   
   db.prepare(`
@@ -681,13 +681,13 @@ router.put('/cog/recipes/:id', requireAuth, requireRole('admin', 'manager', 'men
 });
 
 // Delete recipe
-router.delete('/cog/recipes/:id', requireAuth, requireRole('admin', 'manager'), (req: AuthRequest, res: Response) => {
+router.delete('/cog/recipes/:id', requireAuth, (req: AuthRequest, res: Response) => {
   db.prepare('DELETE FROM cog_recipes WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
 // Add ingredient to recipe
-router.post('/cog/recipes/:id/ingredients', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.post('/cog/recipes/:id/ingredients', requireAuth, (req: AuthRequest, res: Response) => {
   const { name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used } = req.body;
   
   const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM cog_ingredients WHERE recipe_id = ?').get(req.params.id) as any;
@@ -705,7 +705,7 @@ router.post('/cog/recipes/:id/ingredients', requireAuth, requireRole('admin', 'm
 });
 
 // Update ingredient
-router.put('/cog/ingredients/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.put('/cog/ingredients/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const { name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used } = req.body;
   
   db.prepare(`
@@ -720,7 +720,7 @@ router.put('/cog/ingredients/:id', requireAuth, requireRole('admin', 'manager', 
 });
 
 // Delete ingredient
-router.delete('/cog/ingredients/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.delete('/cog/ingredients/:id', requireAuth, (req: AuthRequest, res: Response) => {
   db.prepare('DELETE FROM cog_ingredients WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
@@ -735,7 +735,7 @@ router.get('/cog/ingredients/master', requireAuth, (_req: AuthRequest, res: Resp
 });
 
 // Update master ingredient
-router.put('/cog/ingredients/master/:id', requireAuth, requireRole('admin', 'manager'), (req: AuthRequest, res: Response) => {
+router.put('/cog/ingredients/master/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const { ap_pack_cost, pack_size, pack_unit, supplier } = req.body;
 
   db.prepare(`
@@ -749,7 +749,7 @@ router.put('/cog/ingredients/master/:id', requireAuth, requireRole('admin', 'man
 });
 
 // Create master ingredient
-router.post('/cog/ingredients/master', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.post('/cog/ingredients/master', requireAuth, (req: AuthRequest, res: Response) => {
   const { name, ap_pack_cost, pack_size, pack_unit, supplier } = req.body;
   if (!name || !String(name).trim()) {
     res.status(400).json({ error: 'Name is required' });
@@ -772,7 +772,7 @@ router.post('/cog/ingredients/master', requireAuth, requireRole('admin', 'manage
 });
 
 // Delete master ingredient
-router.delete('/cog/ingredients/master/:id', requireAuth, requireRole('admin', 'manager'), (req: AuthRequest, res: Response) => {
+router.delete('/cog/ingredients/master/:id', requireAuth, (req: AuthRequest, res: Response) => {
   db.prepare('DELETE FROM cog_ingredient_master WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
@@ -781,7 +781,7 @@ router.delete('/cog/ingredients/master/:id', requireAuth, requireRole('admin', '
 // (server/germania-cog-ingredients.json, parsed from the GOODS sheet). Idempotent:
 // upserts by name, so re-running just refreshes prices. Safe to click repeatedly.
 const __routesDir = path.dirname(fileURLToPath(import.meta.url));
-router.post('/cog/ingredients/import', requireAuth, requireRole('admin', 'manager'), (_req: AuthRequest, res: Response) => {
+router.post('/cog/ingredients/import', requireAuth, (_req: AuthRequest, res: Response) => {
   try {
     const dataPath = path.join(__routesDir, 'germania-cog-ingredients.json');
     if (!fs.existsSync(dataPath)) { res.status(404).json({ error: 'Ingredient catalog file not found on server' }); return; }
@@ -830,7 +830,7 @@ router.get('/cog/settings', requireAuth, (_req: AuthRequest, res: Response) => {
   res.json(settings);
 });
 
-router.put('/cog/settings', requireAuth, requireRole('admin', 'manager'), (req: AuthRequest, res: Response) => {
+router.put('/cog/settings', requireAuth, (req: AuthRequest, res: Response) => {
   const { default_target_cogs_pct, drink_location_id } = req.body;
   db.prepare(`
     UPDATE cog_settings
@@ -913,7 +913,7 @@ router.get('/cog/drinks/:id', requireAuth, (req: AuthRequest, res: Response) => 
 });
 
 // Create drink. Optionally seed an initial variant so the builder isn't empty.
-router.post('/cog/drinks', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.post('/cog/drinks', requireAuth, (req: AuthRequest, res: Response) => {
   const { name, category, season, target_cogs_pct, notes, dripos_product_id } = req.body;
   if (!name || !String(name).trim()) { res.status(400).json({ error: 'Name is required' }); return; }
   const result = db.prepare(`
@@ -927,7 +927,7 @@ router.post('/cog/drinks', requireAuth, requireRole('admin', 'manager', 'menu_te
 });
 
 // Update drink (metadata only)
-router.put('/cog/drinks/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.put('/cog/drinks/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const { name, category, season, target_cogs_pct, notes, archived } = req.body;
   db.prepare(`
     UPDATE cog_drinks
@@ -939,14 +939,14 @@ router.put('/cog/drinks/:id', requireAuth, requireRole('admin', 'manager', 'menu
   res.json(db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(req.params.id));
 });
 
-router.delete('/cog/drinks/:id', requireAuth, requireRole('admin', 'manager'), (req: AuthRequest, res: Response) => {
+router.delete('/cog/drinks/:id', requireAuth, (req: AuthRequest, res: Response) => {
   db.prepare('DELETE FROM cog_drinks WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
 // --- Variants ---
 
-router.post('/cog/drinks/:id/variants', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.post('/cog/drinks/:id/variants', requireAuth, (req: AuthRequest, res: Response) => {
   const { label, temp, size, menu_price, target_cogs_pct } = req.body;
   if (!label || !String(label).trim()) { res.status(400).json({ error: 'Variant label is required' }); return; }
   const maxOrder = db.prepare('SELECT MAX(sort_order) AS max FROM cog_drink_variants WHERE drink_id = ?').get(req.params.id) as any;
@@ -957,7 +957,7 @@ router.post('/cog/drinks/:id/variants', requireAuth, requireRole('admin', 'manag
   res.json(db.prepare('SELECT * FROM cog_drink_variants WHERE id = ?').get(result.lastInsertRowid));
 });
 
-router.put('/cog/variants/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.put('/cog/variants/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const { label, temp, size, menu_price, target_cogs_pct } = req.body;
   db.prepare(`
     UPDATE cog_drink_variants
@@ -967,14 +967,14 @@ router.put('/cog/variants/:id', requireAuth, requireRole('admin', 'manager', 'me
   res.json(db.prepare('SELECT * FROM cog_drink_variants WHERE id = ?').get(req.params.id));
 });
 
-router.delete('/cog/variants/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.delete('/cog/variants/:id', requireAuth, (req: AuthRequest, res: Response) => {
   db.prepare('DELETE FROM cog_drink_variants WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
 // --- Components (belong to a variant) ---
 
-router.post('/cog/variants/:id/components', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.post('/cog/variants/:id/components', requireAuth, (req: AuthRequest, res: Response) => {
   const { component_type, ingredient_id, recipe_id, quantity, unit, yield_percent } = req.body;
   if (component_type !== 'ingredient' && component_type !== 'recipe') {
     res.status(400).json({ error: "component_type must be 'ingredient' or 'recipe'" });
@@ -1005,7 +1005,7 @@ router.post('/cog/variants/:id/components', requireAuth, requireRole('admin', 'm
   res.json(db.prepare('SELECT * FROM cog_drink_components WHERE id = ?').get(result.lastInsertRowid));
 });
 
-router.put('/cog/components/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.put('/cog/components/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const { quantity, unit, yield_percent, ingredient_id, recipe_id } = req.body;
   db.prepare(`
     UPDATE cog_drink_components
@@ -1017,7 +1017,7 @@ router.put('/cog/components/:id', requireAuth, requireRole('admin', 'manager', '
   res.json(db.prepare('SELECT * FROM cog_drink_components WHERE id = ?').get(req.params.id));
 });
 
-router.delete('/cog/components/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+router.delete('/cog/components/:id', requireAuth, (req: AuthRequest, res: Response) => {
   db.prepare('DELETE FROM cog_drink_components WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
@@ -1026,7 +1026,7 @@ router.delete('/cog/components/:id', requireAuth, requireRole('admin', 'manager'
 // products, refreshes name/category on existing ones, and NEVER clobbers a
 // drink's components or its target_cogs_pct override. Food/pets + archived
 // products are dropped.
-router.post('/cog/drinks/sync-dripos', requireAuth, requireRole('admin', 'manager'), async (_req: AuthRequest, res: Response) => {
+router.post('/cog/drinks/sync-dripos', requireAuth, async (_req: AuthRequest, res: Response) => {
   try {
     const settings = db.prepare('SELECT drink_location_id FROM cog_settings WHERE id = 1').get() as any;
     const locationId = settings?.drink_location_id ?? 131;
@@ -1072,7 +1072,7 @@ router.post('/cog/drinks/sync-dripos', requireAuth, requireRole('admin', 'manage
 // variants from the sheet each run. Components are resolved ingredient name ->
 // cog_ingredient_master; unresolved names are skipped and reported back so the
 // catalog can be filled in. Run the ingredient import first.
-router.post('/cog/drinks/import-recipes', requireAuth, requireRole('admin', 'manager'), (_req: AuthRequest, res: Response) => {
+router.post('/cog/drinks/import-recipes', requireAuth, (_req: AuthRequest, res: Response) => {
   try {
     const dataPath = path.join(__routesDir, 'germania-cog-drinks.json');
     if (!fs.existsSync(dataPath)) { res.status(404).json({ error: 'Drink recipe file not found on server' }); return; }
