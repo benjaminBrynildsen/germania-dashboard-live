@@ -73,11 +73,21 @@ export default function DrinksTab() {
   const [creating, setCreating] = useState(false);
   const [ingredients, setIngredients] = useState<PickIngredient[]>([]);
   const [recipes, setRecipes] = useState<PickRecipe[]>([]);
+  // Live Dripos menu prices: variant_id -> price, plus per-drink min/max.
+  const [driposPrices, setDriposPrices] = useState<Record<number, number>>({});
+  const [driposDrinkPrices, setDriposDrinkPrices] = useState<Record<number, { min: number; max: number }>>({});
 
   const loadDrinks = useCallback(async () => {
     try { setDrinks(await api.get('/api/cog/drinks')); }
     catch (e) { console.error('Failed to load drinks:', e); }
     finally { setLoading(false); }
+  }, []);
+
+  const loadDriposPrices = useCallback(async () => {
+    try {
+      const r = await api.get('/api/cog/drinks/dripos-prices');
+      if (r.available) { setDriposPrices(r.prices || {}); setDriposDrinkPrices(r.drink_prices || {}); }
+    } catch (e) { /* non-fatal: column just stays blank */ }
   }, []);
 
   const loadDetail = useCallback(async (id: number) => {
@@ -87,9 +97,10 @@ export default function DrinksTab() {
 
   useEffect(() => {
     loadDrinks();
+    loadDriposPrices();
     api.get('/api/cog/ingredients/master').then(setIngredients).catch(() => {});
     api.get('/api/cog/recipes').then(setRecipes).catch(() => {});
-  }, [loadDrinks]);
+  }, [loadDrinks, loadDriposPrices]);
 
   useEffect(() => {
     if (expanded) loadDetail(expanded); else setDetail(null);
@@ -106,6 +117,7 @@ export default function DrinksTab() {
       const r = await api.post('/api/cog/drinks/sync-dripos', {});
       alert(`Synced from Dripos: ${r.inserted} new, ${r.updated} updated (${r.total} drinks).`);
       loadDrinks();
+      loadDriposPrices();
     } catch (e: any) { alert(`Sync failed: ${e.message}`); }
     finally { setSyncing(false); }
   };
@@ -183,9 +195,12 @@ export default function DrinksTab() {
                     <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.3)' }}>• {d.variant_count} size{d.variant_count === 1 ? '' : 's'}</span>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 22, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: isMobile ? 14 : 22, alignItems: 'center' }}>
                   <Metric label="COG" value={range(d.min_cog, d.max_cog, 3)} />
                   <Metric label={`Rec. @ ${d.effective_target_cogs_pct}%`} value={range(d.min_recommended, d.max_recommended)} accent />
+                  {driposDrinkPrices[d.id] && (
+                    <Metric label="Dripos" value={range(driposDrinkPrices[d.id].min, driposDrinkPrices[d.id].max)} color="#2563eb" />
+                  )}
                 </div>
               </div>
             </div>
@@ -193,7 +208,7 @@ export default function DrinksTab() {
             {expanded === d.id && detail && (
               <DrinkEditor
                 detail={detail} isMobile={isMobile} canEdit={canEdit}
-                ingredients={ingredients} recipes={recipes}
+                ingredients={ingredients} recipes={recipes} driposPrices={driposPrices}
                 onChanged={refresh} onDelete={() => removeDrink(d)}
               />
             )}
@@ -208,18 +223,18 @@ export default function DrinksTab() {
   );
 }
 
-function Metric({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function Metric({ label, value, accent, color }: { label: string; value: string; accent?: boolean; color?: string }) {
   return (
     <div style={{ textAlign: 'right' }}>
-      <div style={{ fontSize: 18, fontWeight: 700, color: accent ? '#16a34a' : '#1a1a1a' }}>{value}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: color ?? (accent ? '#16a34a' : '#1a1a1a') }}>{value}</div>
       <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>{label}</div>
     </div>
   );
 }
 
-function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, onChanged, onDelete }: {
+function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPrices, onChanged, onDelete }: {
   detail: DrinkDetail; isMobile: boolean; canEdit: boolean;
-  ingredients: PickIngredient[]; recipes: PickRecipe[];
+  ingredients: PickIngredient[]; recipes: PickRecipe[]; driposPrices: Record<number, number>;
   onChanged: () => void; onDelete: () => void;
 }) {
   const [targetOverride, setTargetOverride] = useState(detail.target_cogs_pct?.toString() ?? '');
@@ -273,7 +288,7 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, onChange
       {current ? (
         <VariantBlock
           key={current.id} variant={current} isMobile={isMobile} canEdit={canEdit}
-          ingredients={ingredients} recipes={recipes}
+          ingredients={ingredients} recipes={recipes} driposPrice={driposPrices[current.id] ?? null}
           onChanged={onChanged} onDelete={() => delVariant(current.id)} canDeleteVariant={detail.variants.length > 1}
         />
       ) : (
@@ -295,12 +310,16 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, onChange
   );
 }
 
-function VariantBlock({ variant, isMobile, canEdit, ingredients, recipes, onChanged, onDelete, canDeleteVariant }: {
+function VariantBlock({ variant, isMobile, canEdit, ingredients, recipes, driposPrice, onChanged, onDelete, canDeleteVariant }: {
   variant: Variant; isMobile: boolean; canEdit: boolean;
-  ingredients: PickIngredient[]; recipes: PickRecipe[];
+  ingredients: PickIngredient[]; recipes: PickRecipe[]; driposPrice: number | null;
   onChanged: () => void; onDelete: () => void; canDeleteVariant: boolean;
 }) {
   const [adding, setAdding] = useState(false);
+  // Live Dripos price wins; fall back to the price stored from the spreadsheet import.
+  const price = driposPrice ?? variant.menu_price;
+  const priceLabel = driposPrice != null ? 'Dripos price (live)' : 'Menu price';
+  const margin = price && price > 0 ? ((price - variant.variant_cog) / price) * 100 : null;
 
   const delComponent = async (cid: number) => {
     try { await api.delete(`/api/cog/components/${cid}`); onChanged(); }
@@ -364,9 +383,9 @@ function VariantBlock({ variant, isMobile, canEdit, ingredients, recipes, onChan
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12 }}>
         <Total label="COG" value={money(variant.variant_cog, 3)} />
         <Total label={`Recommended @ ${variant.effective_target_cogs_pct}%`} value={variant.recommended_price != null ? money(variant.recommended_price) : '—'} accent />
-        <Total label="Menu price" value={variant.menu_price != null ? money(variant.menu_price) : '—'} />
-        <Total label="Margin" value={variant.current_margin_pct != null ? `${variant.current_margin_pct.toFixed(1)}%` : '—'}
-          color={variant.current_margin_pct == null ? undefined : variant.current_margin_pct >= 70 ? '#16a34a' : variant.current_margin_pct >= 60 ? '#ca8a04' : '#dc2626'} />
+        <Total label={priceLabel} value={price != null ? money(price) : '—'} color={driposPrice != null ? '#2563eb' : undefined} />
+        <Total label="Margin" value={margin != null ? `${margin.toFixed(1)}%` : '—'}
+          color={margin == null ? undefined : margin >= 70 ? '#16a34a' : margin >= 60 ? '#ca8a04' : '#dc2626'} />
       </div>
 
       {canEdit && canDeleteVariant && (

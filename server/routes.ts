@@ -8,7 +8,7 @@ import { createIdeaForm, createVotingForm, getFormResponses, createDriveFolder }
 import { fetchLocationPhoto, fetchPlaceReviews, syncAllReviews } from './places.js';
 import { seedCogData } from './seed-cog.js';
 import { drinkVariants, drinkCogRange, recommendedPrice, defaultTargetPct } from './cog-cost.js';
-import { fetchAllProducts, DRINK_EXCLUDE_CATEGORIES } from './dripos.js';
+import { fetchAllProducts, DRINK_EXCLUDE_CATEGORIES, getDriposPrices } from './dripos.js';
 
 const router = Router();
 
@@ -861,6 +861,44 @@ router.get('/cog/drinks', requireAuth, (req: AuthRequest, res: Response) => {
     };
   });
   res.json(enriched);
+});
+
+// Live current menu price per variant, straight from Dripos /products. Matches
+// drinks to Dripos products by name, then variants by temp+size to the product's
+// Size customization options (falling back to the base price). Returns prices
+// keyed by variant_id so the UI can show live price + margin. Degrades to
+// { available:false } when Dripos isn't connected. Registered BEFORE /:id so the
+// literal path isn't swallowed by the :id route.
+router.get('/cog/drinks/dripos-prices', requireAuth, async (_req: AuthRequest, res: Response) => {
+  try {
+    const settings = db.prepare('SELECT drink_location_id FROM cog_settings WHERE id = 1').get() as any;
+    const priceMap = await getDriposPrices(settings?.drink_location_id ?? 131);
+
+    const variants = db.prepare(`
+      SELECT v.id, v.temp, v.size, d.id AS drink_id, d.name AS drink_name
+      FROM cog_drink_variants v JOIN cog_drinks d ON d.id = v.drink_id
+    `).all() as Array<{ id: number; temp: string | null; size: string | null; drink_id: number; drink_name: string }>;
+
+    const prices: Record<number, number> = {};               // variant_id -> price
+    const drinkPrices: Record<number, { min: number; max: number }> = {};
+    let matched = 0;
+    for (const v of variants) {
+      const info = priceMap.get(v.drink_name.toLowerCase());
+      if (!info) continue;
+      const key = v.temp && v.size ? `${v.temp}|${v.size}` : null;
+      const price = (key && info.sizes[key] != null) ? info.sizes[key] : (info.base > 0 ? info.base : null);
+      if (price == null) continue;
+      prices[v.id] = price;
+      matched++;
+      const dp = drinkPrices[v.drink_id];
+      if (!dp) drinkPrices[v.drink_id] = { min: price, max: price };
+      else { dp.min = Math.min(dp.min, price); dp.max = Math.max(dp.max, price); }
+    }
+    res.json({ available: true, matched, prices, drink_prices: drinkPrices });
+  } catch (err: any) {
+    const isAuth = err?.name === 'NoToken' || err?.name === 'AuthExpired';
+    res.json({ available: false, reason: isAuth ? 'Dripos not connected — log in via the Weekly Sales tab' : (err.message || 'failed'), prices: {} });
+  }
 });
 
 // Single drink with its fully-costed variants.

@@ -929,6 +929,46 @@ export async function fetchProductSales(
   );
 }
 
+export interface DriposPriceInfo {
+  name: string;
+  base: number;                      // base PRICE in dollars
+  sizes: Record<string, number>;     // 'hot|S' -> price in dollars, from the Size customization
+}
+
+// Map a Dripos size-option name ("Hot Small", "Iced Kid's", "Frozen Large")
+// to our variant key `${temp}|${size}` so live prices line up with cog variants.
+function driposSizeKey(optName: string): string | null {
+  const s = (optName || '').toLowerCase();
+  const temp = s.includes('hot') ? 'hot' : s.includes('iced') ? 'iced' : s.includes('frozen') ? 'frozen' : null;
+  const size = s.includes('small') ? 'S' : s.includes('regular') ? 'R' : s.includes('large') ? 'L' : s.includes('kid') ? 'K' : null;
+  return temp && size ? `${temp}|${size}` : null;
+}
+
+// Live menu prices straight from Dripos /products. PRICE is the base price (cents);
+// the "Size & Preference" customization group carries the real per-size/temp price
+// for each option (also cents). The menu is shared across stores, so one location
+// is enough. Keyed by lowercased product name (the codebase's product join key).
+export async function getDriposPrices(locationId = 131): Promise<Map<string, DriposPriceInfo>> {
+  const products = await fetchAllProducts(locationId);
+  const byName = new Map<string, DriposPriceInfo>();
+  for (const p of products as any[]) {
+    if (!p.NAME) continue;
+    const info: DriposPriceInfo = { name: p.NAME.trim(), base: (p.PRICE ?? 0) / 100, sizes: {} };
+    const groups = Array.isArray(p.CUSTOMIZATIONS) ? p.CUSTOMIZATIONS : [];
+    const sizeGroup =
+      groups.find((g: any) => /size/i.test(g.NAME || '')) ??
+      groups.find((g: any) => (g.OPTIONS || []).some((o: any) => driposSizeKey(o.NAME || '')));
+    if (sizeGroup) {
+      for (const o of sizeGroup.OPTIONS || []) {
+        const key = driposSizeKey(o.NAME || '');
+        if (key && o.PRICE != null) info.sizes[key] = o.PRICE / 100;
+      }
+    }
+    byName.set(info.name.toLowerCase(), info);
+  }
+  return byName;
+}
+
 // ── Ticket completion (drink-time) ───────────────────────────────────────
 // AVG_COMPLETION_TIME from /report/completion is already in MINUTES, rounded.
 // HOUR is the epoch-ms of the bucket start expressed in Eastern; we relabel
