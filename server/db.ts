@@ -344,6 +344,48 @@ db.exec(`
     last_updated TEXT DEFAULT (datetime('now'))
   );
 
+  -- A finished, sellable drink. Its cost of goods is computed on read from its
+  -- components (raw ingredients + batch recipes), never stored — so an ingredient
+  -- or syrup price change flows through automatically. dripos_product_id links a
+  -- drink to a Dripos /products row so the catalog can be synced instead of
+  -- hand-entered; it's nullable for drinks created manually here.
+  CREATE TABLE IF NOT EXISTS cog_drinks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dripos_product_id INTEGER UNIQUE,
+    name TEXT NOT NULL,
+    category TEXT,
+    season TEXT,
+    target_cogs_pct REAL,            -- per-drink override of cog_settings default; null = use default
+    notes TEXT,
+    archived INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  -- One line of a drink: either a raw ingredient (ingredient_id -> cog_ingredient_master)
+  -- or a batch recipe (recipe_id -> cog_recipes, e.g. a house syrup). Exactly one of the
+  -- two FKs is set, selected by component_type.
+  CREATE TABLE IF NOT EXISTS cog_drink_components (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    drink_id INTEGER NOT NULL REFERENCES cog_drinks(id) ON DELETE CASCADE,
+    component_type TEXT NOT NULL CHECK(component_type IN ('ingredient','recipe')),
+    ingredient_id INTEGER REFERENCES cog_ingredient_master(id) ON DELETE SET NULL,
+    recipe_id INTEGER REFERENCES cog_recipes(id) ON DELETE SET NULL,
+    quantity REAL,
+    unit TEXT,
+    yield_percent REAL DEFAULT 100,
+    sort_order INTEGER DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_cog_drink_components_drink ON cog_drink_components(drink_id);
+
+  -- Single-row global config (id is always 1).
+  CREATE TABLE IF NOT EXISTS cog_settings (
+    id INTEGER PRIMARY KEY CHECK(id = 1),
+    default_target_cogs_pct REAL DEFAULT 25,
+    drink_location_id INTEGER DEFAULT 131,   -- Dripos location to pull the drink catalog from (G1)
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
   -- Single-row settings table for Dripos integration. The id is always 1;
   -- session_token is the value to send in the authentication header on
   -- api.dripos.com calls. Lasts until the user re-auths via /login flow.
@@ -768,6 +810,9 @@ db.exec(`
 
 // Seed SOP presets on boot (idempotent — keyed by slug).
 seedSopPresets(db);
+
+// Ensure the single COGS settings row exists (idempotent).
+db.prepare('INSERT OR IGNORE INTO cog_settings (id) VALUES (1)').run();
 
 // Apply additional schema (sales_daily, weather_daily, closure_decisions)
 // kept in a separate .sql file. Used by Sales Anomaly + Weather Closure tabs;

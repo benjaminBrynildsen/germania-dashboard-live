@@ -880,7 +880,7 @@ export interface ProductSalesRow {
   PLATFORM_NAME: string;
 }
 
-const DRINK_EXCLUDE_CATEGORIES = new Set(['BAKE HAUS FOOD', 'PETS']);
+export const DRINK_EXCLUDE_CATEGORIES = new Set(['BAKE HAUS FOOD', 'PETS']);
 
 const PRODUCT_SALES_PLATFORMS: Array<{ name: string; third: boolean }> = [
   { name: 'MOBILE', third: false },

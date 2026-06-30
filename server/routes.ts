@@ -4,6 +4,8 @@ import { requireAuth, requireRole, AuthRequest } from './auth.js';
 import { createIdeaForm, createVotingForm, getFormResponses, createDriveFolder } from './google.js';
 import { fetchLocationPhoto, fetchPlaceReviews, syncAllReviews } from './places.js';
 import { seedCogData } from './seed-cog.js';
+import { drinkTotals, drinkCog, recommendedPrice, defaultTargetPct } from './cog-cost.js';
+import { fetchAllProducts, DRINK_EXCLUDE_CATEGORIES } from './dripos.js';
 
 const router = Router();
 
@@ -732,7 +734,7 @@ router.get('/cog/ingredients/master', requireAuth, (_req: AuthRequest, res: Resp
 // Update master ingredient
 router.put('/cog/ingredients/master/:id', requireAuth, requireRole('admin', 'manager'), (req: AuthRequest, res: Response) => {
   const { ap_pack_cost, pack_size, pack_unit, supplier } = req.body;
-  
+
   db.prepare(`
     UPDATE cog_ingredient_master
     SET ap_pack_cost = ?, pack_size = ?, pack_unit = ?, supplier = ?, last_updated = datetime('now')
@@ -741,6 +743,214 @@ router.put('/cog/ingredients/master/:id', requireAuth, requireRole('admin', 'man
 
   const ingredient = db.prepare('SELECT * FROM cog_ingredient_master WHERE id = ?').get(req.params.id);
   res.json(ingredient);
+});
+
+// Create master ingredient
+router.post('/cog/ingredients/master', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+  const { name, ap_pack_cost, pack_size, pack_unit, supplier } = req.body;
+  if (!name || !String(name).trim()) {
+    res.status(400).json({ error: 'Name is required' });
+    return;
+  }
+  try {
+    const result = db.prepare(`
+      INSERT INTO cog_ingredient_master (name, ap_pack_cost, pack_size, pack_unit, supplier)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(String(name).trim(), ap_pack_cost ?? null, pack_size ?? null, pack_unit ?? null, supplier ?? null);
+    res.json(db.prepare('SELECT * FROM cog_ingredient_master WHERE id = ?').get(result.lastInsertRowid));
+  } catch (err: any) {
+    // name has a UNIQUE constraint
+    if (String(err.message).includes('UNIQUE')) {
+      res.status(409).json({ error: 'An ingredient with that name already exists' });
+      return;
+    }
+    throw err;
+  }
+});
+
+// Delete master ingredient
+router.delete('/cog/ingredients/master/:id', requireAuth, requireRole('admin', 'manager'), (req: AuthRequest, res: Response) => {
+  db.prepare('DELETE FROM cog_ingredient_master WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// --- COG: finished drinks + recommended pricing ---
+
+// Global COGS settings (single row). Default target COG % drives recommended price.
+router.get('/cog/settings', requireAuth, (_req: AuthRequest, res: Response) => {
+  const settings = db.prepare('SELECT * FROM cog_settings WHERE id = 1').get();
+  res.json(settings);
+});
+
+router.put('/cog/settings', requireAuth, requireRole('admin', 'manager'), (req: AuthRequest, res: Response) => {
+  const { default_target_cogs_pct, drink_location_id } = req.body;
+  db.prepare(`
+    UPDATE cog_settings
+    SET default_target_cogs_pct = COALESCE(?, default_target_cogs_pct),
+        drink_location_id = COALESCE(?, drink_location_id),
+        updated_at = datetime('now')
+    WHERE id = 1
+  `).run(default_target_cogs_pct ?? null, drink_location_id ?? null);
+  res.json(db.prepare('SELECT * FROM cog_settings WHERE id = 1').get());
+});
+
+// List drinks with computed COG + recommended price.
+router.get('/cog/drinks', requireAuth, (req: AuthRequest, res: Response) => {
+  const includeArchived = req.query.archived === '1';
+  const drinks = db.prepare(`
+    SELECT d.*, COUNT(c.id) AS component_count
+    FROM cog_drinks d
+    LEFT JOIN cog_drink_components c ON d.id = c.drink_id
+    ${includeArchived ? '' : 'WHERE d.archived = 0'}
+    GROUP BY d.id
+    ORDER BY d.category, d.name
+  `).all() as any[];
+
+  const fallback = defaultTargetPct();
+  const enriched = drinks.map((d) => {
+    const cog = drinkCog(d.id);
+    const effectiveTarget = d.target_cogs_pct ?? fallback;
+    return {
+      ...d,
+      drink_cog: cog,
+      effective_target_cogs_pct: effectiveTarget,
+      recommended_price: recommendedPrice(cog, d.target_cogs_pct),
+    };
+  });
+  res.json(enriched);
+});
+
+// Single drink with resolved components + totals.
+router.get('/cog/drinks/:id', requireAuth, (req: AuthRequest, res: Response) => {
+  const drink = db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(req.params.id) as any;
+  if (!drink) { res.status(404).json({ error: 'Drink not found' }); return; }
+  const { components, drink_cog } = drinkTotals(drink.id);
+  const effectiveTarget = drink.target_cogs_pct ?? defaultTargetPct();
+  res.json({
+    ...drink,
+    components,
+    drink_cog,
+    effective_target_cogs_pct: effectiveTarget,
+    recommended_price: recommendedPrice(drink_cog, drink.target_cogs_pct),
+  });
+});
+
+// Create drink
+router.post('/cog/drinks', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+  const { name, category, season, target_cogs_pct, notes, dripos_product_id } = req.body;
+  if (!name || !String(name).trim()) { res.status(400).json({ error: 'Name is required' }); return; }
+  const result = db.prepare(`
+    INSERT INTO cog_drinks (name, category, season, target_cogs_pct, notes, dripos_product_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(String(name).trim(), category ?? null, season ?? null, target_cogs_pct ?? null, notes ?? null, dripos_product_id ?? null);
+  res.json(db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(result.lastInsertRowid));
+});
+
+// Update drink (metadata only; components have their own endpoints)
+router.put('/cog/drinks/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+  const { name, category, season, target_cogs_pct, notes, archived } = req.body;
+  db.prepare(`
+    UPDATE cog_drinks
+    SET name = ?, category = ?, season = ?, target_cogs_pct = ?, notes = ?,
+        archived = COALESCE(?, archived), updated_at = datetime('now')
+    WHERE id = ?
+  `).run(name, category ?? null, season ?? null, target_cogs_pct ?? null, notes ?? null,
+         archived == null ? null : (archived ? 1 : 0), req.params.id);
+  res.json(db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(req.params.id));
+});
+
+router.delete('/cog/drinks/:id', requireAuth, requireRole('admin', 'manager'), (req: AuthRequest, res: Response) => {
+  db.prepare('DELETE FROM cog_drinks WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// Add a component (ingredient or recipe line) to a drink
+router.post('/cog/drinks/:id/components', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+  const { component_type, ingredient_id, recipe_id, quantity, unit, yield_percent } = req.body;
+  if (component_type !== 'ingredient' && component_type !== 'recipe') {
+    res.status(400).json({ error: "component_type must be 'ingredient' or 'recipe'" });
+    return;
+  }
+  if (component_type === 'ingredient' && !ingredient_id) {
+    res.status(400).json({ error: 'ingredient_id is required for an ingredient component' });
+    return;
+  }
+  if (component_type === 'recipe' && !recipe_id) {
+    res.status(400).json({ error: 'recipe_id is required for a recipe component' });
+    return;
+  }
+  const maxOrder = db.prepare('SELECT MAX(sort_order) AS max FROM cog_drink_components WHERE drink_id = ?').get(req.params.id) as any;
+  const sortOrder = (maxOrder?.max ?? -1) + 1;
+  const result = db.prepare(`
+    INSERT INTO cog_drink_components (drink_id, component_type, ingredient_id, recipe_id, quantity, unit, yield_percent, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    req.params.id,
+    component_type,
+    component_type === 'ingredient' ? ingredient_id : null,
+    component_type === 'recipe' ? recipe_id : null,
+    quantity ?? null, unit ?? null, yield_percent ?? 100, sortOrder,
+  );
+  res.json(db.prepare('SELECT * FROM cog_drink_components WHERE id = ?').get(result.lastInsertRowid));
+});
+
+router.put('/cog/components/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+  const { quantity, unit, yield_percent, ingredient_id, recipe_id } = req.body;
+  db.prepare(`
+    UPDATE cog_drink_components
+    SET quantity = ?, unit = ?, yield_percent = ?,
+        ingredient_id = COALESCE(?, ingredient_id),
+        recipe_id = COALESCE(?, recipe_id)
+    WHERE id = ?
+  `).run(quantity ?? null, unit ?? null, yield_percent ?? 100, ingredient_id ?? null, recipe_id ?? null, req.params.id);
+  res.json(db.prepare('SELECT * FROM cog_drink_components WHERE id = ?').get(req.params.id));
+});
+
+router.delete('/cog/components/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+  db.prepare('DELETE FROM cog_drink_components WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// Sync the drink catalog from Dripos. Upserts by dripos_product_id: inserts new
+// products, refreshes name/category on existing ones, and NEVER clobbers a
+// drink's components or its target_cogs_pct override. Food/pets + archived
+// products are dropped.
+router.post('/cog/drinks/sync-dripos', requireAuth, requireRole('admin', 'manager'), async (_req: AuthRequest, res: Response) => {
+  try {
+    const settings = db.prepare('SELECT drink_location_id FROM cog_settings WHERE id = 1').get() as any;
+    const locationId = settings?.drink_location_id ?? 131;
+    const products = await fetchAllProducts(locationId); // already drops ARCHIVED
+    const drinks = products.filter((p) => !DRINK_EXCLUDE_CATEGORIES.has(p.CATEGORY_NAME));
+
+    const findStmt = db.prepare('SELECT id FROM cog_drinks WHERE dripos_product_id = ?');
+    const insertStmt = db.prepare(
+      'INSERT INTO cog_drinks (dripos_product_id, name, category) VALUES (?, ?, ?)',
+    );
+    const updateStmt = db.prepare(
+      "UPDATE cog_drinks SET name = ?, category = ?, updated_at = datetime('now') WHERE dripos_product_id = ?",
+    );
+
+    let inserted = 0;
+    let updated = 0;
+    const run = db.transaction(() => {
+      for (const p of drinks) {
+        const existing = findStmt.get(p.ID) as any;
+        if (existing) {
+          updateStmt.run(p.NAME, p.CATEGORY_NAME, p.ID);
+          updated++;
+        } else {
+          insertStmt.run(p.ID, p.NAME, p.CATEGORY_NAME);
+          inserted++;
+        }
+      }
+    });
+    run();
+
+    res.json({ success: true, total: drinks.length, inserted, updated, location_id: locationId });
+  } catch (err: any) {
+    console.error('Dripos drink sync error:', err);
+    res.status(500).json({ error: err.message || 'Sync failed' });
+  }
 });
 
 export default router;
