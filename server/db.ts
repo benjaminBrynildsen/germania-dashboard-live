@@ -28,6 +28,18 @@ db.pragma('foreign_keys = ON');
   }
 }
 
+// COGS drink size/temp variants — adds the variants layer to a v1 drinks
+// schema that costed one recipe per drink. On a fresh DB the CREATE TABLE
+// block below builds variant_id from scratch, so this is a no-op there; on a
+// deployed DB it adds the column to the existing cog_drink_components table.
+{
+  const tbl = db.prepare("PRAGMA table_info(cog_drink_components)").all() as Array<{ name: string }>;
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'variant_id')) {
+    console.log('[migration] adding variant_id to cog_drink_components');
+    db.exec('ALTER TABLE cog_drink_components ADD COLUMN variant_id INTEGER REFERENCES cog_drink_variants(id) ON DELETE CASCADE');
+  }
+}
+
 // Menu Team SOP packet metadata — adds the cover/category fields used
 // to render seasonal launch packets. Pre-dates only the v1 SOP schema;
 // these are no-ops on a fresh DB because CREATE TABLE IF NOT EXISTS
@@ -362,12 +374,30 @@ db.exec(`
     updated_at TEXT DEFAULT (datetime('now'))
   );
 
-  -- One line of a drink: either a raw ingredient (ingredient_id -> cog_ingredient_master)
-  -- or a batch recipe (recipe_id -> cog_recipes, e.g. a house syrup). Exactly one of the
-  -- two FKs is set, selected by component_type.
-  CREATE TABLE IF NOT EXISTS cog_drink_components (
+  -- A size/temperature variant of a drink (e.g. Hot - Large, Iced - Regular).
+  -- Each variant carries its own components, so it costs out independently —
+  -- a large iced latte uses more milk + a bigger cold cup than a small hot one.
+  -- A drink always has at least one variant; a simple drink just has one.
+  CREATE TABLE IF NOT EXISTS cog_drink_variants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     drink_id INTEGER NOT NULL REFERENCES cog_drinks(id) ON DELETE CASCADE,
+    label TEXT NOT NULL,             -- display, e.g. 'Hot - Large'
+    temp TEXT,                       -- 'hot' | 'iced' | 'frozen' | null
+    size TEXT,                       -- 'S' | 'R' | 'L' | 'K' | 'Single' ...
+    menu_price REAL,                 -- current/known menu price for this size (reference, optional)
+    target_cogs_pct REAL,            -- rare per-variant override; null inherits drink/global
+    sort_order INTEGER DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_cog_drink_variants_drink ON cog_drink_variants(drink_id);
+
+  -- One line of a drink variant: either a raw ingredient (ingredient_id ->
+  -- cog_ingredient_master) or a batch recipe (recipe_id -> cog_recipes, e.g. a
+  -- house syrup). Exactly one of the two FKs is set, selected by component_type.
+  -- variant_id is the operative parent; drink_id is kept denormalized for convenience.
+  CREATE TABLE IF NOT EXISTS cog_drink_components (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    drink_id INTEGER REFERENCES cog_drinks(id) ON DELETE CASCADE,
+    variant_id INTEGER REFERENCES cog_drink_variants(id) ON DELETE CASCADE,
     component_type TEXT NOT NULL CHECK(component_type IN ('ingredient','recipe')),
     ingredient_id INTEGER REFERENCES cog_ingredient_master(id) ON DELETE SET NULL,
     recipe_id INTEGER REFERENCES cog_recipes(id) ON DELETE SET NULL,
@@ -377,6 +407,7 @@ db.exec(`
     sort_order INTEGER DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_cog_drink_components_drink ON cog_drink_components(drink_id);
+  CREATE INDEX IF NOT EXISTS idx_cog_drink_components_variant ON cog_drink_components(variant_id);
 
   -- Single-row global config (id is always 1).
   CREATE TABLE IF NOT EXISTS cog_settings (

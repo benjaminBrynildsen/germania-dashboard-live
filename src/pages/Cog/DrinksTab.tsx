@@ -7,24 +7,24 @@ interface DrinkRow {
   id: number;
   name: string;
   category: string | null;
-  season: string | null;
   target_cogs_pct: number | null;
-  notes: string | null;
   dripos_product_id: number | null;
-  component_count: number;
-  drink_cog: number;
   effective_target_cogs_pct: number;
-  recommended_price: number | null;
+  variant_count: number;
+  min_cog: number | null;
+  max_cog: number | null;
+  min_recommended: number | null;
+  max_recommended: number | null;
 }
 
 interface Component {
   id: number;
+  variant_id: number;
   component_type: 'ingredient' | 'recipe';
   ingredient_id: number | null;
   recipe_id: number | null;
   quantity: number | null;
   unit: string | null;
-  yield_percent: number | null;
   component_name: string;
   source_unit: string | null;
   unit_cost: number;
@@ -33,12 +33,32 @@ interface Component {
   missing_source: boolean;
 }
 
-interface DrinkDetail extends DrinkRow {
+interface Variant {
+  id: number;
+  label: string;
+  temp: string | null;
+  size: string | null;
+  menu_price: number | null;
+  target_cogs_pct: number | null;
   components: Component[];
+  variant_cog: number;
+  effective_target_cogs_pct: number;
+  recommended_price: number | null;
+  current_margin_pct: number | null;
+}
+
+interface DrinkDetail extends DrinkRow {
+  variants: Variant[];
 }
 
 interface PickIngredient { id: number; name: string; pack_unit: string | null }
 interface PickRecipe { id: number; name: string; yield_unit: string; cog_per_unit: number }
+
+function range(min: number | null, max: number | null, dp = 2): string {
+  if (min == null || max == null) return '—';
+  if (Math.abs(min - max) < 1e-9) return money(min, dp);
+  return `${money(min, dp)}–${money(max, dp)}`;
+}
 
 export default function DrinksTab() {
   const isMobile = useIsMobile();
@@ -49,26 +69,20 @@ export default function DrinksTab() {
   const [expanded, setExpanded] = useState<number | null>(null);
   const [detail, setDetail] = useState<DrinkDetail | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [ingredients, setIngredients] = useState<PickIngredient[]>([]);
   const [recipes, setRecipes] = useState<PickRecipe[]>([]);
 
   const loadDrinks = useCallback(async () => {
-    try {
-      setDrinks(await api.get('/api/cog/drinks'));
-    } catch (e) {
-      console.error('Failed to load drinks:', e);
-    } finally {
-      setLoading(false);
-    }
+    try { setDrinks(await api.get('/api/cog/drinks')); }
+    catch (e) { console.error('Failed to load drinks:', e); }
+    finally { setLoading(false); }
   }, []);
 
   const loadDetail = useCallback(async (id: number) => {
-    try {
-      setDetail(await api.get(`/api/cog/drinks/${id}`));
-    } catch (e) {
-      console.error('Failed to load drink detail:', e);
-    }
+    try { setDetail(await api.get(`/api/cog/drinks/${id}`)); }
+    catch (e) { console.error('Failed to load drink detail:', e); }
   }, []);
 
   useEffect(() => {
@@ -78,11 +92,9 @@ export default function DrinksTab() {
   }, [loadDrinks]);
 
   useEffect(() => {
-    if (expanded) loadDetail(expanded);
-    else setDetail(null);
+    if (expanded) loadDetail(expanded); else setDetail(null);
   }, [expanded, loadDetail]);
 
-  // Reload both the expanded detail and the list row (COG changes ripple up).
   const refresh = async () => {
     if (expanded) await loadDetail(expanded);
     await loadDrinks();
@@ -94,22 +106,29 @@ export default function DrinksTab() {
       const r = await api.post('/api/cog/drinks/sync-dripos', {});
       alert(`Synced from Dripos: ${r.inserted} new, ${r.updated} updated (${r.total} drinks).`);
       loadDrinks();
-    } catch (e: any) {
-      alert(`Sync failed: ${e.message}`);
-    } finally {
-      setSyncing(false);
-    }
+    } catch (e: any) { alert(`Sync failed: ${e.message}`); }
+    finally { setSyncing(false); }
+  };
+
+  const importRecipes = async () => {
+    if (!confirm('Import drink recipes from the Cost-of-Goods spreadsheet? Each drink is matched to the synced catalog by name and its variants are rebuilt from the sheet. Run the ingredient import first.')) return;
+    setImporting(true);
+    try {
+      const r = await api.post('/api/cog/drinks/import-recipes', {});
+      const warn = r.unresolved_ingredients?.length ? `\n\nUnmatched ingredients (skipped): ${r.unresolved_ingredients.join(', ')}` : '';
+      alert(`Imported recipes: ${r.drinks_matched_to_existing} matched, ${r.drinks_created} created, ${r.variants} variants, ${r.components} lines.${warn}`);
+      refresh();
+    } catch (e: any) { alert(`Import failed: ${e.message}`); }
+    finally { setImporting(false); }
   };
 
   const removeDrink = async (d: DrinkRow) => {
-    if (!confirm(`Delete "${d.name}" and its recipe? This cannot be undone.`)) return;
+    if (!confirm(`Delete "${d.name}" and all its variants? This cannot be undone.`)) return;
     try {
       await api.delete(`/api/cog/drinks/${d.id}`);
       if (expanded === d.id) setExpanded(null);
       loadDrinks();
-    } catch (e: any) {
-      alert(`Delete failed: ${e.message}`);
-    }
+    } catch (e: any) { alert(`Delete failed: ${e.message}`); }
   };
 
   const filtered = useMemo(
@@ -120,9 +139,8 @@ export default function DrinksTab() {
   );
 
   const stats = useMemo(() => {
-    const costed = filtered.filter((d) => d.component_count > 0);
-    const avgCog = costed.length ? costed.reduce((s, d) => s + d.drink_cog, 0) / costed.length : 0;
-    return { total: filtered.length, costed: costed.length, avgCog };
+    const costed = filtered.filter((d) => d.min_cog != null);
+    return { total: filtered.length, costed: costed.length };
   }, [filtered]);
 
   if (loading) return <div style={{ color: 'rgba(0,0,0,0.3)', padding: 40 }}>Loading...</div>;
@@ -130,16 +148,17 @@ export default function DrinksTab() {
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
-        <SummaryCard label="Drinks" value={String(stats.total)} sub={`${stats.costed} with a recipe`} />
-        <SummaryCard label="Avg COG (costed)" value={money(stats.avgCog)} />
+        <SummaryCard label="Drinks" value={String(stats.total)} />
+        <SummaryCard label="With a recipe" value={String(stats.costed)} />
         <SummaryCard label="Not yet costed" value={String(stats.total - stats.costed)} sub="add components to cost them" />
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <input placeholder="Search drinks..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, maxWidth: 280 }} />
+        <input placeholder="Search drinks..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, maxWidth: 260 }} />
         {canEdit && (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="btn btn-secondary" onClick={sync} disabled={syncing}>{syncing ? 'Syncing...' : '⟳ Sync from Dripos'}</button>
+            <button className="btn btn-secondary" onClick={importRecipes} disabled={importing}>{importing ? 'Importing...' : '↓ Import recipes'}</button>
             <button className="btn btn-primary" onClick={() => setCreating(true)}>+ Add drink</button>
           </div>
         )}
@@ -153,36 +172,29 @@ export default function DrinksTab() {
         )}
         {filtered.map((d) => (
           <div key={d.id}>
-            <div
-              className="card"
-              onClick={() => setExpanded(expanded === d.id ? null : d.id)}
-              style={{ cursor: 'pointer', background: expanded === d.id ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.8)' }}
-            >
+            <div className="card" onClick={() => setExpanded(expanded === d.id ? null : d.id)}
+              style={{ cursor: 'pointer', background: expanded === d.id ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.8)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div>
                   <h3 style={{ fontSize: 17, fontWeight: 600, letterSpacing: -0.2 }}>{d.name}</h3>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
                     {d.category && <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>{d.category}</span>}
-                    {d.dripos_product_id && <span className="badge badge-blue">Dripos</span>}
-                    <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.3)' }}>• {d.component_count} components</span>
+                    {d.dripos_product_id != null && <span className="badge badge-blue">Dripos</span>}
+                    <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.3)' }}>• {d.variant_count} size{d.variant_count === 1 ? '' : 's'}</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 22, alignItems: 'center' }}>
-                  <Metric label="COG" value={d.component_count ? money(d.drink_cog, 3) : '—'} />
-                  <Metric label={`Rec. @ ${d.effective_target_cogs_pct}%`} value={d.recommended_price != null && d.component_count ? money(d.recommended_price) : '—'} accent />
+                  <Metric label="COG" value={range(d.min_cog, d.max_cog, 3)} />
+                  <Metric label={`Rec. @ ${d.effective_target_cogs_pct}%`} value={range(d.min_recommended, d.max_recommended)} accent />
                 </div>
               </div>
             </div>
 
             {expanded === d.id && detail && (
               <DrinkEditor
-                detail={detail}
-                isMobile={isMobile}
-                canEdit={canEdit}
-                ingredients={ingredients}
-                recipes={recipes}
-                onChanged={refresh}
-                onDelete={() => removeDrink(d)}
+                detail={detail} isMobile={isMobile} canEdit={canEdit}
+                ingredients={ingredients} recipes={recipes}
+                onChanged={refresh} onDelete={() => removeDrink(d)}
               />
             )}
           </div>
@@ -199,58 +211,115 @@ export default function DrinksTab() {
 function Metric({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div style={{ textAlign: 'right' }}>
-      <div style={{ fontSize: 20, fontWeight: 700, color: accent ? '#16a34a' : '#1a1a1a' }}>{value}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: accent ? '#16a34a' : '#1a1a1a' }}>{value}</div>
       <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>{label}</div>
     </div>
   );
 }
 
 function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, onChanged, onDelete }: {
-  detail: DrinkDetail;
-  isMobile: boolean;
-  canEdit: boolean;
-  ingredients: PickIngredient[];
-  recipes: PickRecipe[];
-  onChanged: () => void;
-  onDelete: () => void;
+  detail: DrinkDetail; isMobile: boolean; canEdit: boolean;
+  ingredients: PickIngredient[]; recipes: PickRecipe[];
+  onChanged: () => void; onDelete: () => void;
 }) {
-  const [adding, setAdding] = useState(false);
   const [targetOverride, setTargetOverride] = useState(detail.target_cogs_pct?.toString() ?? '');
+  const [activeVariant, setActiveVariant] = useState<number | null>(detail.variants[0]?.id ?? null);
+  const [addingVariant, setAddingVariant] = useState(false);
 
   const saveTarget = async () => {
     try {
       await api.put(`/api/cog/drinks/${detail.id}`, {
-        name: detail.name, category: detail.category, season: detail.season,
-        notes: detail.notes,
+        name: detail.name, category: detail.category,
         target_cogs_pct: targetOverride === '' ? null : parseFloat(targetOverride),
       });
       onChanged();
-    } catch (e: any) {
-      alert(`Save failed: ${e.message}`);
-    }
+    } catch (e: any) { alert(`Save failed: ${e.message}`); }
   };
+
+  const current = detail.variants.find((v) => v.id === activeVariant) ?? detail.variants[0];
+
+  const delVariant = async (vid: number) => {
+    if (!confirm('Delete this size variant and its recipe?')) return;
+    try { await api.delete(`/api/cog/variants/${vid}`); onChanged(); }
+    catch (e: any) { alert(`Delete failed: ${e.message}`); }
+  };
+
+  return (
+    <div className="card" style={{ marginTop: 8, background: 'rgba(255,255,255,0.97)' }}>
+      {/* Variant selector */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+        {detail.variants.map((v) => {
+          const on = v.id === current?.id;
+          return (
+            <button key={v.id} onClick={() => setActiveVariant(v.id)}
+              style={{
+                padding: '6px 12px', borderRadius: 999,
+                border: on ? '2px solid #1a1a1a' : '1px solid rgba(0,0,0,0.12)',
+                background: on ? '#1a1a1a' : '#fff', color: on ? '#fff' : 'rgba(0,0,0,0.65)',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              {v.label}
+              <span style={{ marginLeft: 6, opacity: on ? 0.85 : 0.5 }}>{v.components.length ? money(v.variant_cog, 2) : '—'}</span>
+            </button>
+          );
+        })}
+        {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => setAddingVariant(true)}>+ Size</button>}
+      </div>
+
+      {addingVariant && canEdit && (
+        <AddVariantRow drinkId={detail.id} onClose={() => setAddingVariant(false)} onAdded={() => { setAddingVariant(false); onChanged(); }} />
+      )}
+
+      {current ? (
+        <VariantBlock
+          key={current.id} variant={current} isMobile={isMobile} canEdit={canEdit}
+          ingredients={ingredients} recipes={recipes}
+          onChanged={onChanged} onDelete={() => delVariant(current.id)} canDeleteVariant={detail.variants.length > 1}
+        />
+      ) : (
+        <div style={{ color: 'rgba(0,0,0,0.4)', padding: 16 }}>No sizes yet. {canEdit ? 'Add one above.' : ''}</div>
+      )}
+
+      {/* Drink-level target override + delete */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.5)' }}>Target COG % for this drink:</span>
+          <input type="number" step="0.5" value={targetOverride} disabled={!canEdit}
+            onChange={(e) => setTargetOverride(e.target.value)} onBlur={saveTarget}
+            placeholder={String(detail.effective_target_cogs_pct)} style={{ ...inputStyle, width: 90 }} />
+          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>{targetOverride === '' ? '(global default)' : ''}</span>
+        </div>
+        {canEdit && <button className="btn btn-danger btn-sm" onClick={onDelete}>Delete drink</button>}
+      </div>
+    </div>
+  );
+}
+
+function VariantBlock({ variant, isMobile, canEdit, ingredients, recipes, onChanged, onDelete, canDeleteVariant }: {
+  variant: Variant; isMobile: boolean; canEdit: boolean;
+  ingredients: PickIngredient[]; recipes: PickRecipe[];
+  onChanged: () => void; onDelete: () => void; canDeleteVariant: boolean;
+}) {
+  const [adding, setAdding] = useState(false);
 
   const delComponent = async (cid: number) => {
     try { await api.delete(`/api/cog/components/${cid}`); onChanged(); }
     catch (e: any) { alert(`Delete failed: ${e.message}`); }
   };
-
   const setQty = async (c: Component, quantity: string) => {
     try {
-      await api.put(`/api/cog/components/${c.id}`, { quantity: quantity === '' ? null : parseFloat(quantity), unit: c.unit, yield_percent: c.yield_percent });
+      await api.put(`/api/cog/components/${c.id}`, { quantity: quantity === '' ? null : parseFloat(quantity), unit: c.unit });
       onChanged();
     } catch (e: any) { alert(`Update failed: ${e.message}`); }
   };
 
   return (
-    <div className="card" style={{ marginTop: 8, background: 'rgba(255,255,255,0.97)' }}>
-      <h4 style={sectionHead}>Recipe</h4>
-      <div style={{ overflowX: 'auto', marginBottom: 16 }}>
-        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 560 }}>
+    <div>
+      <div style={{ overflowX: 'auto', marginBottom: 12 }}>
+        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 540 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
               <th style={th('left')}>Component</th>
-              <th style={th('left')}>Type</th>
               <th style={th('right')}>Qty</th>
               <th style={th('right')}>Unit cost</th>
               <th style={th('right')}>Line cost</th>
@@ -258,24 +327,22 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, onChange
             </tr>
           </thead>
           <tbody>
-            {detail.components.length === 0 && (
-              <tr><td colSpan={canEdit ? 6 : 5} style={{ padding: 24, textAlign: 'center', color: 'rgba(0,0,0,0.3)' }}>No components yet</td></tr>
+            {variant.components.length === 0 && (
+              <tr><td colSpan={canEdit ? 5 : 4} style={{ padding: 20, textAlign: 'center', color: 'rgba(0,0,0,0.3)' }}>No components yet</td></tr>
             )}
-            {detail.components.map((c) => (
+            {variant.components.map((c) => (
               <tr key={c.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
                 <td style={{ padding: '8px 12px', fontWeight: 600 }}>
                   {c.component_name}
+                  {c.component_type === 'recipe' && <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)', marginLeft: 6 }}>(recipe)</span>}
                   {c.missing_source && <span className="badge badge-red" style={{ marginLeft: 6 }}>missing</span>}
                   {c.unit_mismatch && <span title={`Quantity is in "${c.unit}" but cost is per "${c.source_unit}"`} className="badge badge-gold" style={{ marginLeft: 6 }}>unit?</span>}
                 </td>
-                <td style={td('left')}>{c.component_type === 'recipe' ? 'Batch recipe' : 'Ingredient'}</td>
                 <td style={td('right')}>
                   {canEdit ? (
-                    <input
-                      type="number" step="any" defaultValue={c.quantity ?? ''}
+                    <input type="number" step="any" defaultValue={c.quantity ?? ''}
                       onBlur={(e) => { if (e.target.value !== String(c.quantity ?? '')) setQty(c, e.target.value); }}
-                      style={{ ...inputStyle, width: 80, padding: '5px 8px', textAlign: 'right' }}
-                    />
+                      style={{ ...inputStyle, width: 72, padding: '5px 8px', textAlign: 'right' }} />
                   ) : (c.quantity ?? '—')}
                   <span style={{ color: 'rgba(0,0,0,0.4)', marginLeft: 4 }}>{c.unit || c.source_unit || ''}</span>
                 </td>
@@ -288,55 +355,69 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, onChange
         </table>
       </div>
 
-      {canEdit && !adding && <button className="btn btn-secondary btn-sm" onClick={() => setAdding(true)} style={{ marginBottom: 16 }}>+ Add component</button>}
+      {canEdit && !adding && <button className="btn btn-secondary btn-sm" onClick={() => setAdding(true)} style={{ marginBottom: 14 }}>+ Add component</button>}
       {canEdit && adding && (
-        <AddComponentRow
-          drinkId={detail.id} isMobile={isMobile} ingredients={ingredients} recipes={recipes}
-          onClose={() => setAdding(false)}
-          onAdded={() => { setAdding(false); onChanged(); }}
-        />
+        <AddComponentRow variantId={variant.id} isMobile={isMobile} ingredients={ingredients} recipes={recipes}
+          onClose={() => setAdding(false)} onAdded={() => { setAdding(false); onChanged(); }} />
       )}
 
-      {/* Totals */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12, marginTop: 8 }}>
-        <div style={totalBox}>
-          <div style={totalLabel}>Total COG</div>
-          <div style={{ fontSize: 26, fontWeight: 800 }}>{money(detail.drink_cog, 3)}</div>
-        </div>
-        <div style={totalBox}>
-          <div style={totalLabel}>Target COG %</div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <input
-              type="number" step="0.5" value={targetOverride} disabled={!canEdit}
-              onChange={(e) => setTargetOverride(e.target.value)} onBlur={saveTarget}
-              placeholder={String(detail.effective_target_cogs_pct)}
-              style={{ ...inputStyle, width: 90, fontSize: 18, fontWeight: 700 }}
-            />
-            <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>{targetOverride === '' ? '(default)' : ''}</span>
-          </div>
-        </div>
-        <div style={{ ...totalBox, background: 'rgba(34,197,94,0.1)' }}>
-          <div style={totalLabel}>Recommended price</div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#16a34a' }}>{detail.recommended_price != null ? money(detail.recommended_price) : '—'}</div>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12 }}>
+        <Total label="COG" value={money(variant.variant_cog, 3)} />
+        <Total label={`Recommended @ ${variant.effective_target_cogs_pct}%`} value={variant.recommended_price != null ? money(variant.recommended_price) : '—'} accent />
+        <Total label="Menu price" value={variant.menu_price != null ? money(variant.menu_price) : '—'} />
+        <Total label="Margin" value={variant.current_margin_pct != null ? `${variant.current_margin_pct.toFixed(1)}%` : '—'}
+          color={variant.current_margin_pct == null ? undefined : variant.current_margin_pct >= 70 ? '#16a34a' : variant.current_margin_pct >= 60 ? '#ca8a04' : '#dc2626'} />
       </div>
 
-      {canEdit && (
-        <div style={{ marginTop: 16, textAlign: 'right' }}>
-          <button className="btn btn-danger btn-sm" onClick={onDelete}>Delete drink</button>
+      {canEdit && canDeleteVariant && (
+        <div style={{ marginTop: 12, textAlign: 'right' }}>
+          <button className="btn btn-secondary btn-sm" onClick={onDelete}>Delete this size</button>
         </div>
       )}
     </div>
   );
 }
 
-function AddComponentRow({ drinkId, isMobile, ingredients, recipes, onClose, onAdded }: {
-  drinkId: number;
-  isMobile: boolean;
-  ingredients: PickIngredient[];
-  recipes: PickRecipe[];
-  onClose: () => void;
-  onAdded: () => void;
+function Total({ label, value, accent, color }: { label: string; value: string; accent?: boolean; color?: string }) {
+  return (
+    <div style={{ padding: '12px 14px', background: accent ? 'rgba(34,197,94,0.1)' : 'rgba(0,0,0,0.03)', borderRadius: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: color ?? (accent ? '#16a34a' : '#1a1a1a') }}>{value}</div>
+    </div>
+  );
+}
+
+function AddVariantRow({ drinkId, onClose, onAdded }: { drinkId: number; onClose: () => void; onAdded: () => void }) {
+  const [label, setLabel] = useState('');
+  const [menuPrice, setMenuPrice] = useState('');
+  const [saving, setSaving] = useState(false);
+  const add = async () => {
+    if (!label.trim()) return;
+    setSaving(true);
+    try {
+      await api.post(`/api/cog/drinks/${drinkId}/variants`, { label: label.trim(), menu_price: menuPrice === '' ? null : parseFloat(menuPrice) });
+      onAdded();
+    } catch (e: any) { alert(`Add failed: ${e.message}`); setSaving(false); }
+  };
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', padding: '12px 14px', background: 'rgba(0,0,0,0.03)', borderRadius: 10, marginBottom: 16 }}>
+      <div style={{ flex: 1, minWidth: 180 }}>
+        <label style={labelStyle}>New size label</label>
+        <input value={label} onChange={(e) => setLabel(e.target.value)} style={inputStyle} placeholder="Hot - Large" autoFocus />
+      </div>
+      <div style={{ width: 120 }}>
+        <label style={labelStyle}>Menu price</label>
+        <input type="number" step="0.01" value={menuPrice} onChange={(e) => setMenuPrice(e.target.value)} style={inputStyle} />
+      </div>
+      <button className="btn btn-primary btn-sm" onClick={add} disabled={!label.trim() || saving}>{saving ? '...' : 'Add'}</button>
+      <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
+    </div>
+  );
+}
+
+function AddComponentRow({ variantId, isMobile, ingredients, recipes, onClose, onAdded }: {
+  variantId: number; isMobile: boolean; ingredients: PickIngredient[]; recipes: PickRecipe[];
+  onClose: () => void; onAdded: () => void;
 }) {
   const [type, setType] = useState<'ingredient' | 'recipe'>('ingredient');
   const [refId, setRefId] = useState('');
@@ -344,7 +425,6 @@ function AddComponentRow({ drinkId, isMobile, ingredients, recipes, onClose, onA
   const [unit, setUnit] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Default the unit to the picked source's natural unit.
   const onPick = (id: string) => {
     setRefId(id);
     if (type === 'ingredient') setUnit(ingredients.find((i) => i.id === Number(id))?.pack_unit ?? '');
@@ -356,7 +436,7 @@ function AddComponentRow({ drinkId, isMobile, ingredients, recipes, onClose, onA
     if (!refId) return;
     setSaving(true);
     try {
-      await api.post(`/api/cog/drinks/${drinkId}/components`, {
+      await api.post(`/api/cog/variants/${variantId}/components`, {
         component_type: type,
         ingredient_id: type === 'ingredient' ? Number(refId) : null,
         recipe_id: type === 'recipe' ? Number(refId) : null,
@@ -364,14 +444,11 @@ function AddComponentRow({ drinkId, isMobile, ingredients, recipes, onClose, onA
         unit: unit || null,
       });
       onAdded();
-    } catch (e: any) {
-      alert(`Add failed: ${e.message}`);
-      setSaving(false);
-    }
+    } catch (e: any) { alert(`Add failed: ${e.message}`); setSaving(false); }
   };
 
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', padding: '12px 14px', background: 'rgba(0,0,0,0.03)', borderRadius: 10, marginBottom: 16 }}>
+    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', padding: '12px 14px', background: 'rgba(0,0,0,0.03)', borderRadius: 10, marginBottom: 14 }}>
       <div style={{ minWidth: 120 }}>
         <label style={labelStyle}>Type</label>
         <select value={type} onChange={(e) => onType(e.target.value as any)} style={inputStyle}>
@@ -388,11 +465,11 @@ function AddComponentRow({ drinkId, isMobile, ingredients, recipes, onClose, onA
             : recipes.map((r) => <option key={r.id} value={r.id}>{r.name} ({money(r.cog_per_unit, 3)}/{r.yield_unit})</option>)}
         </select>
       </div>
-      <div style={{ width: 90 }}>
+      <div style={{ width: 84 }}>
         <label style={labelStyle}>Qty</label>
         <input type="number" step="any" value={qty} onChange={(e) => setQty(e.target.value)} style={inputStyle} />
       </div>
-      <div style={{ width: 80 }}>
+      <div style={{ width: 76 }}>
         <label style={labelStyle}>Unit</label>
         <input value={unit} onChange={(e) => setUnit(e.target.value)} style={inputStyle} />
       </div>
@@ -405,37 +482,28 @@ function AddComponentRow({ drinkId, isMobile, ingredients, recipes, onClose, onA
 function DrinkModal({ isMobile, onClose, onSaved }: { isMobile: boolean; onClose: () => void; onSaved: (id: number) => void }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
-  const [season, setSeason] = useState('');
   const [saving, setSaving] = useState(false);
-
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const d = await api.post('/api/cog/drinks', { name: name.trim(), category: category.trim() || null, season: season.trim() || null });
+      const d = await api.post('/api/cog/drinks', { name: name.trim(), category: category.trim() || null });
       onSaved(d.id);
-    } catch (e: any) {
-      alert(`Save failed: ${e.message}`);
-      setSaving(false);
-    }
+    } catch (e: any) { alert(`Save failed: ${e.message}`); setSaving(false); }
   };
-
   return (
     <Modal title="Add drink" onClose={onClose}>
-      <div style={{ marginBottom: 14 }}>
-        <label style={labelStyle}>Name</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus placeholder="Vanilla Latte" />
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: 12, marginBottom: 18 }}>
+        <div>
+          <label style={labelStyle}>Name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus placeholder="Vanilla Latte" />
+        </div>
         <div>
           <label style={labelStyle}>Category</label>
           <input value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle} placeholder="Espresso" />
         </div>
-        <div>
-          <label style={labelStyle}>Season</label>
-          <input value={season} onChange={(e) => setSeason(e.target.value)} style={inputStyle} placeholder="optional" />
-        </div>
       </div>
+      <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 16 }}>A "Regular" size is created automatically — add more sizes after.</div>
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
         <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={save} disabled={!name.trim() || saving}>{saving ? 'Saving...' : 'Create'}</button>
@@ -444,8 +512,5 @@ function DrinkModal({ isMobile, onClose, onSaved }: { isMobile: boolean; onClose
   );
 }
 
-const sectionHead: React.CSSProperties = { fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(0,0,0,0.4)', marginBottom: 12 };
-const totalBox: React.CSSProperties = { padding: '14px 18px', background: 'rgba(0,0,0,0.03)', borderRadius: 10 };
-const totalLabel: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 };
 const th = (align: 'left' | 'right'): React.CSSProperties => ({ textAlign: align, padding: '8px 12px', fontWeight: 600, color: 'rgba(0,0,0,0.4)', whiteSpace: 'nowrap' });
 const td = (align: 'left' | 'right'): React.CSSProperties => ({ padding: '8px 12px', textAlign: align, color: 'rgba(0,0,0,0.6)' });

@@ -1,0 +1,5702 @@
+[
+ {
+  "name": "GBH",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 5.4,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 8.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 7.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "White Chocolate",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 5.95,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "White Chocolate",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 6.5,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 25.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 11.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "White Chocolate",
+      "quantity": 2.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Kids",
+    "temp": "iced",
+    "size": "K",
+    "menu_price": 4.0,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 3.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 4.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "White Chocolate",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 0.375,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 5.95,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "White Chocolate",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 6.5,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 12.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "White Chocolate",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Kids",
+    "temp": "frozen",
+    "size": "K",
+    "menu_price": 4.4,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 45.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "White Chocolate",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Regular",
+    "temp": "frozen",
+    "size": "R",
+    "menu_price": 6.4,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 90.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "White Chocolate",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 1.25,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Large",
+    "temp": "frozen",
+    "size": "L",
+    "menu_price": 6.95,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 112.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "White Chocolate",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Monkey Mocha",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 5.15,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 5.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Dark Chocolate",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Sea Salt Caramel Toffee",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 5.65,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Dark Chocolate",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Sea Salt Caramel Toffee",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 5.75,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 25.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 11.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Dark Chocolate",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Sea Salt Caramel Toffee",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Kids",
+    "temp": "iced",
+    "size": "K",
+    "menu_price": 3.0,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 3.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 4.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Dark Chocolate",
+      "quantity": 0.25,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Sea Salt Caramel Toffee",
+      "quantity": 0.25,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 5.65,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Dark Chocolate",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Sea Salt Caramel Toffee",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 5.75,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 12.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Dark Chocolate",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Sea Salt Caramel Toffee",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Kids",
+    "temp": "frozen",
+    "size": "K",
+    "menu_price": 3.7,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 45.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Dark Chocolate",
+      "quantity": 0.25,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Sea Salt Caramel Toffee",
+      "quantity": 0.25,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 0.375,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Regular",
+    "temp": "frozen",
+    "size": "R",
+    "menu_price": 5.8,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 90.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Dark Chocolate",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Sea Salt Caramel Toffee",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 0.625,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Large",
+    "temp": "frozen",
+    "size": "L",
+    "menu_price": 6.2,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 112.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Dark Chocolate",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Sea Salt Caramel Toffee",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Vanilla Latte",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 5.2,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 8.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 7.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 5.75,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.25,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 6.3,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 25.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 11.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Kids",
+    "temp": "iced",
+    "size": "K",
+    "menu_price": 3.8,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 3.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 4.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 5.75,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 6.3,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 12.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Kids",
+    "temp": "frozen",
+    "size": "K",
+    "menu_price": 4.2,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 45.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Regular",
+    "temp": "frozen",
+    "size": "R",
+    "menu_price": 6.2,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 90.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Large",
+    "temp": "frozen",
+    "size": "L",
+    "menu_price": 6.75,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 112.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Spring - CHL",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 5.15,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 8.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 7.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cinnamon Honey",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 5.65,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cinnamon Honey",
+      "quantity": 1.25,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 5.75,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 25.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 11.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cinnamon Honey",
+      "quantity": 1.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 5.65,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 8.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 10.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cinnamon Honey",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 5.75,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 14.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cinnamon Honey",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Spring - CB Cola",
+  "category": null,
+  "variants": [
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 6.5,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 6.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cola",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Schweppes Club Soda",
+      "quantity": 1.0,
+      "unit": "can"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Spring - Espresso Buck",
+  "category": null,
+  "variants": [
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 6.5,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 8.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 6.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Pure Cane",
+      "quantity": 0.25,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Canada Dry Ginger Ale",
+      "quantity": 1.0,
+      "unit": "can"
+     },
+     {
+      "ingredient_name": "Lime",
+      "quantity": 1.0,
+      "unit": "lime quarter"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Spring - Lemon White Mocha",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 5.3,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 8.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 7.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Lemon White Chocolate Sauce",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 5.7,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Lemon White Chocolate Sauce",
+      "quantity": 2.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 6.1,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 25.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 11.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Lemon White Chocolate Sauce",
+      "quantity": 2.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Kids",
+    "temp": "iced",
+    "size": "K",
+    "menu_price": 3.3,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 3.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 4.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Lemon White Chocolate Sauce",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 5.7,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Lemon White Chocolate Sauce",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 6.1,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 12.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Lemon White Chocolate Sauce",
+      "quantity": 2.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Kids",
+    "temp": "frozen",
+    "size": "K",
+    "menu_price": 3.7,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 45.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Lemon White Chocolate Sauce",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Regular",
+    "temp": "frozen",
+    "size": "R",
+    "menu_price": 6.6,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 90.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Lemon White Chocolate Sauce",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Large",
+    "temp": "frozen",
+    "size": "L",
+    "menu_price": 7.0,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 112.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Lemon White Chocolate Sauce",
+      "quantity": 2.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Spring - PB Choc Latte",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 5.3,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 8.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 7.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "PB Chocoalte Sauce",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 5.7,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "PB Chocoalte Sauce",
+      "quantity": 2.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 6.1,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 25.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 11.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "PB Chocoalte Sauce",
+      "quantity": 2.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Kids",
+    "temp": "iced",
+    "size": "K",
+    "menu_price": 3.3,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 3.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 4.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "PB Chocoalte Sauce",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 5.7,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "PB Chocoalte Sauce",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 6.1,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 12.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "PB Chocoalte Sauce",
+      "quantity": 2.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Kids",
+    "temp": "frozen",
+    "size": "K",
+    "menu_price": 3.7,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 45.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "PB Chocoalte Sauce",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Regular",
+    "temp": "frozen",
+    "size": "R",
+    "menu_price": 6.6,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 90.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "PB Chocoalte Sauce",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Large",
+    "temp": "frozen",
+    "size": "L",
+    "menu_price": 7.0,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 112.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "PB Chocoalte Sauce",
+      "quantity": 2.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Spring - Rosewater Matcha",
+  "category": null,
+  "variants": [
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 5.4,
+    "components": [
+     {
+      "ingredient_name": "Rosewater Matcha Concentrate",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Spring 2025 - OBML",
+  "category": null,
+  "variants": [
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 5.4,
+    "components": [
+     {
+      "ingredient_name": "Orange Blossom Matcha Concentrate",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lemonade",
+      "quantity": 9.0,
+      "unit": "oz"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Fruit Smoothie",
+  "category": null,
+  "variants": [
+   {
+    "label": "Frozen - Kids",
+    "temp": "frozen",
+    "size": "K",
+    "menu_price": 3.8,
+    "components": [
+     {
+      "ingredient_name": "Ice",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Strawberry",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Regular",
+    "temp": "frozen",
+    "size": "R",
+    "menu_price": 4.8,
+    "components": [
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Strawberry",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Large",
+    "temp": "frozen",
+    "size": "L",
+    "menu_price": 5.0,
+    "components": [
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Strawberry",
+      "quantity": 12.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Chai",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": null,
+    "components": [
+     {
+      "ingredient_name": "Chai - Spiced Chai (red carton)",
+      "quantity": 6.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 6.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": null,
+    "components": [
+     {
+      "ingredient_name": "Chai - Spiced Chai (red carton)",
+      "quantity": 7.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 7.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": null,
+    "components": [
+     {
+      "ingredient_name": "Chai - Spiced Chai (red carton)",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Kids",
+    "temp": "iced",
+    "size": "K",
+    "menu_price": null,
+    "components": [
+     {
+      "ingredient_name": "Chai - Spiced Chai (red carton)",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 3.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": null,
+    "components": [
+     {
+      "ingredient_name": "Chai - Spiced Chai (red carton)",
+      "quantity": 6.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 6.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": null,
+    "components": [
+     {
+      "ingredient_name": "Chai - Spiced Chai (red carton)",
+      "quantity": 8.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 8.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Kids",
+    "temp": "frozen",
+    "size": "K",
+    "menu_price": null,
+    "components": [
+     {
+      "ingredient_name": "Chai - Spiced Chai (red carton)",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 45.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 0.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Regular",
+    "temp": "frozen",
+    "size": "R",
+    "menu_price": null,
+    "components": [
+     {
+      "ingredient_name": "Chai - Spiced Chai (red carton)",
+      "quantity": 6.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 90.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 0.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Large",
+    "temp": "frozen",
+    "size": "L",
+    "menu_price": null,
+    "components": [
+     {
+      "ingredient_name": "Chai - Spiced Chai (red carton)",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 112.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 0.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Matcha",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 3.7,
+    "components": [
+     {
+      "ingredient_name": "Matcha - Ceremonial",
+      "quantity": 1.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 8.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 4.35,
+    "components": [
+     {
+      "ingredient_name": "Matcha - Ceremonial",
+      "quantity": 2.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 10.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.25,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 4.9,
+    "components": [
+     {
+      "ingredient_name": "Matcha - Ceremonial",
+      "quantity": 3.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 12.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Kids",
+    "temp": "iced",
+    "size": "K",
+    "menu_price": 2.2,
+    "components": [
+     {
+      "ingredient_name": "Matcha - Ceremonial",
+      "quantity": 1.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 3.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 4.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 4.35,
+    "components": [
+     {
+      "ingredient_name": "Matcha - Ceremonial",
+      "quantity": 2.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 4.9,
+    "components": [
+     {
+      "ingredient_name": "Matcha - Ceremonial",
+      "quantity": 3.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 12.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Kids",
+    "temp": "frozen",
+    "size": "K",
+    "menu_price": 2.5,
+    "components": [
+     {
+      "ingredient_name": "Matcha - Ceremonial",
+      "quantity": 1.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 45.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Regular",
+    "temp": "frozen",
+    "size": "R",
+    "menu_price": 4.55,
+    "components": [
+     {
+      "ingredient_name": "Matcha - Ceremonial",
+      "quantity": 2.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 90.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 6.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Large",
+    "temp": "frozen",
+    "size": "L",
+    "menu_price": 4.95,
+    "components": [
+     {
+      "ingredient_name": "Matcha - Ceremonial",
+      "quantity": 3.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 112.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Caffe Latte",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 4.05,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 8.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 7.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 4.6,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 10.25,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 4.75,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 25.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 12.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Kids",
+    "temp": "iced",
+    "size": "K",
+    "menu_price": 2.5,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 3.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 4.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 4.6,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 4.75,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 12.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Kids",
+    "temp": "frozen",
+    "size": "K",
+    "menu_price": 2.75,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 45.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Regular",
+    "temp": "frozen",
+    "size": "R",
+    "menu_price": 4.7,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 90.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Large",
+    "temp": "frozen",
+    "size": "L",
+    "menu_price": 5.1,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 112.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Cold Brew",
+  "category": null,
+  "variants": [
+   {
+    "label": "Iced - Kids",
+    "temp": "iced",
+    "size": "K",
+    "menu_price": 2.6,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 4.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Half & Half",
+      "quantity": 0.75,
+      "unit": "oz"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 4.55,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 6.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 6.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Half & Half",
+      "quantity": 1.5,
+      "unit": "oz"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 5.1,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 8.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 6.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Half & Half",
+      "quantity": 2.5,
+      "unit": "oz"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Americano",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 1.95,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 2.55,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 25.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 3.05,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 34.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 2.55,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 6.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 3.05,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 25.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 6.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Hot Chocolate",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 3.75,
+    "components": [
+     {
+      "ingredient_name": "Hot Chocolate Powder",
+      "quantity": 45.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 8.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 4.1,
+    "components": [
+     {
+      "ingredient_name": "Hot Chocolate Powder",
+      "quantity": 67.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 4.6,
+    "components": [
+     {
+      "ingredient_name": "Hot Chocolate Powder",
+      "quantity": 90.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 12.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Kids",
+    "temp": "frozen",
+    "size": "K",
+    "menu_price": 2.2,
+    "components": [
+     {
+      "ingredient_name": "Hot Chocolate Powder",
+      "quantity": 45.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Regular",
+    "temp": "frozen",
+    "size": "R",
+    "menu_price": 4.5,
+    "components": [
+     {
+      "ingredient_name": "Hot Chocolate Powder",
+      "quantity": 90.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 7.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Large",
+    "temp": "frozen",
+    "size": "L",
+    "menu_price": 4.95,
+    "components": [
+     {
+      "ingredient_name": "Hot Chocolate Powder",
+      "quantity": 135.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Milkshake",
+  "category": null,
+  "variants": [
+   {
+    "label": "Frozen - Kids",
+    "temp": "frozen",
+    "size": "K",
+    "menu_price": 2.5,
+    "components": [
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 45.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Half & Half",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 0.5,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Regular",
+    "temp": "frozen",
+    "size": "R",
+    "menu_price": 3.0,
+    "components": [
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 90.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Half & Half",
+      "quantity": 6.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Frozen - Large",
+    "temp": "frozen",
+    "size": "L",
+    "menu_price": 4.2,
+    "components": [
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 112.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Half & Half",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Haus Drip",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 2.25,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 21.26,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 2.65,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 28.35,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 3.0,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 35.43,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Tea - Iced",
+  "category": null,
+  "variants": [
+   {
+    "label": "Iced - Kids",
+    "temp": "iced",
+    "size": "K",
+    "menu_price": 2.5,
+    "components": [
+     {
+      "ingredient_name": "Green or Black Tea",
+      "quantity": 0.046875,
+      "unit": "batch bag"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 3.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.0,
+      "unit": "oz"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 2.55,
+    "components": [
+     {
+      "ingredient_name": "Green or Black Tea",
+      "quantity": 0.09375,
+      "unit": "batch bag"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.0,
+      "unit": "oz"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 2.85,
+    "components": [
+     {
+      "ingredient_name": "Green or Black Tea",
+      "quantity": 0.13671875,
+      "unit": "batch bag"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.0,
+      "unit": "oz"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Tea - Hot",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 2.25,
+    "components": [
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Tea Sachet (EGL, JDP)",
+      "quantity": 0.09375,
+      "unit": "sachet"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 2.25,
+    "components": [
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Tea Sachet (EGL, JDP)",
+      "quantity": 0.125,
+      "unit": "sachet"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 2.25,
+    "components": [
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Tea Sachet (EGL, JDP)",
+      "quantity": 0.15625,
+      "unit": "sachet"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "London Fog",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 5.0,
+    "components": [
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Tea Sachet (EGL, JDP)",
+      "quantity": 1.0,
+      "unit": "sachet"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 4.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Lavender",
+      "quantity": 0.375,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.375,
+      "unit": "oz"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 5.55,
+    "components": [
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Tea Sachet (EGL, JDP)",
+      "quantity": 1.0,
+      "unit": "sachet"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 6.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Lavender",
+      "quantity": 0.625,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.625,
+      "unit": "oz"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 6.1,
+    "components": [
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Tea Sachet (EGL, JDP)",
+      "quantity": 2.0,
+      "unit": "sachet"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 7.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Lavender",
+      "quantity": 0.875,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.875,
+      "unit": "oz"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Freddo",
+  "category": null,
+  "variants": [
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 4.5,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 3.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Raw Sugar Packet",
+      "quantity": 4.0,
+      "unit": "packet"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 5.0,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 25.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 4.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Raw Sugar Packet",
+      "quantity": 6.0,
+      "unit": "packet"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Espresso Shots",
+  "category": null,
+  "variants": [
+   {
+    "label": "Single",
+    "temp": null,
+    "size": "Single",
+    "menu_price": 1.8,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 8.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Double",
+    "temp": null,
+    "size": "Double",
+    "menu_price": 2.3,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 18.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Triple",
+    "temp": null,
+    "size": "Triple",
+    "menu_price": 2.8,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 25.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   },
+   {
+    "label": "Quad",
+    "temp": null,
+    "size": "Quad",
+    "menu_price": 3.4,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 34.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Steamer",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Small",
+    "temp": "hot",
+    "size": "S",
+    "menu_price": 3.0,
+    "components": [
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 8.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 12",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.0,
+      "unit": "oz"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Regular",
+    "temp": "hot",
+    "size": "R",
+    "menu_price": 3.55,
+    "components": [
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 10.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.5,
+      "unit": "oz"
+     }
+    ]
+   },
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 4.1,
+    "components": [
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 13.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 2.0,
+      "unit": "oz"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Milk",
+  "category": null,
+  "variants": [
+   {
+    "label": "Iced - Kids",
+    "temp": "iced",
+    "size": "K",
+    "menu_price": 2.5,
+    "components": [
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 9.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 10",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Kids",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 0.5,
+      "unit": "oz"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 2.55,
+    "components": [
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 17.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.0,
+      "unit": "oz"
+     }
+    ]
+   },
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 2.85,
+    "components": [
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 22.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.5,
+      "unit": "oz"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "QSM",
+  "category": null,
+  "variants": [
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 4.6,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 34.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Half & Half",
+      "quantity": 2.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Miller Killer",
+  "category": null,
+  "variants": [
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 3.4,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 34.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 2.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Raw Sugar Packet",
+      "quantity": 8.0,
+      "unit": "packet"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "QSK",
+  "category": null,
+  "variants": [
+   {
+    "label": "Iced - Large",
+    "temp": "iced",
+    "size": "L",
+    "menu_price": 3.9,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 34.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Oat Milk",
+      "quantity": 1.45,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.5,
+      "unit": "oz"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "7 Shot Richard",
+  "category": null,
+  "variants": [
+   {
+    "label": "Hot - Large",
+    "temp": "hot",
+    "size": "L",
+    "menu_price": 6.6,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 59.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 6.2,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Vanilla",
+      "quantity": 1.75,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Hot - 20",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Hot",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Sleeve",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Stopper",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Chef Special",
+  "category": null,
+  "variants": [
+   {
+    "label": "Frozen - Large",
+    "temp": "frozen",
+    "size": "L",
+    "menu_price": 6.4,
+    "components": [
+     {
+      "ingredient_name": "Cold Brew",
+      "quantity": 10.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Polar Powder",
+      "quantity": 112.5,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 24.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Whole Milk",
+      "quantity": 0.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "White Chocolate",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 1.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 24",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Steve",
+  "category": null,
+  "variants": [
+   {
+    "label": "Iced - Regular",
+    "temp": "iced",
+    "size": "R",
+    "menu_price": 7.45,
+    "components": [
+     {
+      "ingredient_name": "Espresso",
+      "quantity": 17.0,
+      "unit": "g"
+     },
+     {
+      "ingredient_name": "Ice",
+      "quantity": 5.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Almond Milk",
+      "quantity": 9.0,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "White Chocolate",
+      "quantity": 0.5,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Caramel",
+      "quantity": 0.375,
+      "unit": "oz"
+     },
+     {
+      "ingredient_name": "Cup - Cold - 16",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Lid - Sip",
+      "quantity": 1.0,
+      "unit": "item"
+     },
+     {
+      "ingredient_name": "Straw",
+      "quantity": 1.0,
+      "unit": "item"
+     }
+    ]
+   }
+  ]
+ }
+]

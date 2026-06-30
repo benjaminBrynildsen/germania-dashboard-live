@@ -7,7 +7,7 @@ import { requireAuth, requireRole, AuthRequest } from './auth.js';
 import { createIdeaForm, createVotingForm, getFormResponses, createDriveFolder } from './google.js';
 import { fetchLocationPhoto, fetchPlaceReviews, syncAllReviews } from './places.js';
 import { seedCogData } from './seed-cog.js';
-import { drinkTotals, drinkCog, recommendedPrice, defaultTargetPct } from './cog-cost.js';
+import { drinkVariants, drinkCogRange, recommendedPrice, defaultTargetPct } from './cog-cost.js';
 import { fetchAllProducts, DRINK_EXCLUDE_CATEGORIES } from './dripos.js';
 
 const router = Router();
@@ -842,48 +842,39 @@ router.put('/cog/settings', requireAuth, requireRole('admin', 'manager'), (req: 
   res.json(db.prepare('SELECT * FROM cog_settings WHERE id = 1').get());
 });
 
-// List drinks with computed COG + recommended price.
+// List drinks with a COG range across their size variants.
 router.get('/cog/drinks', requireAuth, (req: AuthRequest, res: Response) => {
   const includeArchived = req.query.archived === '1';
   const drinks = db.prepare(`
-    SELECT d.*, COUNT(c.id) AS component_count
-    FROM cog_drinks d
-    LEFT JOIN cog_drink_components c ON d.id = c.drink_id
-    ${includeArchived ? '' : 'WHERE d.archived = 0'}
-    GROUP BY d.id
-    ORDER BY d.category, d.name
+    SELECT * FROM cog_drinks
+    ${includeArchived ? '' : 'WHERE archived = 0'}
+    ORDER BY category, name
   `).all() as any[];
 
   const fallback = defaultTargetPct();
   const enriched = drinks.map((d) => {
-    const cog = drinkCog(d.id);
-    const effectiveTarget = d.target_cogs_pct ?? fallback;
+    const range = drinkCogRange(d.id, d.target_cogs_pct);
     return {
       ...d,
-      drink_cog: cog,
-      effective_target_cogs_pct: effectiveTarget,
-      recommended_price: recommendedPrice(cog, d.target_cogs_pct),
+      effective_target_cogs_pct: d.target_cogs_pct ?? fallback,
+      ...range,
     };
   });
   res.json(enriched);
 });
 
-// Single drink with resolved components + totals.
+// Single drink with its fully-costed variants.
 router.get('/cog/drinks/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const drink = db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(req.params.id) as any;
   if (!drink) { res.status(404).json({ error: 'Drink not found' }); return; }
-  const { components, drink_cog } = drinkTotals(drink.id);
-  const effectiveTarget = drink.target_cogs_pct ?? defaultTargetPct();
   res.json({
     ...drink,
-    components,
-    drink_cog,
-    effective_target_cogs_pct: effectiveTarget,
-    recommended_price: recommendedPrice(drink_cog, drink.target_cogs_pct),
+    effective_target_cogs_pct: drink.target_cogs_pct ?? defaultTargetPct(),
+    variants: drinkVariants(drink.id, drink.target_cogs_pct),
   });
 });
 
-// Create drink
+// Create drink. Optionally seed an initial variant so the builder isn't empty.
 router.post('/cog/drinks', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
   const { name, category, season, target_cogs_pct, notes, dripos_product_id } = req.body;
   if (!name || !String(name).trim()) { res.status(400).json({ error: 'Name is required' }); return; }
@@ -891,10 +882,13 @@ router.post('/cog/drinks', requireAuth, requireRole('admin', 'manager', 'menu_te
     INSERT INTO cog_drinks (name, category, season, target_cogs_pct, notes, dripos_product_id)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(String(name).trim(), category ?? null, season ?? null, target_cogs_pct ?? null, notes ?? null, dripos_product_id ?? null);
-  res.json(db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(result.lastInsertRowid));
+  const drinkId = result.lastInsertRowid;
+  // Seed a single default variant so a freshly-created drink is immediately editable.
+  db.prepare("INSERT INTO cog_drink_variants (drink_id, label, sort_order) VALUES (?, 'Regular', 0)").run(drinkId);
+  res.json(db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(drinkId));
 });
 
-// Update drink (metadata only; components have their own endpoints)
+// Update drink (metadata only)
 router.put('/cog/drinks/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
   const { name, category, season, target_cogs_pct, notes, archived } = req.body;
   db.prepare(`
@@ -912,8 +906,37 @@ router.delete('/cog/drinks/:id', requireAuth, requireRole('admin', 'manager'), (
   res.json({ success: true });
 });
 
-// Add a component (ingredient or recipe line) to a drink
-router.post('/cog/drinks/:id/components', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+// --- Variants ---
+
+router.post('/cog/drinks/:id/variants', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+  const { label, temp, size, menu_price, target_cogs_pct } = req.body;
+  if (!label || !String(label).trim()) { res.status(400).json({ error: 'Variant label is required' }); return; }
+  const maxOrder = db.prepare('SELECT MAX(sort_order) AS max FROM cog_drink_variants WHERE drink_id = ?').get(req.params.id) as any;
+  const result = db.prepare(`
+    INSERT INTO cog_drink_variants (drink_id, label, temp, size, menu_price, target_cogs_pct, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(req.params.id, String(label).trim(), temp ?? null, size ?? null, menu_price ?? null, target_cogs_pct ?? null, (maxOrder?.max ?? -1) + 1);
+  res.json(db.prepare('SELECT * FROM cog_drink_variants WHERE id = ?').get(result.lastInsertRowid));
+});
+
+router.put('/cog/variants/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+  const { label, temp, size, menu_price, target_cogs_pct } = req.body;
+  db.prepare(`
+    UPDATE cog_drink_variants
+    SET label = COALESCE(?, label), temp = ?, size = ?, menu_price = ?, target_cogs_pct = ?
+    WHERE id = ?
+  `).run(label ?? null, temp ?? null, size ?? null, menu_price ?? null, target_cogs_pct ?? null, req.params.id);
+  res.json(db.prepare('SELECT * FROM cog_drink_variants WHERE id = ?').get(req.params.id));
+});
+
+router.delete('/cog/variants/:id', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
+  db.prepare('DELETE FROM cog_drink_variants WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// --- Components (belong to a variant) ---
+
+router.post('/cog/variants/:id/components', requireAuth, requireRole('admin', 'manager', 'menu_team'), (req: AuthRequest, res: Response) => {
   const { component_type, ingredient_id, recipe_id, quantity, unit, yield_percent } = req.body;
   if (component_type !== 'ingredient' && component_type !== 'recipe') {
     res.status(400).json({ error: "component_type must be 'ingredient' or 'recipe'" });
@@ -927,17 +950,19 @@ router.post('/cog/drinks/:id/components', requireAuth, requireRole('admin', 'man
     res.status(400).json({ error: 'recipe_id is required for a recipe component' });
     return;
   }
-  const maxOrder = db.prepare('SELECT MAX(sort_order) AS max FROM cog_drink_components WHERE drink_id = ?').get(req.params.id) as any;
-  const sortOrder = (maxOrder?.max ?? -1) + 1;
+  const variant = db.prepare('SELECT drink_id FROM cog_drink_variants WHERE id = ?').get(req.params.id) as any;
+  if (!variant) { res.status(404).json({ error: 'Variant not found' }); return; }
+  const maxOrder = db.prepare('SELECT MAX(sort_order) AS max FROM cog_drink_components WHERE variant_id = ?').get(req.params.id) as any;
   const result = db.prepare(`
-    INSERT INTO cog_drink_components (drink_id, component_type, ingredient_id, recipe_id, quantity, unit, yield_percent, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO cog_drink_components (drink_id, variant_id, component_type, ingredient_id, recipe_id, quantity, unit, yield_percent, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
+    variant.drink_id,
     req.params.id,
     component_type,
     component_type === 'ingredient' ? ingredient_id : null,
     component_type === 'recipe' ? recipe_id : null,
-    quantity ?? null, unit ?? null, yield_percent ?? 100, sortOrder,
+    quantity ?? null, unit ?? null, yield_percent ?? 100, (maxOrder?.max ?? -1) + 1,
   );
   res.json(db.prepare('SELECT * FROM cog_drink_components WHERE id = ?').get(result.lastInsertRowid));
 });
@@ -998,6 +1023,75 @@ router.post('/cog/drinks/sync-dripos', requireAuth, requireRole('admin', 'manage
   } catch (err: any) {
     console.error('Dripos drink sync error:', err);
     res.status(500).json({ error: err.message || 'Sync failed' });
+  }
+});
+
+// Import drink recipes from the bundled Cost-of-Goods export
+// (server/germania-cog-drinks.json — parsed from the per-drink sheets, each
+// drink with size/temp variants and ingredient-name components). Idempotent:
+// matches each drink to an existing one by name (case-insensitive) so it links
+// to the Dripos-synced catalog instead of duplicating; rebuilds that drink's
+// variants from the sheet each run. Components are resolved ingredient name ->
+// cog_ingredient_master; unresolved names are skipped and reported back so the
+// catalog can be filled in. Run the ingredient import first.
+router.post('/cog/drinks/import-recipes', requireAuth, requireRole('admin', 'manager'), (_req: AuthRequest, res: Response) => {
+  try {
+    const dataPath = path.join(__routesDir, 'germania-cog-drinks.json');
+    if (!fs.existsSync(dataPath)) { res.status(404).json({ error: 'Drink recipe file not found on server' }); return; }
+    const drinks = JSON.parse(fs.readFileSync(dataPath, 'utf-8')) as Array<{
+      name: string; category: string | null;
+      variants: Array<{ label: string; temp: string | null; size: string | null; menu_price: number | null;
+        components: Array<{ ingredient_name: string; quantity: number | null; unit: string | null }> }>;
+    }>;
+
+    // ingredient name -> id (case-insensitive)
+    const ingRows = db.prepare('SELECT id, name FROM cog_ingredient_master').all() as Array<{ id: number; name: string }>;
+    const ingByName = new Map(ingRows.map((r) => [r.name.toLowerCase(), r.id]));
+
+    const findDrinkByName = db.prepare('SELECT id FROM cog_drinks WHERE LOWER(name) = LOWER(?)');
+    const insertDrink = db.prepare('INSERT INTO cog_drinks (name, category) VALUES (?, ?)');
+    const clearVariants = db.prepare('DELETE FROM cog_drink_variants WHERE drink_id = ?');
+    const insertVariant = db.prepare('INSERT INTO cog_drink_variants (drink_id, label, temp, size, menu_price, sort_order) VALUES (?, ?, ?, ?, ?, ?)');
+    const insertComp = db.prepare(`INSERT INTO cog_drink_components (drink_id, variant_id, component_type, ingredient_id, quantity, unit, sort_order)
+      VALUES (?, ?, 'ingredient', ?, ?, ?, ?)`);
+
+    let drinksCreated = 0, drinksMatched = 0, variantCount = 0, compCount = 0;
+    const unresolved = new Set<string>();
+
+    const run = db.transaction(() => {
+      for (const d of drinks) {
+        let row = findDrinkByName.get(d.name) as any;
+        let drinkId: number;
+        if (row) { drinkId = row.id; drinksMatched++; }
+        else { drinkId = insertDrink.run(d.name, d.category ?? null).lastInsertRowid as number; drinksCreated++; }
+
+        clearVariants.run(drinkId); // cascade clears old components
+        d.variants.forEach((v, vi) => {
+          const variantId = insertVariant.run(drinkId, v.label, v.temp ?? null, v.size ?? null, v.menu_price ?? null, vi).lastInsertRowid as number;
+          variantCount++;
+          v.components.forEach((c, ci) => {
+            const ingId = ingByName.get((c.ingredient_name || '').toLowerCase());
+            if (!ingId) { unresolved.add(c.ingredient_name); return; }
+            insertComp.run(drinkId, variantId, ingId, c.quantity ?? null, c.unit ?? null, ci);
+            compCount++;
+          });
+        });
+      }
+    });
+    run();
+
+    res.json({
+      success: true,
+      drinks_in_file: drinks.length,
+      drinks_created: drinksCreated,
+      drinks_matched_to_existing: drinksMatched,
+      variants: variantCount,
+      components: compCount,
+      unresolved_ingredients: [...unresolved].sort(),
+    });
+  } catch (err: any) {
+    console.error('Drink recipe import error:', err);
+    res.status(500).json({ error: err.message || 'Import failed' });
   }
 });
 
