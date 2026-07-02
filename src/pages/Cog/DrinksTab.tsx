@@ -135,7 +135,7 @@ export default function DrinksTab() {
     setSyncing(true);
     try {
       const r = await api.post('/api/cog/drinks/sync-dripos', {});
-      alert(`Synced from Dripos: ${r.inserted} new, ${r.updated} updated (${r.total} drinks).`);
+      alert(`Synced from Dripos: ${r.inserted} new, ${r.updated} updated (${r.total} drinks).${r.pruned ? ` Removed ${r.pruned} uncosted rows outside the drink/Bake Haus categories.` : ''}`);
       loadDrinks();
       loadDriposPrices();
     } catch (e: any) { alert(`Sync failed: ${e.message}`); }

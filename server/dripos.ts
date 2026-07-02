@@ -880,13 +880,19 @@ export interface ProductSalesRow {
   PLATFORM_NAME: string;
 }
 
-// Categories that are clearly not sellable drinks — kept out of the COGS drink
-// sync and the link-to-Dripos picker. Anything ambiguous (RETAIL, Misc., Canned
-// Items) stays in; individual rows can be deleted or archived in the UI.
-export const DRINK_EXCLUDE_CATEGORIES = new Set([
-  'BAKE HAUS FOOD', 'PETS', 'ARCHIVE', 'Inventory', 'Non-consumables',
-  'Ingredients', 'Wholesale', 'BOX LUNCH',
+// The five Dripos menu categories that are real drinks (per Ben) — everything
+// else (Inventory, RETAIL, CUSTOMER CREATIONS, ARCHIVE, ...) is noise for
+// drink-level reporting.
+export const DRINK_CATEGORIES = new Set([
+  'SWEET COFFEE',
+  'BRIDGE COFFEE',
+  'ARTISANAL COFFEE',
+  'TRADITIONAL COFFEE',
+  'TEAS, SMOOTHIES, & MORE',
 ]);
+
+// The COGS tracker additionally costs Bake Haus food.
+export const COG_CATEGORIES = new Set([...DRINK_CATEGORIES, 'BAKE HAUS FOOD']);
 
 const PRODUCT_SALES_PLATFORMS: Array<{ name: string; third: boolean }> = [
   { name: 'MOBILE', third: false },
@@ -1703,7 +1709,7 @@ export async function buildReport(referenceDate: Date = new Date()): Promise<Rep
     const allDrinks = aggregateItems(
       productRows,
       storeByLocId,
-      (r) => !DRINK_EXCLUDE_CATEGORIES.has(r.CATEGORY_NAME),
+      (r) => DRINK_CATEGORIES.has(r.CATEGORY_NAME),
     )
       .map((row) => ({ ...row, isSeasonal: isSeasonalDrinkName(row.name) }))
       .sort((a, b) => b.totalRevenueCents - a.totalRevenueCents);

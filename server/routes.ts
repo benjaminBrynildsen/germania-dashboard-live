@@ -8,7 +8,7 @@ import { createIdeaForm, createVotingForm, getFormResponses, createDriveFolder }
 import { fetchLocationPhoto, fetchPlaceReviews, syncAllReviews } from './places.js';
 import { seedCogData } from './seed-cog.js';
 import { drinkVariants, drinkCogRange, recommendedPrice, defaultTargetPct } from './cog-cost.js';
-import { fetchAllProducts, DRINK_EXCLUDE_CATEGORIES, getDriposPrices } from './dripos.js';
+import { fetchAllProducts, COG_CATEGORIES, getDriposPrices } from './dripos.js';
 
 const router = Router();
 
@@ -967,7 +967,7 @@ router.get('/cog/dripos-products', requireAuth, async (_req: AuthRequest, res: R
     const settings = db.prepare('SELECT drink_location_id FROM cog_settings WHERE id = 1').get() as any;
     const products = await fetchAllProducts(settings?.drink_location_id ?? 131);
     const list = products
-      .filter((p) => !DRINK_EXCLUDE_CATEGORIES.has(p.CATEGORY_NAME))
+      .filter((p) => COG_CATEGORIES.has(p.CATEGORY_NAME))
       .map((p) => ({ id: p.ID, name: p.NAME, category: p.CATEGORY_NAME ?? null }))
       .sort((a, b) => (a.category ?? '').localeCompare(b.category ?? '') || a.name.localeCompare(b.name));
     res.json({ available: true, products: list });
@@ -1103,14 +1103,15 @@ router.delete('/cog/components/:id', requireAuth, (req: AuthRequest, res: Respon
 
 // Sync the drink catalog from Dripos. Upserts by dripos_product_id: inserts new
 // products, refreshes name/category on existing ones, and NEVER clobbers a
-// drink's components or its target_cogs_pct override. Food/pets + archived
-// products are dropped.
+// drink's components or its target_cogs_pct override. Only COG_CATEGORIES
+// products come in (the 5 drink categories + Bake Haus food); previously-synced
+// rows outside those categories are pruned unless they carry a recipe.
 router.post('/cog/drinks/sync-dripos', requireAuth, async (_req: AuthRequest, res: Response) => {
   try {
     const settings = db.prepare('SELECT drink_location_id FROM cog_settings WHERE id = 1').get() as any;
     const locationId = settings?.drink_location_id ?? 131;
     const products = await fetchAllProducts(locationId); // already drops ARCHIVED
-    const drinks = products.filter((p) => !DRINK_EXCLUDE_CATEGORIES.has(p.CATEGORY_NAME));
+    const drinks = products.filter((p) => COG_CATEGORIES.has(p.CATEGORY_NAME));
 
     const findStmt = db.prepare('SELECT id FROM cog_drinks WHERE dripos_product_id = ?');
     const insertStmt = db.prepare(
@@ -1122,6 +1123,7 @@ router.post('/cog/drinks/sync-dripos', requireAuth, async (_req: AuthRequest, re
 
     let inserted = 0;
     let updated = 0;
+    let pruned = 0;
     const run = db.transaction(() => {
       for (const p of drinks) {
         const existing = findStmt.get(p.ID) as any;
@@ -1133,10 +1135,23 @@ router.post('/cog/drinks/sync-dripos', requireAuth, async (_req: AuthRequest, re
           inserted++;
         }
       }
+      // Drop rows synced before the category allowlist existed — but never a
+      // row someone has costed (components) — those need a human decision.
+      const cats = [...COG_CATEGORIES];
+      pruned = db.prepare(`
+        DELETE FROM cog_drinks WHERE id IN (
+          SELECT d.id FROM cog_drinks d
+          LEFT JOIN cog_drink_components c ON c.drink_id = d.id
+          WHERE d.category IS NOT NULL
+            AND d.category NOT IN (${cats.map(() => '?').join(',')})
+          GROUP BY d.id
+          HAVING COUNT(c.id) = 0
+        )
+      `).run(...cats).changes;
     });
     run();
 
-    res.json({ success: true, total: drinks.length, inserted, updated, location_id: locationId });
+    res.json({ success: true, total: drinks.length, inserted, updated, pruned, location_id: locationId });
   } catch (err: any) {
     console.error('Dripos drink sync error:', err);
     res.status(500).json({ error: err.message || 'Sync failed' });
