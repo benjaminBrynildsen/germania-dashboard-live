@@ -5,7 +5,11 @@ async function request(url: string, options?: RequestInit) {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || `Request failed: ${res.status}`);
+    const err = new Error(data.error || `Request failed: ${res.status}`);
+    // Expose the response so callers can act on structured errors (e.g. 409 details).
+    (err as any).status = res.status;
+    (err as any).body = data;
+    throw err;
   }
   return res.json();
 }

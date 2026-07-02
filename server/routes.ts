@@ -680,8 +680,22 @@ router.put('/cog/recipes/:id', requireAuth, (req: AuthRequest, res: Response) =>
   res.json(recipe);
 });
 
-// Delete recipe
+// Delete recipe. Drinks can reference a recipe as a component (recipe_id is
+// ON DELETE SET NULL, so their lines survive but show as "missing") — surface
+// that as a 409 with the drink names unless the caller passes ?force=1.
 router.delete('/cog/recipes/:id', requireAuth, (req: AuthRequest, res: Response) => {
+  const usedBy = db.prepare(`
+    SELECT DISTINCT d.name FROM cog_drink_components c
+    JOIN cog_drinks d ON d.id = c.drink_id
+    WHERE c.component_type = 'recipe' AND c.recipe_id = ?
+  `).all(req.params.id) as Array<{ name: string }>;
+  if (usedBy.length > 0 && req.query.force !== '1') {
+    res.status(409).json({
+      error: 'Recipe is used as a component',
+      used_by: usedBy.map((r) => r.name),
+    });
+    return;
+  }
   db.prepare('DELETE FROM cog_recipes WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
@@ -864,26 +878,28 @@ router.get('/cog/drinks', requireAuth, (req: AuthRequest, res: Response) => {
 });
 
 // Live current menu price per variant, straight from Dripos /products. Matches
-// drinks to Dripos products by name, then variants by temp+size to the product's
-// Size customization options (falling back to the base price). Returns prices
-// keyed by variant_id so the UI can show live price + margin. Degrades to
+// drinks to Dripos products by dripos_product_id when linked (the sturdy join),
+// falling back to name for unlinked drinks; variants match by temp+size to the
+// product's Size customization options (falling back to the base price). Returns
+// prices keyed by variant_id so the UI can show live price + margin. Degrades to
 // { available:false } when Dripos isn't connected. Registered BEFORE /:id so the
 // literal path isn't swallowed by the :id route.
 router.get('/cog/drinks/dripos-prices', requireAuth, async (_req: AuthRequest, res: Response) => {
   try {
     const settings = db.prepare('SELECT drink_location_id FROM cog_settings WHERE id = 1').get() as any;
-    const priceMap = await getDriposPrices(settings?.drink_location_id ?? 131);
+    const { byId, byName } = await getDriposPrices(settings?.drink_location_id ?? 131);
 
     const variants = db.prepare(`
-      SELECT v.id, v.temp, v.size, d.id AS drink_id, d.name AS drink_name
+      SELECT v.id, v.temp, v.size, d.id AS drink_id, d.name AS drink_name, d.dripos_product_id
       FROM cog_drink_variants v JOIN cog_drinks d ON d.id = v.drink_id
-    `).all() as Array<{ id: number; temp: string | null; size: string | null; drink_id: number; drink_name: string }>;
+    `).all() as Array<{ id: number; temp: string | null; size: string | null; drink_id: number; drink_name: string; dripos_product_id: number | null }>;
 
     const prices: Record<number, number> = {};               // variant_id -> price
     const drinkPrices: Record<number, { min: number; max: number }> = {};
     let matched = 0;
     for (const v of variants) {
-      const info = priceMap.get(v.drink_name.toLowerCase());
+      const info = (v.dripos_product_id != null ? byId.get(v.dripos_product_id) : undefined)
+        ?? byName.get(v.drink_name.toLowerCase());
       if (!info) continue;
       const key = v.temp && v.size ? `${v.temp}|${v.size}` : null;
       const price = (key && info.sizes[key] != null) ? info.sizes[key] : (info.base > 0 ? info.base : null);
@@ -942,6 +958,69 @@ router.put('/cog/drinks/:id', requireAuth, (req: AuthRequest, res: Response) => 
 router.delete('/cog/drinks/:id', requireAuth, (req: AuthRequest, res: Response) => {
   db.prepare('DELETE FROM cog_drinks WHERE id = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// Live Dripos product list for the "Link to Dripos" picker (id/name/category,
+// drinks only). Degrades to { available:false } when Dripos isn't connected.
+router.get('/cog/dripos-products', requireAuth, async (_req: AuthRequest, res: Response) => {
+  try {
+    const settings = db.prepare('SELECT drink_location_id FROM cog_settings WHERE id = 1').get() as any;
+    const products = await fetchAllProducts(settings?.drink_location_id ?? 131);
+    const list = products
+      .filter((p) => !DRINK_EXCLUDE_CATEGORIES.has(p.CATEGORY_NAME))
+      .map((p) => ({ id: p.ID, name: p.NAME, category: p.CATEGORY_NAME ?? null }))
+      .sort((a, b) => (a.category ?? '').localeCompare(b.category ?? '') || a.name.localeCompare(b.name));
+    res.json({ available: true, products: list });
+  } catch (err: any) {
+    const isAuth = err?.name === 'NoToken' || err?.name === 'AuthExpired';
+    res.json({ available: false, reason: isAuth ? 'Dripos not connected — log in via the Weekly Sales tab' : (err.message || 'failed'), products: [] });
+  }
+});
+
+// Link (or unlink, with dripos_product_id: null) a drink to a Dripos product.
+// This is how spreadsheet-named drinks ("GBH", "7 Shot Richard") get live prices:
+// linking adopts the Dripos product's real name + category, and if the Dripos
+// sync already created a separate empty row for that product, that duplicate is
+// absorbed (deleted) so the catalog has one row per product. Refuses to steal a
+// product that another *costed* drink already owns.
+router.post('/cog/drinks/:id/link-dripos', requireAuth, async (req: AuthRequest, res: Response) => {
+  const drink = db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(req.params.id) as any;
+  if (!drink) { res.status(404).json({ error: 'Drink not found' }); return; }
+  const { dripos_product_id } = req.body;
+
+  if (dripos_product_id == null) {
+    db.prepare("UPDATE cog_drinks SET dripos_product_id = NULL, updated_at = datetime('now') WHERE id = ?").run(drink.id);
+    res.json({ drink: db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(drink.id), absorbed: null });
+    return;
+  }
+
+  try {
+    const settings = db.prepare('SELECT drink_location_id FROM cog_settings WHERE id = 1').get() as any;
+    const products = await fetchAllProducts(settings?.drink_location_id ?? 131);
+    const product = products.find((p) => p.ID === Number(dripos_product_id));
+    if (!product) { res.status(404).json({ error: 'That product was not found in Dripos' }); return; }
+
+    const dup = db.prepare('SELECT * FROM cog_drinks WHERE dripos_product_id = ? AND id != ?').get(product.ID, drink.id) as any;
+    if (dup) {
+      const compCount = (db.prepare('SELECT COUNT(*) AS c FROM cog_drink_components WHERE drink_id = ?').get(dup.id) as any).c;
+      if (compCount > 0) {
+        res.status(409).json({ error: `"${dup.name}" is already linked to that Dripos product and has a recipe. Unlink or delete it first.` });
+        return;
+      }
+    }
+    // Delete the empty duplicate before setting the id (dripos_product_id is UNIQUE).
+    const run = db.transaction(() => {
+      if (dup) db.prepare('DELETE FROM cog_drinks WHERE id = ?').run(dup.id);
+      db.prepare(`
+        UPDATE cog_drinks SET dripos_product_id = ?, name = ?, category = ?, updated_at = datetime('now') WHERE id = ?
+      `).run(product.ID, product.NAME, product.CATEGORY_NAME ?? null, drink.id);
+    });
+    run();
+    res.json({ drink: db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(drink.id), absorbed: dup ? dup.name : null });
+  } catch (err: any) {
+    console.error('Dripos link error:', err);
+    res.status(500).json({ error: err.message || 'Link failed' });
+  }
 });
 
 // --- Variants ---

@@ -53,6 +53,21 @@ interface DrinkDetail extends DrinkRow {
 
 interface PickIngredient { id: number; name: string; pack_unit: string | null }
 interface PickRecipe { id: number; name: string; yield_unit: string; cog_per_unit: number }
+interface DriposProduct { id: number; name: string; category: string | null }
+
+const TEMP_OPTIONS = [
+  { value: '', label: '—' },
+  { value: 'hot', label: 'Hot' },
+  { value: 'iced', label: 'Iced' },
+  { value: 'frozen', label: 'Frozen' },
+];
+const SIZE_OPTIONS = [
+  { value: '', label: '—' },
+  { value: 'S', label: 'Small' },
+  { value: 'R', label: 'Regular' },
+  { value: 'L', label: 'Large' },
+  { value: 'K', label: "Kid's" },
+];
 
 function range(min: number | null, max: number | null, dp = 2): string {
   if (min == null || max == null) return '—';
@@ -66,6 +81,7 @@ export default function DrinksTab() {
   const [drinks, setDrinks] = useState<DrinkRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [category, setCategory] = useState<string>('All');
   const [expanded, setExpanded] = useState<number | null>(null);
   const [detail, setDetail] = useState<DrinkDetail | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -73,6 +89,8 @@ export default function DrinksTab() {
   const [creating, setCreating] = useState(false);
   const [ingredients, setIngredients] = useState<PickIngredient[]>([]);
   const [recipes, setRecipes] = useState<PickRecipe[]>([]);
+  // Live Dripos product list for the "Link to Dripos" picker (empty when not connected).
+  const [products, setProducts] = useState<DriposProduct[]>([]);
   // Live Dripos menu prices: variant_id -> price, plus per-drink min/max.
   const [driposPrices, setDriposPrices] = useState<Record<number, number>>({});
   const [driposDrinkPrices, setDriposDrinkPrices] = useState<Record<number, { min: number; max: number }>>({});
@@ -100,6 +118,7 @@ export default function DrinksTab() {
     loadDriposPrices();
     api.get('/api/cog/ingredients/master').then(setIngredients).catch(() => {});
     api.get('/api/cog/recipes').then(setRecipes).catch(() => {});
+    api.get('/api/cog/dripos-products').then((r) => { if (r.available) setProducts(r.products || []); }).catch(() => {});
   }, [loadDrinks, loadDriposPrices]);
 
   useEffect(() => {
@@ -109,6 +128,7 @@ export default function DrinksTab() {
   const refresh = async () => {
     if (expanded) await loadDetail(expanded);
     await loadDrinks();
+    await loadDriposPrices();
   };
 
   const sync = async () => {
@@ -143,12 +163,33 @@ export default function DrinksTab() {
     } catch (e: any) { alert(`Delete failed: ${e.message}`); }
   };
 
+  // Dripos menu categories present in the catalog (null -> "Uncategorized").
+  const categories = useMemo(() => {
+    const unique = new Set(drinks.map((d) => d.category || 'Uncategorized'));
+    return ['All', ...Array.from(unique).sort()];
+  }, [drinks]);
+
   const filtered = useMemo(
-    () => drinks.filter((d) => !search ||
-      d.name.toLowerCase().includes(search.toLowerCase()) ||
-      (d.category || '').toLowerCase().includes(search.toLowerCase())),
-    [drinks, search],
+    () => drinks.filter((d) => {
+      if (category !== 'All' && (d.category || 'Uncategorized') !== category) return false;
+      return !search ||
+        d.name.toLowerCase().includes(search.toLowerCase()) ||
+        (d.category || '').toLowerCase().includes(search.toLowerCase());
+    }),
+    [drinks, search, category],
   );
+
+  // Group by category for display; the server already orders by category, name.
+  const grouped = useMemo(() => {
+    const groups: Array<{ category: string; drinks: DrinkRow[] }> = [];
+    for (const d of filtered) {
+      const cat = d.category || 'Uncategorized';
+      const last = groups[groups.length - 1];
+      if (last && last.category === cat) last.drinks.push(d);
+      else groups.push({ category: cat, drinks: [d] });
+    }
+    return groups;
+  }, [filtered]);
 
   const stats = useMemo(() => {
     const costed = filtered.filter((d) => d.min_cog != null);
@@ -165,7 +206,7 @@ export default function DrinksTab() {
         <SummaryCard label="Not yet costed" value={String(stats.total - stats.costed)} sub="add components to cost them" />
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
         <input placeholder="Search drinks..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, maxWidth: 260 }} />
         {canEdit && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -176,42 +217,75 @@ export default function DrinksTab() {
         )}
       </div>
 
+      {/* Dripos menu category filter */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+        {categories.map((c) => (
+          <button key={c} onClick={() => setCategory(c)}
+            style={{
+              padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: 'none',
+              background: category === c ? '#1a1a1a' : 'rgba(0,0,0,0.06)', color: category === c ? '#fff' : 'rgba(0,0,0,0.5)',
+              cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit',
+            }}>{c}</button>
+        ))}
+      </div>
+
       <div style={{ display: 'grid', gap: 10 }}>
         {filtered.length === 0 && (
           <div className="card" style={{ textAlign: 'center', padding: 60, color: 'rgba(0,0,0,0.3)' }}>
             No drinks yet. {canEdit ? 'Sync from Dripos or add one manually.' : ''}
           </div>
         )}
-        {filtered.map((d) => (
-          <div key={d.id}>
-            <div className="card" onClick={() => setExpanded(expanded === d.id ? null : d.id)}
-              style={{ cursor: 'pointer', background: expanded === d.id ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.8)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div>
-                  <h3 style={{ fontSize: 17, fontWeight: 600, letterSpacing: -0.2 }}>{d.name}</h3>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
-                    {d.category && <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>{d.category}</span>}
-                    {d.dripos_product_id != null && <span className="badge badge-blue">Dripos</span>}
-                    <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.3)' }}>• {d.variant_count} size{d.variant_count === 1 ? '' : 's'}</span>
+        {grouped.map((g) => (
+          <div key={g.category}>
+            <div
+              onClick={() => setCategory(category === g.category ? 'All' : g.category)}
+              title={category === g.category ? 'Show all categories' : `Show only ${g.category}`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none',
+                margin: '14px 2px 8px', fontSize: 12, fontWeight: 700, textTransform: 'uppercase',
+                letterSpacing: '0.1em', color: 'rgba(0,0,0,0.45)',
+              }}>
+              {g.category}
+              <span style={{ fontWeight: 600, color: 'rgba(0,0,0,0.3)', textTransform: 'none', letterSpacing: 0 }}>
+                {g.drinks.length}
+              </span>
+              <span style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.08)' }} />
+            </div>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {g.drinks.map((d) => (
+                <div key={d.id}>
+                  <div className="card" onClick={() => setExpanded(expanded === d.id ? null : d.id)}
+                    style={{ cursor: 'pointer', background: expanded === d.id ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.8)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <div>
+                        <h3 style={{ fontSize: 17, fontWeight: 600, letterSpacing: -0.2 }}>{d.name}</h3>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+                          {d.dripos_product_id != null
+                            ? <span className="badge badge-blue">Dripos</span>
+                            : <span className="badge badge-gold" title="Not linked to a Dripos product — no live price. Open the drink to link it.">not linked</span>}
+                          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.3)' }}>• {d.variant_count} size{d.variant_count === 1 ? '' : 's'}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: isMobile ? 14 : 22, alignItems: 'center' }}>
+                        <Metric label="COG" value={range(d.min_cog, d.max_cog, 3)} />
+                        <Metric label={`Rec. @ ${d.effective_target_cogs_pct}%`} value={range(d.min_recommended, d.max_recommended)} accent />
+                        {driposDrinkPrices[d.id] && (
+                          <Metric label="Dripos" value={range(driposDrinkPrices[d.id].min, driposDrinkPrices[d.id].max)} color="#2563eb" />
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div style={{ display: 'flex', gap: isMobile ? 14 : 22, alignItems: 'center' }}>
-                  <Metric label="COG" value={range(d.min_cog, d.max_cog, 3)} />
-                  <Metric label={`Rec. @ ${d.effective_target_cogs_pct}%`} value={range(d.min_recommended, d.max_recommended)} accent />
-                  {driposDrinkPrices[d.id] && (
-                    <Metric label="Dripos" value={range(driposDrinkPrices[d.id].min, driposDrinkPrices[d.id].max)} color="#2563eb" />
+
+                  {expanded === d.id && detail && (
+                    <DrinkEditor
+                      detail={detail} isMobile={isMobile} canEdit={canEdit}
+                      ingredients={ingredients} recipes={recipes} driposPrices={driposPrices} products={products}
+                      onChanged={refresh} onDelete={() => removeDrink(d)}
+                    />
                   )}
                 </div>
-              </div>
+              ))}
             </div>
-
-            {expanded === d.id && detail && (
-              <DrinkEditor
-                detail={detail} isMobile={isMobile} canEdit={canEdit}
-                ingredients={ingredients} recipes={recipes} driposPrices={driposPrices}
-                onChanged={refresh} onDelete={() => removeDrink(d)}
-              />
-            )}
           </div>
         ))}
       </div>
@@ -232,9 +306,9 @@ function Metric({ label, value, accent, color }: { label: string; value: string;
   );
 }
 
-function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPrices, onChanged, onDelete }: {
+function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPrices, products, onChanged, onDelete }: {
   detail: DrinkDetail; isMobile: boolean; canEdit: boolean;
-  ingredients: PickIngredient[]; recipes: PickRecipe[]; driposPrices: Record<number, number>;
+  ingredients: PickIngredient[]; recipes: PickRecipe[]; driposPrices: Record<number, number>; products: DriposProduct[];
   onChanged: () => void; onDelete: () => void;
 }) {
   const [targetOverride, setTargetOverride] = useState(detail.target_cogs_pct?.toString() ?? '');
@@ -261,6 +335,8 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPr
 
   return (
     <div className="card" style={{ marginTop: 8, background: 'rgba(255,255,255,0.97)' }}>
+      <DriposLinkRow detail={detail} canEdit={canEdit} products={products} onChanged={onChanged} />
+
       {/* Variant selector */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
         {detail.variants.map((v) => {
@@ -310,12 +386,85 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPr
   );
 }
 
+// Link/unlink a drink to its Dripos product. Linking adopts the product's real
+// name + category and gives the drink live per-size prices; the picker is how
+// spreadsheet-named drinks ("GBH", "7 Shot Richard") get reconciled to the menu.
+function DriposLinkRow({ detail, canEdit, products, onChanged }: {
+  detail: DrinkDetail; canEdit: boolean; products: DriposProduct[]; onChanged: () => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const [pickId, setPickId] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const linked = detail.dripos_product_id != null;
+  const linkedProduct = linked ? products.find((p) => p.id === detail.dripos_product_id) : null;
+
+  const save = async (id: number | null) => {
+    setSaving(true);
+    try {
+      const r = await api.post(`/api/cog/drinks/${detail.id}/link-dripos`, { dripos_product_id: id });
+      if (r.absorbed) alert(`Linked. The empty duplicate row "${r.absorbed}" from the Dripos sync was merged into this drink.`);
+      setPicking(false); setPickId('');
+      onChanged();
+    } catch (e: any) { alert(`Link failed: ${e.message}`); }
+    finally { setSaving(false); }
+  };
+
+  // Group the picker options by Dripos category (the list arrives category-sorted).
+  const byCategory = useMemo(() => {
+    const groups: Array<{ category: string; items: DriposProduct[] }> = [];
+    for (const p of products) {
+      const cat = p.category || 'Uncategorized';
+      const last = groups[groups.length - 1];
+      if (last && last.category === cat) last.items.push(p);
+      else groups.push({ category: cat, items: [p] });
+    }
+    return groups;
+  }, [products]);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 14px', background: linked ? 'rgba(37,99,235,0.06)' : 'rgba(234,179,8,0.08)', borderRadius: 10, marginBottom: 16 }}>
+      {linked ? (
+        <>
+          <span className="badge badge-blue">Dripos</span>
+          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>
+            Linked to {linkedProduct ? `${linkedProduct.name} (${linkedProduct.category || 'Uncategorized'})` : `product #${detail.dripos_product_id}`} — live prices on
+          </span>
+          {canEdit && <button className="btn btn-secondary btn-sm" disabled={saving} onClick={() => { if (confirm('Unlink from Dripos? Live prices for this drink turn off.')) save(null); }}>Unlink</button>}
+        </>
+      ) : picking ? (
+        <>
+          <select value={pickId} onChange={(e) => setPickId(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 220, width: 'auto' }} autoFocus>
+            <option value="">Select Dripos product...</option>
+            {byCategory.map((g) => (
+              <optgroup key={g.category} label={g.category}>
+                {g.items.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          <button className="btn btn-primary btn-sm" disabled={!pickId || saving} onClick={() => save(Number(pickId))}>{saving ? '...' : 'Link'}</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => { setPicking(false); setPickId(''); }}>Cancel</button>
+        </>
+      ) : (
+        <>
+          <span className="badge badge-gold">not linked</span>
+          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>Not linked to a Dripos product, so no live menu price.</span>
+          {canEdit && (products.length > 0
+            ? <button className="btn btn-secondary btn-sm" onClick={() => setPicking(true)}>Link to Dripos</button>
+            : <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>(connect Dripos via the Weekly Sales tab to link)</span>)}
+        </>
+      )}
+    </div>
+  );
+}
+
 function VariantBlock({ variant, isMobile, canEdit, ingredients, recipes, driposPrice, onChanged, onDelete, canDeleteVariant }: {
   variant: Variant; isMobile: boolean; canEdit: boolean;
   ingredients: PickIngredient[]; recipes: PickRecipe[]; driposPrice: number | null;
   onChanged: () => void; onDelete: () => void; canDeleteVariant: boolean;
 }) {
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(false);
   // Live Dripos price wins; fall back to the price stored from the spreadsheet import.
   const price = driposPrice ?? variant.menu_price;
   const priceLabel = driposPrice != null ? 'Dripos price (live)' : 'Menu price';
@@ -388,11 +537,67 @@ function VariantBlock({ variant, isMobile, canEdit, ingredients, recipes, dripos
           color={margin == null ? undefined : margin >= 70 ? '#16a34a' : margin >= 60 ? '#ca8a04' : '#dc2626'} />
       </div>
 
-      {canEdit && canDeleteVariant && (
-        <div style={{ marginTop: 12, textAlign: 'right' }}>
-          <button className="btn btn-secondary btn-sm" onClick={onDelete}>Delete this size</button>
+      {canEdit && (
+        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          {!editing && <button className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>Edit this size</button>}
+          {canDeleteVariant && <button className="btn btn-secondary btn-sm" onClick={onDelete}>Delete this size</button>}
         </div>
       )}
+      {canEdit && editing && (
+        <EditVariantRow variant={variant} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); onChanged(); }} />
+      )}
+    </div>
+  );
+}
+
+// Edit a size's label, temp/size (the join keys for live Dripos per-size prices)
+// and fallback menu price. Sends every field: the PUT clears omitted ones.
+function EditVariantRow({ variant, onClose, onSaved }: { variant: Variant; onClose: () => void; onSaved: () => void }) {
+  const [label, setLabel] = useState(variant.label);
+  const [temp, setTemp] = useState(variant.temp ?? '');
+  const [size, setSize] = useState(variant.size ?? '');
+  const [menuPrice, setMenuPrice] = useState(variant.menu_price?.toString() ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!label.trim()) return;
+    setSaving(true);
+    try {
+      await api.put(`/api/cog/variants/${variant.id}`, {
+        label: label.trim(),
+        temp: temp || null,
+        size: size || null,
+        menu_price: menuPrice === '' ? null : parseFloat(menuPrice),
+        target_cogs_pct: variant.target_cogs_pct,
+      });
+      onSaved();
+    } catch (e: any) { alert(`Save failed: ${e.message}`); setSaving(false); }
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', padding: '12px 14px', background: 'rgba(0,0,0,0.03)', borderRadius: 10, marginTop: 12 }}>
+      <div style={{ flex: 1, minWidth: 150 }}>
+        <label style={labelStyle}>Label</label>
+        <input value={label} onChange={(e) => setLabel(e.target.value)} style={inputStyle} />
+      </div>
+      <div style={{ width: 110 }}>
+        <label style={labelStyle}>Temp</label>
+        <select value={temp} onChange={(e) => setTemp(e.target.value)} style={inputStyle}>
+          {TEMP_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+      <div style={{ width: 110 }}>
+        <label style={labelStyle}>Size</label>
+        <select value={size} onChange={(e) => setSize(e.target.value)} style={inputStyle}>
+          {SIZE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+      <div style={{ width: 110 }}>
+        <label style={labelStyle}>Menu price</label>
+        <input type="number" step="0.01" value={menuPrice} onChange={(e) => setMenuPrice(e.target.value)} style={inputStyle} />
+      </div>
+      <button className="btn btn-primary btn-sm" onClick={save} disabled={!label.trim() || saving}>{saving ? '...' : 'Save'}</button>
+      <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
     </div>
   );
 }
@@ -408,23 +613,54 @@ function Total({ label, value, accent, color }: { label: string; value: string; 
 
 function AddVariantRow({ drinkId, onClose, onAdded }: { drinkId: number; onClose: () => void; onAdded: () => void }) {
   const [label, setLabel] = useState('');
+  const [temp, setTemp] = useState('');
+  const [size, setSize] = useState('');
   const [menuPrice, setMenuPrice] = useState('');
   const [saving, setSaving] = useState(false);
   const add = async () => {
     if (!label.trim()) return;
     setSaving(true);
     try {
-      await api.post(`/api/cog/drinks/${drinkId}/variants`, { label: label.trim(), menu_price: menuPrice === '' ? null : parseFloat(menuPrice) });
+      await api.post(`/api/cog/drinks/${drinkId}/variants`, {
+        label: label.trim(),
+        temp: temp || null,
+        size: size || null,
+        menu_price: menuPrice === '' ? null : parseFloat(menuPrice),
+      });
       onAdded();
     } catch (e: any) { alert(`Add failed: ${e.message}`); setSaving(false); }
   };
+  // Default the label from temp+size so "Hot" + "Large" types itself.
+  const pickTemp = (t: string) => { setTemp(t); autoLabel(t, size); };
+  const pickSize = (s: string) => { setSize(s); autoLabel(temp, s); };
+  const autoLabel = (t: string, s: string) => {
+    if (label.trim() && label !== composed(temp, size)) return; // hand-edited: leave it alone
+    setLabel(composed(t, s));
+  };
+  const composed = (t: string, s: string) => {
+    const tl = TEMP_OPTIONS.find((o) => o.value === t)?.label;
+    const sl = SIZE_OPTIONS.find((o) => o.value === s)?.label;
+    return [t ? tl : null, s ? sl : null].filter(Boolean).join(' - ');
+  };
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', padding: '12px 14px', background: 'rgba(0,0,0,0.03)', borderRadius: 10, marginBottom: 16 }}>
-      <div style={{ flex: 1, minWidth: 180 }}>
-        <label style={labelStyle}>New size label</label>
-        <input value={label} onChange={(e) => setLabel(e.target.value)} style={inputStyle} placeholder="Hot - Large" autoFocus />
+      <div style={{ width: 110 }}>
+        <label style={labelStyle}>Temp</label>
+        <select value={temp} onChange={(e) => pickTemp(e.target.value)} style={inputStyle} autoFocus>
+          {TEMP_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
       </div>
-      <div style={{ width: 120 }}>
+      <div style={{ width: 110 }}>
+        <label style={labelStyle}>Size</label>
+        <select value={size} onChange={(e) => pickSize(e.target.value)} style={inputStyle}>
+          {SIZE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+      <div style={{ flex: 1, minWidth: 150 }}>
+        <label style={labelStyle}>Label</label>
+        <input value={label} onChange={(e) => setLabel(e.target.value)} style={inputStyle} placeholder="Hot - Large" />
+      </div>
+      <div style={{ width: 110 }}>
         <label style={labelStyle}>Menu price</label>
         <input type="number" step="0.01" value={menuPrice} onChange={(e) => setMenuPrice(e.target.value)} style={inputStyle} />
       </div>

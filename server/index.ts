@@ -15,6 +15,7 @@ import pairingsRouter from './pairings-routes.js';
 import sopRouter from './sop-routes.js';
 import menuRouter from './menu-routes.js';
 import { seedHolidaysForYear } from './holidays.js';
+import { seedCogIfEmpty } from './seed-cog.js';
 import { startReviewSync } from './places.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -61,6 +62,17 @@ app.listen(PORT, () => {
     }
   } catch (err) {
     console.warn('[HolidaySeed] failed:', err instanceof Error ? err.message : err);
+  }
+
+  // Batch recipes — seed from the bundled Cost-of-Goods export the first time
+  // a database comes up empty (prod never got them: the old seed path pointed
+  // at a file that only exists on the dev machine). Only runs when the table
+  // is empty, so it never touches data anyone has edited.
+  try {
+    const r = seedCogIfEmpty();
+    if (r) console.log(`[CogSeed] empty cog_recipes — seeded ${r.recipeCount} recipes, ${r.ingredientCount} lines`);
+  } catch (err) {
+    console.warn('[CogSeed] failed:', err instanceof Error ? err.message : err);
   }
 
   // Daily Dripos sales sync — runs once on boot (after a short delay so the

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '../../lib/api';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { useCanEdit, SummaryCard, InfoBox } from './ui';
+import { useCanEdit, SummaryCard, InfoBox, Modal, inputStyle, labelStyle } from './ui';
 
 interface Recipe {
   id: number;
@@ -60,6 +60,8 @@ export default function RecipesTab() {
   const [menuPrice, setMenuPrice] = useState<string>('');
   const [batchMultiplier, setBatchMultiplier] = useState<string>('1');
   const [seeding, setSeeding] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [editingRecipe, setEditingRecipe] = useState(false);
 
   useEffect(() => { loadRecipes(); }, []);
   useEffect(() => { if (expandedRecipe) loadRecipeDetail(expandedRecipe); }, [expandedRecipe]);
@@ -85,6 +87,14 @@ export default function RecipesTab() {
     }
   };
 
+  const refresh = async () => {
+    await loadRecipes();
+    if (expandedRecipe) {
+      const data = await api.get(`/api/cog/recipes/${expandedRecipe}`).catch(() => null);
+      if (data) setRecipeDetail(data);
+    }
+  };
+
   const handleSeedData = async () => {
     if (!confirm('This will reset all batch-recipe COG data and import from the JSON file. Continue?')) return;
     setSeeding(true);
@@ -97,6 +107,27 @@ export default function RecipesTab() {
     } finally {
       setSeeding(false);
     }
+  };
+
+  const deleteRecipe = async (r: RecipeDetail) => {
+    if (!confirm(`Delete "${r.name}" and its ingredient lines?`)) return;
+    try {
+      await api.delete(`/api/cog/recipes/${r.id}`);
+    } catch (err: any) {
+      // 409: the recipe is used inside drinks — confirm the forced delete.
+      const usedBy: string[] = err?.body?.used_by ?? [];
+      if (usedBy.length > 0) {
+        if (!confirm(`"${r.name}" is used as a component in: ${usedBy.join(', ')}.\n\nDelete anyway? Those drink lines will show as "missing" until replaced.`)) return;
+        try { await api.delete(`/api/cog/recipes/${r.id}?force=1`); }
+        catch (e2: any) { alert(`Delete failed: ${e2.message}`); return; }
+      } else {
+        alert(`Delete failed: ${err.message}`);
+        return;
+      }
+    }
+    setExpandedRecipe(null);
+    setRecipeDetail(null);
+    loadRecipes();
   };
 
   const seasons = useMemo(() => {
@@ -143,9 +174,12 @@ export default function RecipesTab() {
           Batch recipes (syrups, sauces) and their cost per unit. These can be used as components inside a drink.
         </p>
         {canEdit && (
-          <button onClick={handleSeedData} disabled={seeding} className="btn btn-secondary">
-            {seeding ? 'Seeding...' : 'Seed from JSON'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={handleSeedData} disabled={seeding} className="btn btn-secondary">
+              {seeding ? 'Seeding...' : 'Seed from JSON'}
+            </button>
+            <button onClick={() => setCreating(true)} className="btn btn-primary">+ New recipe</button>
+          </div>
         )}
       </div>
 
@@ -216,35 +250,7 @@ export default function RecipesTab() {
                   </div>
                 </div>
 
-                <div style={{ marginBottom: 24 }}>
-                  <h4 style={sectionHead}>Ingredients</h4>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
-                          <th style={th('left')}>Name</th>
-                          <th style={th('right')}>Pack Cost</th>
-                          <th style={th('right')}>Pack Size</th>
-                          <th style={th('right')}>AP Price</th>
-                          <th style={th('right')}>Yield %</th>
-                          <th style={th('right')}>EP Price</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {recipeDetail.ingredients.map(ing => (
-                          <tr key={ing.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-                            <td style={{ padding: '10px 12px', fontWeight: 500 }}>{ing.name}</td>
-                            <td style={td('right')}>${(ing.ap_pack_cost || 0).toFixed(2)}</td>
-                            <td style={td('right')}>{ing.pack_size || 0} {ing.pack_unit || ''}</td>
-                            <td style={td('right')}>${(ing.ap_price || 0).toFixed(3)}/{ing.ap_price_unit || ''}</td>
-                            <td style={td('right')}>{ing.yield_percent || 0}%</td>
-                            <td style={{ ...td('right'), fontWeight: 600 }}>${(ing.ep_price || 0).toFixed(3)}/{ing.ep_price_unit || ''}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <IngredientsSection detail={recipeDetail} canEdit={canEdit} isMobile={isMobile} onChanged={refresh} />
 
                 {recipeDetail.labor_time_hrs && (
                   <div style={{ marginBottom: 24 }}>
@@ -284,7 +290,7 @@ export default function RecipesTab() {
                   </div>
                 </div>
 
-                <div>
+                <div style={{ marginBottom: canEdit ? 24 : 0 }}>
                   <h4 style={sectionHead}>Batch Scaler</h4>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexDirection: isMobile ? 'column' : 'row' }}>
                     <div style={{ flex: 1 }}>
@@ -300,12 +306,322 @@ export default function RecipesTab() {
                     </div>
                   </div>
                 </div>
+
+                {canEdit && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setEditingRecipe(true)}>Edit recipe</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => deleteRecipe(recipeDetail)}>Delete recipe</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         ))}
       </div>
+
+      {creating && (
+        <RecipeModal isMobile={isMobile} onClose={() => setCreating(false)}
+          onSaved={(id) => { setCreating(false); loadRecipes(); setExpandedRecipe(id); }} />
+      )}
+      {editingRecipe && recipeDetail && (
+        <RecipeModal isMobile={isMobile} recipe={recipeDetail} onClose={() => setEditingRecipe(false)}
+          onSaved={() => { setEditingRecipe(false); refresh(); }} />
+      )}
     </div>
+  );
+}
+
+// Ingredient table + row editor. Cost per recipe unit = ep_price × quantity_used,
+// so quantity_used gets its own column. AP/EP are derived here (the server stores
+// what it's sent): ap = pack cost / (pack size × conversion), ep = ap / (yield/100);
+// AP can also be typed directly for items bought by the unit (no pack info).
+function IngredientsSection({ detail, canEdit, isMobile, onChanged }: {
+  detail: RecipeDetail; canEdit: boolean; isMobile: boolean; onChanged: () => void;
+}) {
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+
+  const remove = async (ing: Ingredient) => {
+    if (!confirm(`Remove "${ing.name}" from this recipe?`)) return;
+    try { await api.delete(`/api/cog/ingredients/${ing.id}`); onChanged(); }
+    catch (e: any) { alert(`Delete failed: ${e.message}`); }
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h4 style={sectionHead}>Ingredients</h4>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 640 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+              <th style={th('left')}>Name</th>
+              <th style={th('right')}>Pack Cost</th>
+              <th style={th('right')}>Pack Size</th>
+              <th style={th('right')}>AP Price</th>
+              <th style={th('right')}>Yield %</th>
+              <th style={th('right')}>EP Price</th>
+              <th style={th('right')}>Qty Used</th>
+              <th style={th('right')}>Line Cost</th>
+              {canEdit && <th style={th('right')}></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {detail.ingredients.length === 0 && (
+              <tr><td colSpan={canEdit ? 9 : 8} style={{ padding: 20, textAlign: 'center', color: 'rgba(0,0,0,0.3)' }}>No ingredients yet</td></tr>
+            )}
+            {detail.ingredients.map(ing => (
+              <tr key={ing.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                <td style={{ padding: '10px 12px', fontWeight: 500 }}>{ing.name}</td>
+                <td style={td('right')}>${(ing.ap_pack_cost || 0).toFixed(2)}</td>
+                <td style={td('right')}>{ing.pack_size || 0} {ing.pack_unit || ''}</td>
+                <td style={td('right')}>${(ing.ap_price || 0).toFixed(3)}/{ing.ap_price_unit || ''}</td>
+                <td style={td('right')}>{ing.yield_percent || 0}%</td>
+                <td style={{ ...td('right'), fontWeight: 600 }}>${(ing.ep_price || 0).toFixed(3)}/{ing.ep_price_unit || ''}</td>
+                <td style={td('right')}>{ing.quantity_used ?? '—'} {ing.quantity_used != null ? (ing.ep_price_unit || '') : ''}</td>
+                <td style={{ ...td('right'), fontWeight: 600, color: '#1a1a1a' }}>${((ing.ep_price || 0) * (ing.quantity_used || 0)).toFixed(3)}</td>
+                {canEdit && (
+                  <td style={{ ...td('right'), whiteSpace: 'nowrap' }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => { setEditingId(ing.id); setAdding(false); }} style={{ marginRight: 6 }}>✎</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => remove(ing)}>✕</button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {canEdit && editingId != null && (() => {
+        const ing = detail.ingredients.find(i => i.id === editingId);
+        return ing ? (
+          <IngredientForm key={ing.id} ingredient={ing} recipeId={detail.id} isMobile={isMobile}
+            onClose={() => setEditingId(null)} onSaved={() => { setEditingId(null); onChanged(); }} />
+        ) : null;
+      })()}
+
+      {canEdit && !adding && editingId == null && (
+        <button className="btn btn-secondary btn-sm" onClick={() => setAdding(true)} style={{ marginTop: 10 }}>+ Add ingredient</button>
+      )}
+      {canEdit && adding && (
+        <IngredientForm recipeId={detail.id} isMobile={isMobile}
+          onClose={() => setAdding(false)} onSaved={() => { setAdding(false); onChanged(); }} />
+      )}
+    </div>
+  );
+}
+
+function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
+  ingredient?: Ingredient; recipeId: number; isMobile: boolean; onClose: () => void; onSaved: () => void;
+}) {
+  const [name, setName] = useState(ingredient?.name ?? '');
+  const [packCost, setPackCost] = useState(ingredient?.ap_pack_cost?.toString() ?? '');
+  const [packSize, setPackSize] = useState(ingredient?.pack_size?.toString() ?? '');
+  const [packUnit, setPackUnit] = useState(ingredient?.pack_unit ?? '');
+  const [conversion, setConversion] = useState(ingredient?.unit_conversion?.toString() ?? '1');
+  const [priceUnit, setPriceUnit] = useState(ingredient?.ap_price_unit ?? '');
+  const [apPrice, setApPrice] = useState(ingredient?.ap_price?.toString() ?? '');
+  const [apTouched, setApTouched] = useState(false);
+  const [yieldPct, setYieldPct] = useState(ingredient?.yield_percent?.toString() ?? '100');
+  const [qtyUsed, setQtyUsed] = useState(ingredient?.quantity_used?.toString() ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const computedAp = useMemo(() => {
+    const cost = parseFloat(packCost), size = parseFloat(packSize), conv = parseFloat(conversion);
+    if (!(cost >= 0) || !(size > 0) || !(conv > 0)) return null;
+    return cost / (size * conv);
+  }, [packCost, packSize, conversion]);
+
+  // Auto-fill AP from the pack math unless the user typed AP directly.
+  useEffect(() => {
+    if (!apTouched && computedAp != null) setApPrice(String(computedAp));
+  }, [computedAp, apTouched]);
+
+  const ap = apPrice === '' ? null : parseFloat(apPrice);
+  const yieldNum = parseFloat(yieldPct);
+  const ep = ap != null && yieldNum > 0 ? ap / (yieldNum / 100) : ap;
+  const qty = qtyUsed === '' ? null : parseFloat(qtyUsed);
+  const lineCost = ep != null && qty != null ? ep * qty : null;
+
+  const save = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    const body = {
+      name: name.trim(),
+      ap_pack_cost: packCost === '' ? null : parseFloat(packCost),
+      pack_size: packSize === '' ? null : parseFloat(packSize),
+      pack_unit: packUnit || null,
+      unit_conversion: conversion === '' ? null : parseFloat(conversion),
+      ap_price: ap,
+      ap_price_unit: priceUnit || null,
+      yield_percent: Number.isFinite(yieldNum) ? yieldNum : 100,
+      ep_price: ep,
+      ep_price_unit: priceUnit || null,
+      quantity_used: qty,
+    };
+    try {
+      if (ingredient) await api.put(`/api/cog/ingredients/${ingredient.id}`, body);
+      else await api.post(`/api/cog/recipes/${recipeId}/ingredients`, body);
+      onSaved();
+    } catch (e: any) { alert(`Save failed: ${e.message}`); setSaving(false); }
+  };
+
+  return (
+    <div style={{ padding: '14px 16px', background: 'rgba(0,0,0,0.03)', borderRadius: 10, marginTop: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
+        <div style={{ gridColumn: isMobile ? '1 / -1' : 'auto' }}>
+          <label style={labelStyle}>Name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus={!ingredient} placeholder="vanilla syrup" />
+        </div>
+        <div>
+          <label style={labelStyle}>Pack cost $</label>
+          <input type="number" step="any" value={packCost} onChange={(e) => setPackCost(e.target.value)} style={inputStyle} placeholder="39.98" />
+        </div>
+        <div>
+          <label style={labelStyle}>Pack size</label>
+          <input type="number" step="any" value={packSize} onChange={(e) => setPackSize(e.target.value)} style={inputStyle} placeholder="50" />
+        </div>
+        <div>
+          <label style={labelStyle}>Pack unit</label>
+          <input value={packUnit} onChange={(e) => setPackUnit(e.target.value)} style={inputStyle} placeholder="lbs" />
+        </div>
+        <div>
+          <label style={labelStyle}>Units per pack unit</label>
+          <input type="number" step="any" value={conversion} onChange={(e) => setConversion(e.target.value)} style={inputStyle} placeholder="454" title="How many usage units in one pack unit, e.g. 454 g per lb" />
+        </div>
+        <div>
+          <label style={labelStyle}>Usage unit</label>
+          <input value={priceUnit} onChange={(e) => setPriceUnit(e.target.value)} style={inputStyle} placeholder="g" />
+        </div>
+        <div>
+          <label style={labelStyle}>AP price / unit</label>
+          <input type="number" step="any" value={apPrice} onChange={(e) => { setApTouched(true); setApPrice(e.target.value); }} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Yield %</label>
+          <input type="number" step="any" value={yieldPct} onChange={(e) => setYieldPct(e.target.value)} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Qty used</label>
+          <input type="number" step="any" value={qtyUsed} onChange={(e) => setQtyUsed(e.target.value)} style={inputStyle} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>
+          EP {ep != null ? `$${ep.toFixed(4)}/${priceUnit || 'unit'}` : '—'}
+          {lineCost != null && <> · line cost <strong>${lineCost.toFixed(4)}</strong></>}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={!name.trim() || saving}>{saving ? '...' : (ingredient ? 'Save' : 'Add')}</button>
+          <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Create/edit recipe metadata. Labor cost per unit auto-computes from
+// time × rate ÷ quantity unless typed directly (same pattern as AP price).
+function RecipeModal({ recipe, isMobile, onClose, onSaved }: {
+  recipe?: RecipeDetail; isMobile: boolean; onClose: () => void; onSaved: (id: number) => void;
+}) {
+  const [name, setName] = useState(recipe?.name ?? '');
+  const [season, setSeason] = useState(recipe?.season ?? '');
+  const [category, setCategory] = useState(recipe?.category ?? '');
+  const [totalYield, setTotalYield] = useState(recipe?.total_yield?.toString() ?? '');
+  const [yieldUnit, setYieldUnit] = useState(recipe?.yield_unit ?? '');
+  const [laborTime, setLaborTime] = useState(recipe?.labor_time_hrs?.toString() ?? '');
+  const [laborQty, setLaborQty] = useState(recipe?.labor_quantity?.toString() ?? '');
+  const [laborRate, setLaborRate] = useState(recipe?.labor_cook_rate?.toString() ?? '');
+  const [laborCost, setLaborCost] = useState(recipe?.labor_cost_per_unit?.toString() ?? '');
+  const [laborTouched, setLaborTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const computedLabor = useMemo(() => {
+    const t = parseFloat(laborTime), q = parseFloat(laborQty), r = parseFloat(laborRate);
+    if (!(t > 0) || !(q > 0) || !(r > 0)) return null;
+    return (t * r) / q;
+  }, [laborTime, laborQty, laborRate]);
+
+  useEffect(() => {
+    if (!laborTouched && computedLabor != null) setLaborCost(String(computedLabor));
+  }, [computedLabor, laborTouched]);
+
+  const save = async () => {
+    if (!name.trim() || totalYield === '' || !yieldUnit.trim()) return;
+    setSaving(true);
+    const body = {
+      name: name.trim(),
+      season: season.trim() || null,
+      category: category.trim() || null,
+      total_yield: parseFloat(totalYield),
+      yield_unit: yieldUnit.trim(),
+      labor_time_hrs: laborTime === '' ? null : parseFloat(laborTime),
+      labor_quantity: laborQty === '' ? null : parseFloat(laborQty),
+      labor_cook_rate: laborRate === '' ? null : parseFloat(laborRate),
+      labor_cost_per_unit: laborCost === '' ? null : parseFloat(laborCost),
+    };
+    try {
+      const r = recipe
+        ? await api.put(`/api/cog/recipes/${recipe.id}`, body)
+        : await api.post('/api/cog/recipes', body);
+      onSaved(r.id);
+    } catch (e: any) { alert(`Save failed: ${e.message}`); setSaving(false); }
+  };
+
+  return (
+    <Modal title={recipe ? 'Edit recipe' : 'New batch recipe'} onClose={onClose} width={640}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+        <div>
+          <label style={labelStyle}>Name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus={!recipe} placeholder="Vanilla Syrup" />
+        </div>
+        <div>
+          <label style={labelStyle}>Season</label>
+          <input value={season} onChange={(e) => setSeason(e.target.value)} style={inputStyle} placeholder="SPRING 2026" />
+        </div>
+        <div>
+          <label style={labelStyle}>Category</label>
+          <input value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle} placeholder="Syrup" />
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+        <div>
+          <label style={labelStyle}>Total yield</label>
+          <input type="number" step="any" value={totalYield} onChange={(e) => setTotalYield(e.target.value)} style={inputStyle} placeholder="1000" />
+        </div>
+        <div>
+          <label style={labelStyle}>Yield unit</label>
+          <input value={yieldUnit} onChange={(e) => setYieldUnit(e.target.value)} style={inputStyle} placeholder="ml" />
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12, marginBottom: 6 }}>
+        <div>
+          <label style={labelStyle}>Labor time (hrs)</label>
+          <input type="number" step="any" value={laborTime} onChange={(e) => setLaborTime(e.target.value)} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Batches made</label>
+          <input type="number" step="any" value={laborQty} onChange={(e) => setLaborQty(e.target.value)} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Cook rate $/hr</label>
+          <input type="number" step="any" value={laborRate} onChange={(e) => setLaborRate(e.target.value)} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Labor $/unit</label>
+          <input type="number" step="any" value={laborCost} onChange={(e) => { setLaborTouched(true); setLaborCost(e.target.value); }} style={inputStyle} />
+        </div>
+      </div>
+      <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 16 }}>
+        Labor is optional. Cost per unit fills itself from time × rate ÷ batches; type it directly to override.
+      </div>
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={save} disabled={!name.trim() || totalYield === '' || !yieldUnit.trim() || saving}>
+          {saving ? 'Saving...' : (recipe ? 'Save' : 'Create')}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

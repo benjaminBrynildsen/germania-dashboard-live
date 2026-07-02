@@ -45,9 +45,19 @@ interface CogData {
   recipes: Recipe[];
 }
 
+// Boot-time seed: only when the recipes table is empty, so it can run on every
+// startup without touching data anyone has edited. Returns null when skipped.
+export function seedCogIfEmpty() {
+  const { c } = db.prepare('SELECT COUNT(*) AS c FROM cog_recipes').get() as { c: number };
+  if (c > 0) return null;
+  return seedCogData();
+}
+
 export function seedCogData() {
-  const dataPath = path.join(__dirname, '../../.openclaw/workspace-wolfgang/germania-cog-data.json');
-  
+  // Bundled with the repo so seeding works on prod too (it used to read a
+  // workspace file that only exists on the dev machine).
+  const dataPath = path.join(__dirname, 'germania-cog-recipes.json');
+
   if (!fs.existsSync(dataPath)) {
     throw new Error(`COG data file not found at ${dataPath}`);
   }
@@ -55,10 +65,12 @@ export function seedCogData() {
   const rawData = fs.readFileSync(dataPath, 'utf-8');
   const cogData: CogData = JSON.parse(rawData);
 
-  // Clear existing data
+  // Clear and rebuild recipes + their per-recipe ingredient lines. The master
+  // ingredient catalog is deliberately NOT cleared: drink components reference
+  // it (deleting would SET NULL their ingredient_id and break every costed
+  // drink) — master rows are only added if missing, never overwritten.
   db.prepare('DELETE FROM cog_ingredients').run();
   db.prepare('DELETE FROM cog_recipes').run();
-  db.prepare('DELETE FROM cog_ingredient_master').run();
 
   console.log(`Seeding ${cogData.recipes.length} recipes...`);
 

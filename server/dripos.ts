@@ -880,7 +880,13 @@ export interface ProductSalesRow {
   PLATFORM_NAME: string;
 }
 
-export const DRINK_EXCLUDE_CATEGORIES = new Set(['BAKE HAUS FOOD', 'PETS']);
+// Categories that are clearly not sellable drinks — kept out of the COGS drink
+// sync and the link-to-Dripos picker. Anything ambiguous (RETAIL, Misc., Canned
+// Items) stays in; individual rows can be deleted or archived in the UI.
+export const DRINK_EXCLUDE_CATEGORIES = new Set([
+  'BAKE HAUS FOOD', 'PETS', 'ARCHIVE', 'Inventory', 'Non-consumables',
+  'Ingredients', 'Wholesale', 'BOX LUNCH',
+]);
 
 const PRODUCT_SALES_PLATFORMS: Array<{ name: string; third: boolean }> = [
   { name: 'MOBILE', third: false },
@@ -930,9 +936,15 @@ export async function fetchProductSales(
 }
 
 export interface DriposPriceInfo {
+  id: number;
   name: string;
   base: number;                      // base PRICE in dollars
   sizes: Record<string, number>;     // 'hot|S' -> price in dollars, from the Size customization
+}
+
+export interface DriposPrices {
+  byId: Map<number, DriposPriceInfo>;     // keyed by Dripos product ID (the sturdy join)
+  byName: Map<string, DriposPriceInfo>;   // keyed by lowercased product name (fallback)
 }
 
 // Map a Dripos size-option name ("Hot Small", "Iced Kid's", "Frozen Large")
@@ -947,13 +959,15 @@ function driposSizeKey(optName: string): string | null {
 // Live menu prices straight from Dripos /products. PRICE is the base price (cents);
 // the "Size & Preference" customization group carries the real per-size/temp price
 // for each option (also cents). The menu is shared across stores, so one location
-// is enough. Keyed by lowercased product name (the codebase's product join key).
-export async function getDriposPrices(locationId = 131): Promise<Map<string, DriposPriceInfo>> {
+// is enough. Keyed by product ID (for drinks linked via dripos_product_id) and by
+// lowercased product name (fallback for unlinked drinks).
+export async function getDriposPrices(locationId = 131): Promise<DriposPrices> {
   const products = await fetchAllProducts(locationId);
+  const byId = new Map<number, DriposPriceInfo>();
   const byName = new Map<string, DriposPriceInfo>();
   for (const p of products as any[]) {
     if (!p.NAME) continue;
-    const info: DriposPriceInfo = { name: p.NAME.trim(), base: (p.PRICE ?? 0) / 100, sizes: {} };
+    const info: DriposPriceInfo = { id: p.ID, name: p.NAME.trim(), base: (p.PRICE ?? 0) / 100, sizes: {} };
     const groups = Array.isArray(p.CUSTOMIZATIONS) ? p.CUSTOMIZATIONS : [];
     const sizeGroup =
       groups.find((g: any) => /size/i.test(g.NAME || '')) ??
@@ -964,9 +978,10 @@ export async function getDriposPrices(locationId = 131): Promise<Map<string, Dri
         if (key && o.PRICE != null) info.sizes[key] = o.PRICE / 100;
       }
     }
+    if (p.ID != null) byId.set(p.ID, info);
     byName.set(info.name.toLowerCase(), info);
   }
-  return byName;
+  return { byId, byName };
 }
 
 // ── Ticket completion (drink-time) ───────────────────────────────────────

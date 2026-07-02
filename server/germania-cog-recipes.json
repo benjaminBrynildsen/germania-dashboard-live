@@ -1,0 +1,5969 @@
+{
+  "extractedAt": "2026-03-27",
+  "totalRecipes": 59,
+  "totalErrors": 0,
+  "errors": [],
+  "recipes": [
+    {
+      "sheetId": "1B1SIvu56eUA6y7qcoreKj91LZnwYjhBog_a5Dcj7Bj4",
+      "season": "SPRING 2026",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "white mocha",
+      "category": null,
+      "totalYield": 64.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "sugar",
+          "apPackCost": 39.98,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 8.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "vanilla bean",
+          "apPackCost": 33.99,
+          "packSize": 50.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.68,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.68,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "fructose",
+          "apPackCost": 72.99,
+          "packSize": 4.0,
+          "packUnit": "gallon",
+          "unitConversion": 6000.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "nonfat dry milk",
+          "apPackCost": 148.49,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "soy lecithin",
+          "apPackCost": 19.95,
+          "packSize": 400.0,
+          "packUnit": "grams",
+          "unitConversion": 1.0,
+          "apPrice": 0.05,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.05,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "cocoa butter",
+          "apPackCost": 859.0,
+          "packSize": 40.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.05,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.05,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.65,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "138qi0aa6yNcjMyNigCaXOlAuf_6c-cdiN_W2MgXPMJs",
+      "season": "SPRING 2026",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "peach syrup",
+      "category": null,
+      "totalYield": 25.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "sugar",
+          "apPackCost": 39.98,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "brown sugar",
+          "apPackCost": 2.66,
+          "packSize": 2.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 128.49,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 2.0,
+          "packUnit": null,
+          "unitConversion": 1.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "peach extract",
+          "apPackCost": 14.8,
+          "packSize": 2.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 1.23,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 1.23,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.65,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "citric acid",
+          "apPackCost": 18.8,
+          "packSize": 2.5,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "g"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1WgUYJLMt6v9xqFymOzl3Snb9ScTmYTV4XO5Fwtx7LdQ",
+      "season": "SPRING 2026",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "horchata syrup",
+      "category": null,
+      "totalYield": 25.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "sugar",
+          "apPackCost": 39.98,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.05,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.05,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "cinnamon sticks",
+          "apPackCost": 24.99,
+          "packSize": 8.0,
+          "packUnit": "oz",
+          "unitConversion": 8.0,
+          "apPrice": 0.39,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.39,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 128.49,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.5,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.5,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 2.0,
+          "packUnit": null,
+          "unitConversion": 1.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "rice",
+          "apPackCost": 17.45,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1Uo5gRuKQOkxFPvLhDVf2JSHI1A0NIS_D6PXaWVorWwY",
+      "season": "SPRING 2026",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "key lime syrup",
+      "category": null,
+      "totalYield": 25.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "sugar",
+          "apPackCost": 39.98,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 3.0,
+          "apPrice": 0.32,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.32,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "key lime juice",
+          "apPackCost": 40.69,
+          "packSize": 192.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 1.7,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 1.7,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 128.49,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1jYZY02Olba7zM1TJR50VVTVn28iezvJ1m0BJJ6bdK7E",
+      "season": "SPRING 2026",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "lavender syrup",
+      "category": null,
+      "totalYield": 25.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "sugar",
+          "apPackCost": 39.98,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 8.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "lavender buds",
+          "apPackCost": 26.59,
+          "packSize": 2.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.03,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.03,
+          "epPriceUnit": "g"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "18_Mr4pw55hT7--CS7Cm0flRQy3mPYz4qVn7M-rLg9es",
+      "season": "SPRING 2026",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Lemon Syrup",
+      "category": null,
+      "totalYield": 25.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "sugar",
+          "apPackCost": 39.98,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 8.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "lemon extract",
+          "apPackCost": 172.49,
+          "packSize": 192.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.45,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.45,
+          "epPriceUnit": "TBSP"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1AAjPhOOZQ8hifx9XCt-mAZmdzTZZRJfW4cSRCRJNZG0",
+      "season": "SPRING 2026",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Cinnamon Honey",
+      "category": null,
+      "totalYield": 250.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "honey",
+          "apPackCost": 141.89,
+          "packSize": 30.0,
+          "packUnit": "lbs",
+          "unitConversion": 1.0,
+          "apPrice": 3.56,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 3.56,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 8.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "cinnamon",
+          "apPackCost": 10.95,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 12.0,
+          "apPrice": 0.05,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.05,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1zgFp6M0vAf-Ip7gygqpH8wwkYW0q7oPt0F1JHb6nbF0",
+      "season": "WINTER 2025-26",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Winter Cider",
+      "category": null,
+      "totalYield": 4.0,
+      "yieldUnit": "gallon",
+      "ingredients": [
+        {
+          "name": "apple cider",
+          "apPackCost": 35.45,
+          "packSize": 512.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 2.31,
+          "apPriceUnit": "qts",
+          "yieldPercent": 100.0,
+          "epPrice": 2.31,
+          "epPriceUnit": "qts"
+        },
+        {
+          "name": "cranberry juice",
+          "apPackCost": 63.88,
+          "packSize": 512.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 4.16,
+          "apPriceUnit": "qts",
+          "yieldPercent": 100.0,
+          "epPrice": 4.16,
+          "epPriceUnit": "qts"
+        },
+        {
+          "name": "orange juice",
+          "apPackCost": 58.61,
+          "packSize": 4.0,
+          "packUnit": "gallon",
+          "unitConversion": 4.0,
+          "apPrice": 3.66,
+          "apPriceUnit": "qts",
+          "yieldPercent": 100.0,
+          "epPrice": 3.66,
+          "epPriceUnit": "qts"
+        },
+        {
+          "name": "cinnamon sticks",
+          "apPackCost": 24.99,
+          "packSize": 8.0,
+          "packUnit": "oz",
+          "unitConversion": 8.0,
+          "apPrice": 0.39,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.39,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "whole cloves",
+          "apPackCost": 14.63,
+          "packSize": 14.0,
+          "packUnit": "oz",
+          "unitConversion": 4.0,
+          "apPrice": 0.26,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.26,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "star anise",
+          "apPackCost": 14.99,
+          "packSize": 14.0,
+          "packUnit": "oz",
+          "unitConversion": 40.0,
+          "apPrice": 0.03,
+          "apPriceUnit": "pods",
+          "yieldPercent": 100.0,
+          "epPrice": 0.03,
+          "epPriceUnit": "pods"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 39.98,
+          "packSize": 50.0,
+          "packUnit": "lb",
+          "unitConversion": 2.0,
+          "apPrice": 0.36,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.36,
+          "epPriceUnit": "c"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1WGHooUx1QoWNDsYjdkAkDa1XdbX_ThPjH1ocLGt2o8c",
+      "season": "WINTER 2025-26",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "peppermint mocha",
+      "category": null,
+      "totalYield": 64.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "cocoa powder",
+          "apPackCost": 454.49,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 5.0,
+          "apPrice": 2.02,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 2.02,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 39.98,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.4,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.4,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "peppermint extract",
+          "apPackCost": 14.5,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.15,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.15,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "spearmint extract",
+          "apPackCost": 18.76,
+          "packSize": 8.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.39,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.39,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 4.0,
+          "packUnit": "lbs",
+          "unitConversion": 6.0,
+          "apPrice": 0.94,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.94,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1CJUIf7HmCEwsGAFdE5K2Ga4Gd0HcrbbxUJMpa357Jlc",
+      "season": "WINTER 2025-26",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Haus Vanilla Syrup",
+      "category": null,
+      "totalYield": 24.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "brown sugar",
+          "apPackCost": 31.99,
+          "packSize": 24.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.59,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.59,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 39.98,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.4,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.4,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 28.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "vanilla beans",
+          "apPackCost": 39.95,
+          "packSize": 50.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.8,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.8,
+          "epPriceUnit": "each"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1xYu8PDAcllfoXDptUE4IaUzmtAcYOb6cFZsE6YFS5lM",
+      "season": "WINTER 2025-26",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Haus Mocha",
+      "category": null,
+      "totalYield": 64.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "cocoa powder",
+          "apPackCost": 454.49,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 39.98,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 28.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 128.49,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 256.0,
+          "apPrice": 0.5,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.5,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 76.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1iAR_wK83eMr3f1cl8rc4snWvCm5iWIieSQI0JA1cxEI",
+      "season": "WINTER 2025-26",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "cookie butter",
+      "category": null,
+      "totalYield": 64.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "cookie butter",
+          "apPackCost": 29.91,
+          "packSize": 112.8,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.27,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.27,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 39.98,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.4,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.4,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 128.49,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 256.0,
+          "apPrice": 0.5,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.5,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "cookie butter extract",
+          "apPackCost": 94.08,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 256.0,
+          "apPrice": 0.37,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.37,
+          "epPriceUnit": "TBSP"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1tehdGQkZG3XWxrVYl9Ln2qLF5n3RVMfY9KSCFB_rWrU",
+      "season": "WINTER 2025-26",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "BBL",
+      "category": null,
+      "totalYield": 256.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "Benchmark Bourbon",
+          "apPackCost": 117.0,
+          "packSize": 10.5,
+          "packUnit": "liters",
+          "unitConversion": 34.0,
+          "apPrice": 0.33,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.33,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Butter",
+          "apPackCost": 101.95,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.18,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.18,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Brown Sugar",
+          "apPackCost": 31.99,
+          "packSize": 24.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.08,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.08,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Whole Milk",
+          "apPackCost": 1.99,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 128.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Vanilla Extract",
+          "apPackCost": 128.49,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 1.0,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 1.0,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.04,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.04,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Soy Lecithin",
+          "apPackCost": 19.99,
+          "packSize": 14.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 1.43,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 1.43,
+          "epPriceUnit": "oz"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1v538pJZhHksBZvd9vBgcBqFCq1mhq5cOJJg37Tai_pg",
+      "season": "WINTER 2025-26",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Amaretto Syrup",
+      "category": null,
+      "totalYield": 25.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "brown sugar",
+          "apPackCost": 31.99,
+          "packSize": 24.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": null,
+          "packUnit": null,
+          "unitConversion": 0.0,
+          "apPrice": null,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": null,
+          "epPriceUnit": null
+        },
+        {
+          "name": "almond extract",
+          "apPackCost": 19.14,
+          "packSize": 32.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.3,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.3,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 128.49,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1QSuyzoeHUN7YrXEddWvH_6VGhSxvHcSPEgUyXU4ANRI",
+      "season": "WINTER 2025-26",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Gingerbread Syrup",
+      "category": null,
+      "totalYield": 64.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "brown sugar",
+          "apPackCost": 31.99,
+          "packSize": 24.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.59,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.59,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": null,
+          "packUnit": null,
+          "unitConversion": 0.0,
+          "apPrice": null,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": null,
+          "epPriceUnit": null
+        },
+        {
+          "name": "cinnamon",
+          "apPackCost": 10.95,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 3.0,
+          "apPrice": 0.2,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.2,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "ginger",
+          "apPackCost": 20.65,
+          "packSize": 12.5,
+          "packUnit": "oz",
+          "unitConversion": 3.0,
+          "apPrice": 0.55,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.55,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 128.49,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 80.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "molasses",
+          "apPackCost": 103.95,
+          "packSize": 4.0,
+          "packUnit": "gal",
+          "unitConversion": 16.0,
+          "apPrice": 1.62,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 1.62,
+          "epPriceUnit": "c"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1tzVXGSA4kCRmWKkM7sqVFYzrjZihVohOF1mIJHKLyTw",
+      "season": "WINTER 2025-26",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Haus Chai",
+      "category": null,
+      "totalYield": 24.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "brown sugar",
+          "apPackCost": 31.99,
+          "packSize": 24.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "tea bag",
+          "apPackCost": 0.1,
+          "packSize": 1.0,
+          "packUnit": "bag",
+          "unitConversion": 1.0,
+          "apPrice": 0.1,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.1,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": null,
+          "packUnit": null,
+          "unitConversion": 0.0,
+          "apPrice": null,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": null,
+          "epPriceUnit": null
+        },
+        {
+          "name": "cinnamon",
+          "apPackCost": 10.95,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 11.0,
+          "apPrice": 0.06,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.06,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "ground cloves",
+          "apPackCost": 13.99,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 13.0,
+          "apPrice": 0.07,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.07,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "peppercorns",
+          "apPackCost": 23.99,
+          "packSize": 19.5,
+          "packUnit": "oz",
+          "unitConversion": 12.0,
+          "apPrice": 0.1,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.1,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "ginger",
+          "apPackCost": 20.65,
+          "packSize": 12.5,
+          "packUnit": "oz",
+          "unitConversion": 16.0,
+          "apPrice": 0.1,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.1,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "cardamom",
+          "apPackCost": 39.99,
+          "packSize": 1.5,
+          "packUnit": "lbs",
+          "unitConversion": 340.0,
+          "apPrice": 0.08,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.08,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "star anise",
+          "apPackCost": 14.84,
+          "packSize": 14.0,
+          "packUnit": "oz",
+          "unitConversion": 150.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 128.49,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1VcirqbVM_5yy4wYi4Zp4VyVYiG7Qt1YIkWDHH12LSaQ",
+      "season": "FALL 2025",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Polar Powder",
+      "category": null,
+      "totalYield": 32.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "Sugar",
+          "apPackCost": 39.98,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "nonfat dry milk",
+          "apPackCost": 134.99,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "creamer powder",
+          "apPackCost": 56.75,
+          "packSize": 336.0,
+          "packUnit": "oz",
+          "unitConversion": 28.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "xanthan gum",
+          "apPackCost": 82.49,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.04,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.04,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "maltodextrin",
+          "apPackCost": 37.95,
+          "packSize": 8.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "whey",
+          "apPackCost": 69.99,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.03,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.03,
+          "epPriceUnit": "g"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1HqhUpIqZYNauE5WLNb6s8h8RzSG30F2Pk614AVqqKCw",
+      "season": "FALL 2025",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "smores",
+      "category": null,
+      "totalYield": 64.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "monin toasted marshmallow",
+          "apPackCost": 38.99,
+          "packSize": 135.2,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.29,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.29,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "haus mocha",
+          "apPackCost": 9.73,
+          "packSize": 64.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.15,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.15,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "monion hickory smoke",
+          "apPackCost": 38.99,
+          "packSize": 135.2,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.29,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.29,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "cookie butter extract",
+          "apPackCost": 99.99,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.78,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.78,
+          "epPriceUnit": "TBSP"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1bgXYX5PFcZ6-kQfutJ475n9S1bmgIuky0Ye_VbuKTyw",
+      "season": "FALL 2025",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "PSL",
+      "category": null,
+      "totalYield": 64.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "Sugar",
+          "apPackCost": 41.65,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.42,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.42,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "Water",
+          "apPackCost": 0.0,
+          "packSize": 512.0,
+          "packUnit": "oz",
+          "unitConversion": null,
+          "apPrice": 0.0,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "Canned Pumpkin",
+          "apPackCost": 49.99,
+          "packSize": 636.5,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 0.63,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.63,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "Brown Sugar",
+          "apPackCost": 31.99,
+          "packSize": 24.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.67,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.67,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "Vanilla Extract",
+          "apPackCost": 128.99,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "Salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 80.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "Pumpkin Pie Spice",
+          "apPackCost": 9.69,
+          "packSize": 9.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.54,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.54,
+          "epPriceUnit": "TBSP"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1g8avzZa37lfhK1wUw23vPtfStO5TIBA1aU4-otqKUDA",
+      "season": "FALL 2025",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Apple Butter Sauce",
+      "category": null,
+      "totalYield": 320.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "Sugar",
+          "apPackCost": 41.65,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.42,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 0.42,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "Apple Cider",
+          "apPackCost": 35.25,
+          "packSize": 512.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 0.55,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.55,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "Apple Butter",
+          "apPackCost": 35.49,
+          "packSize": 360.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 0.79,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.79,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "Cinnamon",
+          "apPackCost": 10.85,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.3,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.3,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "Apple Extract",
+          "apPackCost": 16.51,
+          "packSize": 8.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.34,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.34,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1fW2ynLR7xvwRsKImlpQ3RRTWdcJPIbTzj4caWeTt12c",
+      "season": "SUMMER 2025",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "watermelon mint concentrate",
+      "category": null,
+      "totalYield": 32.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "watermelon",
+          "apPackCost": 6.99,
+          "packSize": 1.0,
+          "packUnit": "each",
+          "unitConversion": 96.0,
+          "apPrice": 0.07,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.07,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "mint",
+          "apPackCost": 13.95,
+          "packSize": 1.0,
+          "packUnit": "lbs",
+          "unitConversion": 8.0,
+          "apPrice": 1.74,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 1.74,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 44.25,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.39,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.39,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 32.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "c"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1XL50N31-VoMFh0pzGYEhwdaxcYzOPsNGiF1_7y1C-j8",
+      "season": "SPRING 2025",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Cinnamon Honey",
+      "category": null,
+      "totalYield": 250.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "honey",
+          "apPackCost": 118.33,
+          "packSize": 30.0,
+          "packUnit": "lbs",
+          "unitConversion": 1.0,
+          "apPrice": 2.97,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 2.97,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 8.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "cinnamon",
+          "apPackCost": 8.92,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 12.0,
+          "apPrice": 0.04,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.04,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1Hsw9wscfNPbRzn5VDifjcjUCMnmokYMKF4zB76smSNs",
+      "season": "SPRING 2025",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Ube syrup",
+      "category": null,
+      "totalYield": 25.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "sugar",
+          "apPackCost": 50.25,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.44,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.44,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 8.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "ube powder",
+          "apPackCost": 16.93,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 1.06,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 1.06,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "pecan extract",
+          "apPackCost": 13.0,
+          "packSize": 4.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 1.63,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 1.63,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 132.49,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 768.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1cT14yxjUV_zotYYm9kETvYwWU20mMMUCK9FZZu4VWw0",
+      "season": "SPRING 2025",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Orange Blossom Matcha Concentrate",
+      "category": null,
+      "totalYield": 32.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "matcha powder",
+          "apPackCost": 84.99,
+          "packSize": 14.1,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 3.01,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 3.01,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "orange blossom water",
+          "apPackCost": 18.0,
+          "packSize": 40.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.45,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.45,
+          "epPriceUnit": "oz"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1I6gy3E3dk8UK2r46I1qxKEW_9uQHuhrvn3NuMPqlYGo",
+      "season": "SPRING 2025",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Lemonade",
+      "category": null,
+      "totalYield": 128.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "lemon juice (fresh)",
+          "apPackCost": 34.19,
+          "packSize": 200.0,
+          "packUnit": "each",
+          "unitConversion": 2.0,
+          "apPrice": 0.11,
+          "apPriceUnit": "oz",
+          "yieldPercent": 36.0,
+          "epPrice": 0.32,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "lemon juice (bottled)",
+          "apPackCost": 15.39,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.12,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 50.25,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.5,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.5,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": null,
+          "packUnit": null,
+          "unitConversion": null,
+          "apPrice": null,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": null,
+          "epPriceUnit": "c"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1PxWORTlXbim5NHy-OHo3M4X565pI-pOmc_iPYnWdz2U",
+      "season": "SPRING 2025",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Strawberries and Cream",
+      "category": null,
+      "totalYield": 64.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "sugar",
+          "apPackCost": 50.25,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.06,
+          "apPriceUnit": "lbs",
+          "yieldPercent": 100.0,
+          "epPrice": 0.06,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 8.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "frozen strawberries",
+          "apPackCost": 29.75,
+          "packSize": 10.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.19,
+          "apPriceUnit": "lbs",
+          "yieldPercent": 100.0,
+          "epPrice": 0.19,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.35,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "lbs",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "citric acid",
+          "apPackCost": 17.99,
+          "packSize": 40.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.07,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.07,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 132.49,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "strawberry extract",
+          "apPackCost": 84.0,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.33,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.33,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1SdL1rDdrbglaWSArAtN40JM2N6DYLDgYxq61VlXH8cg",
+      "season": "WINTER 2024-25",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "eggnog",
+      "category": null,
+      "totalYield": 128.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "oat milk",
+          "apPackCost": 33.19,
+          "packSize": 12.0,
+          "packUnit": "qts",
+          "unitConversion": 1.0,
+          "apPrice": 2.77,
+          "apPriceUnit": "qts",
+          "yieldPercent": 100.0,
+          "epPrice": 2.77,
+          "epPriceUnit": "qts"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 50.25,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.44,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.44,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "liquid egg yolks",
+          "apPackCost": 77.95,
+          "packSize": 15.0,
+          "packUnit": "qts",
+          "unitConversion": 4.0,
+          "apPrice": 1.3,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 1.3,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "nutmeg",
+          "apPackCost": 6.49,
+          "packSize": 8.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.14,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.14,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 20.8,
+          "packSize": 4.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.06,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.06,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "ground cloves",
+          "apPackCost": 8.99,
+          "packSize": 14.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.11,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.11,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "ground cinnamon",
+          "apPackCost": 9.29,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.26,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.26,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 128.99,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 768.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1kFPzYFSzLJxUBwHAfc12Nj_xMr031Q2yoQPnUY1yN1s",
+      "season": "WINTER 2024-25",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "figgy pudding sauce",
+      "category": null,
+      "totalYield": 96.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "dried figs",
+          "apPackCost": 42.74,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.53,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.53,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 50.25,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.44,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.44,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 8.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "nutmeg",
+          "apPackCost": 6.49,
+          "packSize": 8.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.14,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.14,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "star anise",
+          "apPackCost": 16.99,
+          "packSize": 14.0,
+          "packUnit": "oz",
+          "unitConversion": 40.0,
+          "apPrice": 0.03,
+          "apPriceUnit": "pods",
+          "yieldPercent": 100.0,
+          "epPrice": 0.03,
+          "epPriceUnit": "pods"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 20.8,
+          "packSize": 4.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.06,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.06,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "ground cloves",
+          "apPackCost": 8.99,
+          "packSize": 14.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.11,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.11,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "ground cinnamon",
+          "apPackCost": 9.29,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.26,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.26,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "molasses",
+          "apPackCost": 22.35,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 256.0,
+          "apPrice": 0.09,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.09,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 128.99,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 768.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "orange zest",
+          "apPackCost": 6.49,
+          "packSize": 4.0,
+          "packUnit": "lbs",
+          "unitConversion": 6.0,
+          "apPrice": 0.27,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.27,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "orange juice",
+          "apPackCost": 6.69,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 16.0,
+          "apPrice": 0.42,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.42,
+          "epPriceUnit": "c"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1aexlTeOJ6yMKe6A57weqh941vBe6Qp8_1O2CwLBMmr8",
+      "season": "WINTER 2024-25",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "maple blueberry syrup",
+      "category": null,
+      "totalYield": 64.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "blueberries",
+          "apPackCost": 33.95,
+          "packSize": 10.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 50.25,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 28.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "maple syrup",
+          "apPackCost": 20.5,
+          "packSize": 32.0,
+          "packUnit": "oz",
+          "unitConversion": 28.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "maple extract",
+          "apPackCost": 11.39,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 28.0,
+          "apPrice": 0.03,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.03,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 20.8,
+          "packSize": 4.0,
+          "packUnit": "lbs",
+          "unitConversion": 454.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "g"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "18iSxtQhpJaZsG88U6fjUX8mLlsintXI-PyN3SksSClo",
+      "season": "FALL 2024",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Rumbutter",
+      "category": null,
+      "totalYield": 64.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "Dark rum",
+          "apPackCost": 172.5,
+          "packSize": 10.5,
+          "packUnit": "liters",
+          "unitConversion": 34.0,
+          "apPrice": 0.49,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.49,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Butter",
+          "apPackCost": 161.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 1.0,
+          "apPrice": 4.49,
+          "apPriceUnit": "lb",
+          "yieldPercent": 100.0,
+          "epPrice": 4.49,
+          "epPriceUnit": "lb"
+        },
+        {
+          "name": "Brown Sugar",
+          "apPackCost": 32.95,
+          "packSize": 24.0,
+          "packUnit": "lbs",
+          "unitConversion": 254.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "g",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "Whole Milk",
+          "apPackCost": 13.98,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 16.0,
+          "apPrice": 0.87,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.87,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "Vanilla Extract",
+          "apPackCost": 24.09,
+          "packSize": 32.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.38,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.38,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "Salt",
+          "apPackCost": 20.8,
+          "packSize": 4.0,
+          "packUnit": "lbs",
+          "unitConversion": 80.0,
+          "apPrice": 0.07,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.07,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "Soy Lecithin",
+          "apPackCost": 19.95,
+          "packSize": 14.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.71,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.71,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "Ground cloves",
+          "apPackCost": 11.4,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.12,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "Nutmeg",
+          "apPackCost": 26.75,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.28,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.28,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "Cinnamon",
+          "apPackCost": 9.29,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.09,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.09,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1pA0Go_uELw9CItyLN6ThrollzNgXftnZ4N1Ty6YFzRs",
+      "season": "FALL 2024",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Horchata",
+      "category": null,
+      "totalYield": 128.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "Sugar",
+          "apPackCost": 49.55,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.5,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 0.5,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "Water",
+          "apPackCost": 0.0,
+          "packSize": 512.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "Cinnamon Sticks",
+          "apPackCost": 22.99,
+          "packSize": 8.0,
+          "packUnit": "oz",
+          "unitConversion": 4.0,
+          "apPrice": 0.72,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.72,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "Rice",
+          "apPackCost": 28.25,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.25,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.25,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "Vanilla Extract",
+          "apPackCost": 24.09,
+          "packSize": 32.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.13,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.13,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "Oat milk",
+          "apPackCost": 33.19,
+          "packSize": 12.0,
+          "packUnit": "qts",
+          "unitConversion": 4.0,
+          "apPrice": 0.69,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.69,
+          "epPriceUnit": "c"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1tBoP2r4hSwU3JpJGY-o_XyVQUBZsWl1WW98FZpTWHW4",
+      "season": "FALL 2024",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Pecan Pie Sauce",
+      "category": null,
+      "totalYield": 128.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "Pecans",
+          "apPackCost": 214.49,
+          "packSize": 30.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 1.79,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 1.79,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Sugar",
+          "apPackCost": 49.55,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.5,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.5,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Water",
+          "apPackCost": 0.0,
+          "packSize": 1.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Molasses",
+          "apPackCost": 22.35,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 16.0,
+          "apPrice": 1.4,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 1.4,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Vanilla Extract",
+          "apPackCost": 24.09,
+          "packSize": 32.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.38,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.38,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Salt",
+          "apPackCost": 20.8,
+          "packSize": 4.0,
+          "packUnit": "lbs",
+          "unitConversion": 80.0,
+          "apPrice": 0.07,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.07,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "Cinnamon",
+          "apPackCost": 9.29,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.26,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.26,
+          "epPriceUnit": "TBSP"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "10HbzJKll6bISsEzdiy2ytJJwgocczp13FCH0V7OSuYo",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Chocolate Covered Strawberries",
+      "category": null,
+      "totalYield": 12.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "dark chocolate melting wafers",
+          "apPackCost": 69.99,
+          "packSize": 25.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "white chocolate melting wafers",
+          "apPackCost": 68.49,
+          "packSize": 25.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "strawberries",
+          "apPackCost": 6.27,
+          "packSize": 2.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.2,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.2,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "box",
+          "apPackCost": 72.49,
+          "packSize": 200.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.36,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.36,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "silica gel packet",
+          "apPackCost": 8.99,
+          "packSize": 60.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.15,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.15,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "cupcake liners",
+          "apPackCost": 7.79,
+          "packSize": 500.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "each"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1CcOErIjbWrVncKxaMqB8vf9bmesbYBgeoMl3Wl-oL_I",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "energy bites",
+      "category": null,
+      "totalYield": 100.0,
+      "yieldUnit": "packs",
+      "ingredients": [
+        {
+          "name": "oats",
+          "apPackCost": 36.99,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.18,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.18,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "protein powder",
+          "apPackCost": 56.36,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 13.0,
+          "apPrice": 0.87,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.87,
+          "epPriceUnit": "scoops"
+        },
+        {
+          "name": "flaxseeds",
+          "apPackCost": 59.99,
+          "packSize": 25.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.07,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.07,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "vanilla",
+          "apPackCost": 23.94,
+          "packSize": 33.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.36,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.36,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "honey",
+          "apPackCost": 21.0,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 2.8,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 2.8,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "peanut butter",
+          "apPackCost": 10.39,
+          "packSize": 26.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 3.63,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 3.63,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "dried cranberries",
+          "apPackCost": 30.65,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 12.0,
+          "apPrice": 0.51,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.51,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "white chocolate chips",
+          "apPackCost": 35.29,
+          "packSize": 10.0,
+          "packUnit": "lbs",
+          "unitConversion": 3.0,
+          "apPrice": 1.36,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 1.36,
+          "epPriceUnit": "c"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "16L-McnJ0Vc7kdtyqJjjOAOFXwZar8VL1EnX58H_tQqo",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Ham and Swiss Croffle",
+      "category": null,
+      "totalYield": 4.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "Croissant",
+          "apPackCost": 88.55,
+          "packSize": 120.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.74,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.74,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "ham",
+          "apPackCost": 59.2,
+          "packSize": 20.0,
+          "packUnit": "lbs",
+          "unitConversion": 254.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "g"
+        },
+        {
+          "name": "swiss",
+          "apPackCost": 26.69,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.33,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.33,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "onion powder",
+          "apPackCost": 8.99,
+          "packSize": 20.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.07,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.07,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "garlic powder",
+          "apPackCost": 8.29,
+          "packSize": 1.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.09,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.09,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 20.8,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "pepper",
+          "apPackCost": 16.1,
+          "packSize": 1.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.18,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.18,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "paprika",
+          "apPackCost": 14.59,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.14,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.14,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1UW6U_dmvDKQBVYPVepU2espipPt9QBrEbgUNE_ow5Ao",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "BEC",
+      "category": null,
+      "totalYield": 50.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "eggs",
+          "apPackCost": 30.75,
+          "packSize": 180.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "oz",
+          "yieldPercent": 89.0,
+          "epPrice": 0.19,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "milk",
+          "apPackCost": 1.91,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 16.0,
+          "apPrice": 0.12,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "black pepper",
+          "apPackCost": 57.69,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.36,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.36,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "bacon",
+          "apPackCost": 59.99,
+          "packSize": 15.0,
+          "packUnit": "lbs",
+          "unitConversion": 1.0,
+          "apPrice": 4.0,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 4.0,
+          "epPriceUnit": "lbs"
+        },
+        {
+          "name": "cheddar",
+          "apPackCost": 16.69,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 3.0,
+          "apPrice": 1.11,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 1.11,
+          "epPriceUnit": "c"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "15gGOMGxMM4ySlTR6QINrY8m4stoOTr7leTbiJJUMHes",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "biscuits and gravy",
+      "category": null,
+      "totalYield": 36.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "buttermilk",
+          "apPackCost": 3.75,
+          "packSize": 64.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 0.47,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.47,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 26.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "garlic powder",
+          "apPackCost": 11.65,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 3.0,
+          "apPrice": 0.24,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.24,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "butter",
+          "apPackCost": 101.95,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 1.42,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 1.42,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 41.65,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 36.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "flour",
+          "apPackCost": 15.95,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.08,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 0.08,
+          "epPriceUnit": null
+        },
+        {
+          "name": "baking powder",
+          "apPackCost": 23.2,
+          "packSize": 5.0,
+          "packUnit": "lb",
+          "unitConversion": 36.0,
+          "apPrice": 0.13,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 0.13,
+          "epPriceUnit": null
+        },
+        {
+          "name": "sausage",
+          "apPackCost": 40.55,
+          "packSize": 192.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 3.52,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 3.52,
+          "epPriceUnit": null
+        },
+        {
+          "name": "flour",
+          "apPackCost": 15.95,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.08,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 0.08,
+          "epPriceUnit": null
+        },
+        {
+          "name": "butter",
+          "apPackCost": 101.95,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 1.42,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 1.42,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "milk",
+          "apPackCost": 1.91,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 1.0,
+          "apPrice": 1.91,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 1.91,
+          "epPriceUnit": "gal"
+        },
+        {
+          "name": "pepper",
+          "apPackCost": 57.69,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.36,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.36,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "TBSP"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "16yUhu-OKAlPSIdLx9bFExvByQVLvW6z_TTvq9ZALceE",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "scrambled eggs",
+      "category": null,
+      "totalYield": 30.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "eggs",
+          "apPackCost": 30.75,
+          "packSize": 180.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "oz",
+          "yieldPercent": 89.0,
+          "epPrice": 0.19,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "milk",
+          "apPackCost": 1.91,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 16.0,
+          "apPrice": 0.12,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "black pepper",
+          "apPackCost": 57.69,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.36,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.36,
+          "epPriceUnit": "TBSP"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1XN1unLjCQVL4Czdo9qNcsMY1JIdxcKESj5f7UKHd4OA",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "chicken and waffles",
+      "category": null,
+      "totalYield": 30.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "chicken breast",
+          "apPackCost": 4.49,
+          "packSize": 1.0,
+          "packUnit": "lb",
+          "unitConversion": 2.0,
+          "apPrice": 2.25,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 2.25,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "buttermilk",
+          "apPackCost": 3.75,
+          "packSize": 64.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 0.47,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.47,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 48.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "garlic powder",
+          "apPackCost": 11.65,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 3.0,
+          "apPrice": 0.24,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.24,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "paprika",
+          "apPackCost": 11.65,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 9.0,
+          "apPrice": 0.08,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.08,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "pepper",
+          "apPackCost": 11.65,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 9.0,
+          "apPrice": 0.08,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.08,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "flour",
+          "apPackCost": 15.95,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.08,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 0.08,
+          "epPriceUnit": null
+        },
+        {
+          "name": "cornstarch",
+          "apPackCost": 2.99,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 1.5,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 1.5,
+          "epPriceUnit": null
+        },
+        {
+          "name": "baking powder",
+          "apPackCost": 23.2,
+          "packSize": 5.0,
+          "packUnit": "lb",
+          "unitConversion": 113.0,
+          "apPrice": 0.04,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 0.04,
+          "epPriceUnit": null
+        },
+        {
+          "name": "flour",
+          "apPackCost": 15.95,
+          "packSize": 50.0,
+          "packUnit": "lb",
+          "unitConversion": 4.0,
+          "apPrice": 0.08,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 0.08,
+          "epPriceUnit": null
+        },
+        {
+          "name": "baking powder",
+          "apPackCost": 23.2,
+          "packSize": 5.0,
+          "packUnit": "lb",
+          "unitConversion": 113.0,
+          "apPrice": 0.04,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 0.04,
+          "epPriceUnit": null
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 48.0,
+          "apPrice": 0.01,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": null
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 41.65,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.37,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 0.37,
+          "epPriceUnit": null
+        },
+        {
+          "name": "eggs",
+          "apPackCost": 30.75,
+          "packSize": 180.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.17,
+          "apPriceUnit": null,
+          "yieldPercent": 89.0,
+          "epPrice": 0.19,
+          "epPriceUnit": null
+        },
+        {
+          "name": "milk",
+          "apPackCost": 1.94,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 0.12,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": null
+        },
+        {
+          "name": "oil",
+          "apPackCost": 73.67,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 4.6,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 4.6,
+          "epPriceUnit": null
+        },
+        {
+          "name": "maple syrup",
+          "apPackCost": 2.99,
+          "packSize": 24.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 1.0,
+          "apPriceUnit": null,
+          "yieldPercent": 100.0,
+          "epPrice": 1.0,
+          "epPriceUnit": null
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "16o6kbxSLoqeiB9MUc98bGdqpHMMxkCvfbi9nLbnWv38",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Maple Brown Sugar Scones",
+      "category": null,
+      "totalYield": 8.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "baking powder",
+          "apPackCost": 22.31,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 53.0,
+          "apPrice": 0.08,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.08,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "brown sugar",
+          "apPackCost": 31.99,
+          "packSize": 24.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.63,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.63,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "milk",
+          "apPackCost": 2.43,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 16.0,
+          "apPrice": 0.15,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.15,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "flour",
+          "apPackCost": 16.99,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.09,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.09,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "butter",
+          "apPackCost": 132.89,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.12,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "vanilla",
+          "apPackCost": 128.49,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "powdered sugar",
+          "apPackCost": 40.69,
+          "packSize": 24.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.42,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.42,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "milk",
+          "apPackCost": 2.43,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 256.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "maple extract",
+          "apPackCost": 18.89,
+          "packSize": 32.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.3,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.3,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "maple syrup",
+          "apPackCost": 22.62,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.71,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.71,
+          "epPriceUnit": "TBSP"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1y-OtXKQZ69ONPFVSio0ffh4WOgfuySx1FuOXd3tKEA8",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Chai Spiced Snickerdoodles",
+      "category": null,
+      "totalYield": 24.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "baking powder",
+          "apPackCost": 22.31,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 90.0,
+          "apPrice": 0.05,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.05,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 41.65,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.37,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.37,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "cinnamon",
+          "apPackCost": 10.95,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 11.0,
+          "apPrice": 0.06,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.06,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "ginger",
+          "apPackCost": 19.69,
+          "packSize": 12.5,
+          "packUnit": "oz",
+          "unitConversion": 14.0,
+          "apPrice": 0.11,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.11,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "cardamom",
+          "apPackCost": 32.99,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 13.0,
+          "apPrice": 0.16,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.16,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "eggs",
+          "apPackCost": 45.99,
+          "packSize": 180.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.26,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.26,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "vegetable oil",
+          "apPackCost": 11.49,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 16.0,
+          "apPrice": 0.72,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.72,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "milk",
+          "apPackCost": 2.43,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 256.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "cream cheese",
+          "apPackCost": 1.99,
+          "packSize": 8.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.25,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.25,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "black pepper",
+          "apPackCost": 14.65,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 12.0,
+          "apPrice": 0.07,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.07,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "cloves",
+          "apPackCost": 11.99,
+          "packSize": 12.5,
+          "packUnit": "oz",
+          "unitConversion": 12.0,
+          "apPrice": 0.08,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.08,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "flour",
+          "apPackCost": 16.99,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.1,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.1,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "butter",
+          "apPackCost": 132.89,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.12,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "vanilla",
+          "apPackCost": 128.49,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1BEeEuGYee249C9Vi0zeqbBk_E8the1n88l7SEOEJeHY",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Apple Cider Donut",
+      "category": null,
+      "totalYield": 14.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "baking powder",
+          "apPackCost": 22.31,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 90.0,
+          "apPrice": 0.05,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.05,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 41.65,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.37,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.37,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "cinnamon",
+          "apPackCost": 10.95,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.1,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.1,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "nutmeg",
+          "apPackCost": 28.75,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.3,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.3,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "brown sugar",
+          "apPackCost": 31.99,
+          "packSize": 24.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.59,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.59,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "eggs",
+          "apPackCost": 45.99,
+          "packSize": 180.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.26,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.26,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "apple cider",
+          "apPackCost": 35.45,
+          "packSize": 522.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 0.54,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.54,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "flour",
+          "apPackCost": 16.99,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.1,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.1,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.55,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "butter",
+          "apPackCost": 132.89,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.12,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "vanilla",
+          "apPackCost": 128.49,
+          "packSize": 128.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1qyO8yYDUU-11XceI5itWD8E3NDrrOmCvCAe7QLA0y5w",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "maple brown sugar scones",
+      "category": null,
+      "totalYield": 8.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "Butter",
+          "apPackCost": 134.69,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.12,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "milk",
+          "apPackCost": 4.29,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 16.0,
+          "apPrice": 0.27,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.27,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "vanilla",
+          "apPackCost": 128.49,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 768.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "brown sugar",
+          "apPackCost": 31.99,
+          "packSize": 24.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.59,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.59,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "baking powder",
+          "apPackCost": 20.35,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 10.0,
+          "apPrice": 0.41,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.41,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.35,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "flour",
+          "apPackCost": 16.95,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.08,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.08,
+          "epPriceUnit": "c"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1EKlIN4gdZlifwXISj_ddpmZpLPO9DSarWdMR_sreyEg",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "bruschetta wrap",
+      "category": null,
+      "totalYield": 12.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "chicken breast",
+          "apPackCost": 4.49,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.28,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.28,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "spinach wrap",
+          "apPackCost": 32.75,
+          "packSize": 72.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.45,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.45,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "tomatoes",
+          "apPackCost": 15.99,
+          "packSize": 10.0,
+          "packUnit": "lbs",
+          "unitConversion": 5.0,
+          "apPrice": 0.32,
+          "apPriceUnit": "lbs",
+          "yieldPercent": 90.0,
+          "epPrice": 0.36,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "red onion",
+          "apPackCost": 1.4,
+          "packSize": 1.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 1.4,
+          "apPriceUnit": "each",
+          "yieldPercent": 90.0,
+          "epPrice": 1.56,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "lettuce",
+          "apPackCost": 6.49,
+          "packSize": 10.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.65,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.65,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "basil",
+          "apPackCost": 2.79,
+          "packSize": 2.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 4.65,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 4.65,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.35,
+          "packSize": 32.0,
+          "packUnit": "lbs",
+          "unitConversion": 30.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "lbs",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "tbsp"
+        },
+        {
+          "name": "pepper",
+          "apPackCost": 13.75,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.13,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.13,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "balsamic glaze",
+          "apPackCost": 28.35,
+          "packSize": 77.4,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.18,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.18,
+          "epPriceUnit": "tbsp"
+        },
+        {
+          "name": "olive oil",
+          "apPackCost": 14.38,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 256.0,
+          "apPrice": 0.06,
+          "apPriceUnit": "gal",
+          "yieldPercent": 100.0,
+          "epPrice": 0.06,
+          "epPriceUnit": "tbsp"
+        },
+        {
+          "name": "shredded mozzarella",
+          "apPackCost": 18.29,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.23,
+          "apPriceUnit": "lbs",
+          "yieldPercent": 100.0,
+          "epPrice": 0.23,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "garlic",
+          "apPackCost": 2.94,
+          "packSize": 8.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.18,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.18,
+          "epPriceUnit": "tbsp"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1nHzbz9KeGoD2s4oJl-L5BK0QX24ONQBLdoO-2J0a1r4",
+      "season": "FOOD",
+      "tabName": "Sheet1",
+      "format": "summary",
+      "name": "Sheet1",
+      "category": null,
+      "items": [
+        {
+          "name": "Chicken Caesar Wrap",
+          "cost": 2.52,
+          "salesPrice": 10.3,
+          "cogPercent": 24.47
+        },
+        {
+          "name": "Turkey Club",
+          "cost": 2.97,
+          "salesPrice": 10.3,
+          "cogPercent": 28.83
+        },
+        {
+          "name": "Chicken Salad Croissant (half)",
+          "cost": 1.66,
+          "salesPrice": 5.0,
+          "cogPercent": 33.2
+        },
+        {
+          "name": "Chips",
+          "cost": 0.86,
+          "salesPrice": 2.0,
+          "cogPercent": 43.0
+        },
+        {
+          "name": "Cookie",
+          "cost": 0.46,
+          "salesPrice": 2.25,
+          "cogPercent": 20.44
+        },
+        {
+          "name": "Fruit",
+          "cost": 0.82,
+          "salesPrice": 1.0,
+          "cogPercent": 82.0
+        }
+      ]
+    },
+    {
+      "sheetId": "1xU4BPXK-Np2BHgf1W6_MEe-9jyTvzv5ZgXDrSUZkOX0",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "turkey club",
+      "category": null,
+      "totalYield": 1.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "tomatoes",
+          "apPackCost": 13.69,
+          "packSize": 50.0,
+          "packUnit": "each",
+          "unitConversion": 6.0,
+          "apPrice": 0.05,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.05,
+          "epPriceUnit": "slices"
+        },
+        {
+          "name": "bread",
+          "apPackCost": 49.99,
+          "packSize": 140.0,
+          "packUnit": "slices",
+          "unitConversion": 1.0,
+          "apPrice": 0.36,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.36,
+          "epPriceUnit": "slices"
+        },
+        {
+          "name": "mayonaise",
+          "apPackCost": 13.55,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 256.0,
+          "apPrice": 0.05,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.05,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "turkey",
+          "apPackCost": 74.69,
+          "packSize": 10.0,
+          "packUnit": "lbs",
+          "unitConversion": 24.0,
+          "apPrice": 0.31,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.31,
+          "epPriceUnit": "slices"
+        },
+        {
+          "name": "bacon",
+          "apPackCost": 64.69,
+          "packSize": 15.0,
+          "packUnit": "lbs",
+          "unitConversion": 20.0,
+          "apPrice": 0.22,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.22,
+          "epPriceUnit": "slices"
+        },
+        {
+          "name": "lettuce",
+          "apPackCost": 6.49,
+          "packSize": 10.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.65,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.65,
+          "epPriceUnit": "oz"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1J_hsVa7s3qSNML7OM0ghwhW_bQfmy1GtgkFmfMelDBs",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "chicken salad croissant",
+      "category": null,
+      "totalYield": 3.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "chicken breast",
+          "apPackCost": 4.49,
+          "packSize": 1.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 2.0,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 2.0,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "pecans",
+          "apPackCost": 262.99,
+          "packSize": 30.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 2.19,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 2.19,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "dried cranberries",
+          "apPackCost": 30.99,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 3.0,
+          "apPrice": 2.07,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 2.07,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "apples",
+          "apPackCost": 39.25,
+          "packSize": 88.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.45,
+          "apPriceUnit": "oz",
+          "yieldPercent": 90.0,
+          "epPrice": 0.5,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "red onion",
+          "apPackCost": 1.25,
+          "packSize": 1.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 1.25,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 1.25,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "mayonaise",
+          "apPackCost": 13.55,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 16.0,
+          "apPrice": 0.85,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.85,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "honey",
+          "apPackCost": 120.23,
+          "packSize": 30.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.13,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.13,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "apple cider vinegar",
+          "apPackCost": 2.79,
+          "packSize": 32.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.04,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.04,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 22.35,
+          "packSize": 32.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "pepper",
+          "apPackCost": 12.99,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.12,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "croissant",
+          "apPackCost": 64.29,
+          "packSize": 48.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 1.34,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 1.34,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "spring mix",
+          "apPackCost": 6.49,
+          "packSize": 10.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.65,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.65,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "parsley",
+          "apPackCost": 6.98,
+          "packSize": 2.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.58,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.58,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "celery",
+          "apPackCost": 1.99,
+          "packSize": 10.0,
+          "packUnit": "stalks",
+          "unitConversion": 1.0,
+          "apPrice": 0.2,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.2,
+          "epPriceUnit": "c"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1R75zLCFezVYe3uG-x4F6jwfsliMYjAR1vezIWYy7WRQ",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "caesar wrap",
+      "category": null,
+      "totalYield": 1.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "chicken breast",
+          "apPackCost": 4.49,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.28,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.28,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "spinach wrap",
+          "apPackCost": 32.75,
+          "packSize": 72.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.45,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.45,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "caesar dressing",
+          "apPackCost": 5.49,
+          "packSize": 24.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.11,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.11,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "parmesan cheese",
+          "apPackCost": 2.49,
+          "packSize": 6.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.21,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.21,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "lettuce",
+          "apPackCost": 6.49,
+          "packSize": 10.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.65,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.65,
+          "epPriceUnit": "oz"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1uC1QZUTr7DnfZuMq-EU4U3dhH0NFF-ZXD_dvGsfec1g",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Jalapeno Cheddar Biscuit Sandwich",
+      "category": null,
+      "totalYield": 8.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "Butter",
+          "apPackCost": 157.75,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 2.19,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 2.19,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 49.55,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "baking powder",
+          "apPackCost": 20.35,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 30.0,
+          "apPrice": 0.14,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.14,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 20.8,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "flour",
+          "apPackCost": 17.35,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.09,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.09,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "garlic powder",
+          "apPackCost": 8.29,
+          "packSize": 1.0,
+          "packUnit": "lbs",
+          "unitConversion": 30.0,
+          "apPrice": 0.28,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.28,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "jalapeno",
+          "apPackCost": 18.99,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 30.0,
+          "apPrice": 0.13,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 90.0,
+          "epPrice": 0.14,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "cheddar cheese",
+          "apPackCost": 17.95,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 3.0,
+          "apPrice": 1.2,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 1.2,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "buttermilk",
+          "apPackCost": 17.45,
+          "packSize": 384.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 0.36,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.36,
+          "epPriceUnit": "c"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "15nT-_rm8Q9tthYg7gKn4PUnFKs0eNtfSRO2tg59O_Ec",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "nutella croffle",
+      "category": null,
+      "totalYield": 1.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "croissant",
+          "apPackCost": 69.89,
+          "packSize": 48.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 1.46,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 1.46,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "nutella",
+          "apPackCost": 58.39,
+          "packSize": 13.2,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.14,
+          "apPriceUnit": "Tbsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.14,
+          "epPriceUnit": "Tbsp"
+        },
+        {
+          "name": "hazelnuts",
+          "apPackCost": 2.99,
+          "packSize": 2.3,
+          "packUnit": "oz",
+          "unitConversion": 4.0,
+          "apPrice": 0.33,
+          "apPriceUnit": "Tbsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.33,
+          "epPriceUnit": "Tbsp"
+        },
+        {
+          "name": "strawberries",
+          "apPackCost": 7.89,
+          "packSize": 32.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.12,
+          "apPriceUnit": "each",
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": "each"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "10Nv_OLab-Uu8fPDiKldM7F_Ol50JO1RRCxcSDMOvA9c",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Apple Turnover",
+      "category": null,
+      "totalYield": 14.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "apples",
+          "apPackCost": 32.79,
+          "packSize": 88.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.37,
+          "apPriceUnit": "each",
+          "yieldPercent": 75.0,
+          "epPrice": 0.5,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 49.55,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.44,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.44,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "cinnamon",
+          "apPackCost": 9.29,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.09,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.09,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "lemon juice",
+          "apPackCost": 15.39,
+          "packSize": 1.0,
+          "packUnit": "gallon",
+          "unitConversion": 768.0,
+          "apPrice": 0.02,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.02,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "water",
+          "apPackCost": 0.0,
+          "packSize": 1.0,
+          "packUnit": "oz",
+          "unitConversion": 1.0,
+          "apPrice": 0.0,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.0,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "cornstarch",
+          "apPackCost": 3.19,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.03,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.03,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "cardamom",
+          "apPackCost": 29.69,
+          "packSize": 16.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.31,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.31,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1LN3hiNMNXeNt77CulL93mlIFazZXKMrTPDbXU3yXDHw",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Caprese Sandwich",
+      "category": null,
+      "totalYield": 7.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "tomatoes",
+          "apPackCost": 13.29,
+          "packSize": 10.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.33,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.33,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "oregano",
+          "apPackCost": 34.35,
+          "packSize": 1.5,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.25,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.25,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "garlic cloves",
+          "apPackCost": 2.69,
+          "packSize": 18.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.15,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.15,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "olive oil",
+          "apPackCost": 93.89,
+          "packSize": 3.0,
+          "packUnit": "gal",
+          "unitConversion": 256.0,
+          "apPrice": 0.12,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 20.8,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "pepper",
+          "apPackCost": 16.1,
+          "packSize": 1.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.18,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.18,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1L8Iq7KPAXeQ_zzt46mHHeDCa9xkY0lEQNTLlFb9VIto",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Leige Waffles",
+      "category": null,
+      "totalYield": 45.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "milk",
+          "apPackCost": 2.99,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 16.0,
+          "apPrice": 0.19,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.19,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 49.55,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.03,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.03,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "cinnamon",
+          "apPackCost": 9.29,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.09,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.09,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "active dry yeast",
+          "apPackCost": 10.95,
+          "packSize": 2.0,
+          "packUnit": "lbs",
+          "unitConversion": 28.0,
+          "apPrice": 0.2,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.2,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "pearl sugar",
+          "apPackCost": 13.39,
+          "packSize": 24.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 4.46,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 4.46,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "eggs",
+          "apPackCost": 48.69,
+          "packSize": 180.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.27,
+          "apPriceUnit": "each",
+          "yieldPercent": 89.0,
+          "epPrice": 0.3,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "flour",
+          "apPackCost": 17.35,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.1,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.1,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 20.8,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "butter",
+          "apPackCost": 157.75,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 2.19,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 2.19,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "vanilla",
+          "apPackCost": 23.94,
+          "packSize": 33.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.36,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.36,
+          "epPriceUnit": "TBSP"
+        }
+      ],
+      "labor": {
+        "timeHrs": null
+      }
+    },
+    {
+      "sheetId": "1DLBefKzDfoFHmfdL74_tt5oK6VZRnakjBrs1wDdbeo0",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "overnight oats",
+      "category": null,
+      "totalYield": 45.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "oats",
+          "apPackCost": 36.99,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 1.0,
+          "apPrice": 0.74,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.74,
+          "epPriceUnit": "qts"
+        },
+        {
+          "name": "oatmilk",
+          "apPackCost": 33.19,
+          "packSize": 12.0,
+          "packUnit": "qts",
+          "unitConversion": 1.0,
+          "apPrice": 2.77,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 2.77,
+          "epPriceUnit": "qts"
+        },
+        {
+          "name": "maple syrup",
+          "apPackCost": 20.5,
+          "packSize": 32.0,
+          "packUnit": "oz",
+          "unitConversion": 0.0,
+          "apPrice": 5.13,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 5.13,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "chia seeds",
+          "apPackCost": 36.49,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 32.0,
+          "apPrice": 0.23,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.23,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "vanilla",
+          "apPackCost": 23.94,
+          "packSize": 33.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.36,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.36,
+          "epPriceUnit": "TBSP"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1Ifsu6-mtPqRa9SAIxqwTxPGVkGR-QzhRJJOkjXYKBzc",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "candied pecans",
+      "category": null,
+      "totalYield": 83.0,
+      "yieldUnit": "oz",
+      "ingredients": [
+        {
+          "name": "brown sugar",
+          "apPackCost": 33.39,
+          "packSize": 24.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.7,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.7,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 50.25,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.5,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.5,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "egg whites",
+          "apPackCost": 6.99,
+          "packSize": 32.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.11,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.11,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "pecans",
+          "apPackCost": 214.49,
+          "packSize": 30.0,
+          "packUnit": "lbs",
+          "unitConversion": 16.0,
+          "apPrice": 0.45,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.45,
+          "epPriceUnit": "oz"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 20.8,
+          "packSize": 4.0,
+          "packUnit": "lbs",
+          "unitConversion": 93.0,
+          "apPrice": 0.06,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.06,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "ground cinnamon",
+          "apPackCost": 9.29,
+          "packSize": 18.0,
+          "packUnit": "oz",
+          "unitConversion": 2.0,
+          "apPrice": 0.26,
+          "apPriceUnit": "TBSP",
+          "yieldPercent": 100.0,
+          "epPrice": 0.26,
+          "epPriceUnit": "TBSP"
+        },
+        {
+          "name": "vanilla extract",
+          "apPackCost": 128.99,
+          "packSize": 1.0,
+          "packUnit": "gal",
+          "unitConversion": 768.0,
+          "apPrice": 0.17,
+          "apPriceUnit": "tsp",
+          "yieldPercent": 100.0,
+          "epPrice": 0.17,
+          "epPriceUnit": "tsp"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "1aUwUCJHPsflJF4EHOvLgddjvF8i4GX8jadqhx9W6gM8",
+      "season": "FOOD",
+      "tabName": "Batch Recipe",
+      "format": "batch_recipe",
+      "name": "Sugar Cookies",
+      "category": null,
+      "totalYield": 9.0,
+      "yieldUnit": "each",
+      "ingredients": [
+        {
+          "name": "Butter",
+          "apPackCost": 157.75,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 2.19,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 2.19,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "sugar",
+          "apPackCost": 49.55,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 2.0,
+          "apPrice": 0.44,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.44,
+          "epPriceUnit": "c"
+        },
+        {
+          "name": "vanilla",
+          "apPackCost": 23.94,
+          "packSize": 33.0,
+          "packUnit": "oz",
+          "unitConversion": 6.0,
+          "apPrice": 0.12,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.12,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "egg",
+          "apPackCost": 37.29,
+          "packSize": 180.0,
+          "packUnit": "each",
+          "unitConversion": 1.0,
+          "apPrice": 0.21,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.21,
+          "epPriceUnit": "each"
+        },
+        {
+          "name": "baking powder",
+          "apPackCost": 20.35,
+          "packSize": 5.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.04,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.04,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "salt",
+          "apPackCost": 20.8,
+          "packSize": 36.0,
+          "packUnit": "lbs",
+          "unitConversion": 92.0,
+          "apPrice": 0.01,
+          "apPriceUnit": "oz",
+          "yieldPercent": 100.0,
+          "epPrice": 0.01,
+          "epPriceUnit": "tsp"
+        },
+        {
+          "name": "flour",
+          "apPackCost": 17.35,
+          "packSize": 50.0,
+          "packUnit": "lbs",
+          "unitConversion": 4.0,
+          "apPrice": 0.09,
+          "apPriceUnit": "c",
+          "yieldPercent": 100.0,
+          "epPrice": 0.09,
+          "epPriceUnit": "c"
+        }
+      ],
+      "labor": {}
+    },
+    {
+      "sheetId": "12rjqLe4VtQH6PAIgKxv_-m84bvpv6r8GX4KaEDT5yMM",
+      "season": "OTHER",
+      "tabName": "Sheet1",
+      "format": "summary",
+      "name": "Sheet1",
+      "category": "Bake Haus COGs 2024",
+      "items": [
+        {
+          "name": "Bacon Egg and Cheese",
+          "cost": 0.95,
+          "salesPrice": null,
+          "cogPercent": 4.0
+        },
+        {
+          "name": "Waffle",
+          "cost": 0.59,
+          "salesPrice": null,
+          "cogPercent": 4.0
+        },
+        {
+          "name": "Overnight Oats (apple pecan)",
+          "cost": 1.7,
+          "salesPrice": null,
+          "cogPercent": 6.5
+        },
+        {
+          "name": "Apple Cider Donut",
+          "cost": 0.24,
+          "salesPrice": null,
+          "cogPercent": 1.5
+        },
+        {
+          "name": "Energy Bites (cran white choc)",
+          "cost": 0.6,
+          "salesPrice": null,
+          "cogPercent": 3.5
+        },
+        {
+          "name": "Box Lunch (turkey club with chips)",
+          "cost": 4.32,
+          "salesPrice": null,
+          "cogPercent": 12.0
+        },
+        {
+          "name": "Box Lunch (caesar wrap with chips)",
+          "cost": 4.35,
+          "salesPrice": null,
+          "cogPercent": 12.0
+        },
+        {
+          "name": "Chocolate Chip Cookies - single",
+          "cost": 0.35,
+          "salesPrice": null,
+          "cogPercent": 2.25
+        },
+        {
+          "name": "Bourbon Butter Latte (BBL)",
+          "cost": 12.92,
+          "salesPrice": null,
+          "cogPercent": null
+        },
+        {
+          "name": "Horchata",
+          "cost": 5.13,
+          "salesPrice": null,
+          "cogPercent": null
+        },
+        {
+          "name": "Apple Butter",
+          "cost": 6.55,
+          "salesPrice": null,
+          "cogPercent": null
+        },
+        {
+          "name": "Pumpkin Spice Latte  (PSL)",
+          "cost": 10.57,
+          "salesPrice": null,
+          "cogPercent": null
+        },
+        {
+          "name": "S'mores",
+          "cost": 25.85,
+          "salesPrice": null,
+          "cogPercent": null
+        },
+        {
+          "name": "Chocolate Pomegranate",
+          "cost": 10.41,
+          "salesPrice": null,
+          "cogPercent": null
+        },
+        {
+          "name": "Pecan Pie",
+          "cost": 19.12,
+          "salesPrice": null,
+          "cogPercent": null
+        },
+        {
+          "name": "Buttered Rum",
+          "cost": 21.39,
+          "salesPrice": null,
+          "cogPercent": null
+        },
+        {
+          "name": "Candied Pecans",
+          "cost": 1.6,
+          "salesPrice": null,
+          "cogPercent": 6.99
+        },
+        {
+          "name": "Ham and Cheese Croffle (whole)",
+          "cost": 2.32,
+          "salesPrice": null,
+          "cogPercent": 6.5
+        },
+        {
+          "name": "Caprese Sandwich",
+          "cost": 2.36,
+          "salesPrice": null,
+          "cogPercent": 8.5
+        },
+        {
+          "name": "Apple Turnover",
+          "cost": 0.45,
+          "salesPrice": null,
+          "cogPercent": 4.0
+        },
+        {
+          "name": "Sausage Biscuit Sandwich",
+          "cost": 1.51,
+          "salesPrice": null,
+          "cogPercent": 6.5
+        },
+        {
+          "name": "Chobai Yogurt",
+          "cost": 1.7,
+          "salesPrice": null,
+          "cogPercent": 3.0
+        },
+        {
+          "name": "Kashi Granola Bars",
+          "cost": 1.03,
+          "salesPrice": null,
+          "cogPercent": 3.09
+        },
+        {
+          "name": "Hard boiled eggs (2 pk)",
+          "cost": 1.03,
+          "salesPrice": null,
+          "cogPercent": 3.0
+        },
+        {
+          "name": "biscottis",
+          "cost": 0.89,
+          "salesPrice": null,
+          "cogPercent": 2.5
+        },
+        {
+          "name": "hummus packs",
+          "cost": 2.13,
+          "salesPrice": null,
+          "cogPercent": 6.39
+        }
+      ]
+    },
+    {
+      "sheetId": "1X6jnEPedUB6Gl8-46_Y0RzSDVNPsOYUCvpyHap0RSP0",
+      "season": "OTHER",
+      "tabName": "Sheet1",
+      "format": "custom_cold_brew",
+      "name": "Cold Brew COG MCCB",
+      "category": "Craft Cold Brew COG 2022",
+      "batchYield": "448oz",
+      "costPerOunce": 0.16,
+      "totalCost": 71.2,
+      "ingredients": [
+        {
+          "name": "Armando's Blend",
+          "portion": "ounce",
+          "numPortions": 80,
+          "costPerPortion": 0.5,
+          "totalCost": 40.0
+        },
+        {
+          "name": "Andersons Maple",
+          "portion": "ounce",
+          "numPortions": 60,
+          "costPerPortion": 0.31,
+          "totalCost": 18.6
+        },
+        {
+          "name": "Burlap and Bottle Cinnamon",
+          "portion": "teaspoon",
+          "numPortions": 70,
+          "costPerPortion": 0.18,
+          "totalCost": 12.6
+        }
+      ]
+    },
+    {
+      "sheetId": "14y3XhPGbVbTWpWc-G2No-hZPyK19B5Q_76M3yOM8iKQ",
+      "season": "OTHER",
+      "tabName": "GOODS",
+      "format": "vendor_pricing",
+      "name": "Vendor COG sheet 2023-24",
+      "category": "Vendor COG sheet 2023-24",
+      "items": [
+        {
+          "name": "Cold Brew",
+          "source": "Crimson Cup",
+          "brand": "Armando's Blend",
+          "quantitySize": "448.00",
+          "pricePerCase": "45.390",
+          "notes": "3.5 gallons x 128 oz = 448 oz\n3.75% added for shipping\nDecaf price used (slightly more)"
+        },
+        {
+          "name": "Espresso",
+          "source": "Crimson Cup",
+          "brand": "Armando's Blend",
+          "quantitySize": "2,268.00",
+          "pricePerCase": "45.390",
+          "notes": "5 lb x 16 x 28.35 = 2,268 g\n3.75% added for shipping\nDecaf price used (slightly more)"
+        },
+        {
+          "name": "Sleeve",
+          "source": "Useful Products",
+          "brand": "Useful Products",
+          "quantitySize": "1,000.00",
+          "pricePerCase": "59.900",
+          "notes": null
+        },
+        {
+          "name": "Cup - Cold - 10oz",
+          "source": "Webstaurant",
+          "brand": "Choice",
+          "quantitySize": "1,000.00",
+          "pricePerCase": "43.490",
+          "notes": null
+        },
+        {
+          "name": "Cup - Hot - 12oz",
+          "source": "Webstaurant",
+          "brand": "Choice",
+          "quantitySize": "1,000.00",
+          "pricePerCase": "41.990",
+          "notes": null
+        },
+        {
+          "name": "Cup - Hot - 16oz",
+          "source": "Webstaurant",
+          "brand": "Choice",
+          "quantitySize": "1,000.00",
+          "pricePerCase": "47.990",
+          "notes": null
+        },
+        {
+          "name": "Cup - Hot - 20oz",
+          "source": "Webstaurant",
+          "brand": "Choice",
+          "quantitySize": "600.00",
+          "pricePerCase": "37.490",
+          "notes": null
+        },
+        {
+          "name": "Lid - Hot",
+          "source": "Webstaurant",
+          "brand": "Choice",
+          "quantitySize": "1,000.00",
+          "pricePerCase": "36.490",
+          "notes": null
+        },
+        {
+          "name": "Lid - Kids",
+          "source": "Webstaurant",
+          "brand": "Choice",
+          "quantitySize": "1,000.00",
+          "pricePerCase": "30.990",
+          "notes": null
+        },
+        {
+          "name": "Straw",
+          "source": "Webstaurant",
+          "brand": "Eco-Products",
+          "quantitySize": "4,800.00",
+          "pricePerCase": "219.990",
+          "notes": null
+        },
+        {
+          "name": "Cup - Cold - 16oz",
+          "source": "Webstaurant",
+          "brand": "Fabri Kal",
+          "quantitySize": "1,000.00",
+          "pricePerCase": "138.490",
+          "notes": null
+        },
+        {
+          "name": "Cup - Cold - 24oz",
+          "source": "Webstaurant",
+          "brand": "Fabri Kal",
+          "quantitySize": "600.00",
+          "pricePerCase": "106.490",
+          "notes": null
+        },
+        {
+          "name": "Lid - Sip",
+          "source": "Webstaurant",
+          "brand": "Fabri Kal",
+          "quantitySize": "1,000.00",
+          "pricePerCase": "84.990",
+          "notes": null
+        },
+        {
+          "name": "Stopper",
+          "source": "Webstaurant",
+          "brand": "Royal Paper",
+          "quantitySize": "2,000.00",
+          "pricePerCase": "82.990",
+          "notes": null
+        },
+        {
+          "name": "Hot Chocolate Powder",
+          "source": "Crimson Cup",
+          "brand": "Frozenta",
+          "quantitySize": "10,886.40",
+          "pricePerCase": "93.375",
+          "notes": "24 lb x 16 x 28.35 = 10,886.4 g\n3.75% added for shipping"
+        },
+        {
+          "name": "Polar Powder",
+          "source": "Crimson Cup",
+          "brand": "Frozenta",
+          "quantitySize": "10,886.40",
+          "pricePerCase": "93.375",
+          "notes": "24 lb x 16 x 28.35 = 10,886.4 g\n3.75% added for shipping"
+        },
+        {
+          "name": "Chai - Extra Spicy",
+          "source": "Webstaurant",
+          "brand": "Oregon",
+          "quantitySize": "64.00",
+          "pricePerCase": "25.490",
+          "notes": null
+        },
+        {
+          "name": "Matcha - Ceremonial",
+          "source": "Webstaurant",
+          "brand": "Tenzo",
+          "quantitySize": "400.00",
+          "pricePerCase": "78.990",
+          "notes": null
+        },
+        {
+          "name": "Whole Milk",
+          "source": "Instacart - Schnucks",
+          "brand": "Schnucks",
+          "quantitySize": "128.00",
+          "pricePerCase": "3.700",
+          "notes": null
+        },
+        {
+          "name": "Oat Milk",
+          "source": "Sysco",
+          "brand": "Oatly",
+          "quantitySize": "384.00",
+          "pricePerCase": "33.360",
+          "notes": null
+        },
+        {
+          "name": "Almond Milk",
+          "source": "Sysco",
+          "brand": "Pacific",
+          "quantitySize": "384.00",
+          "pricePerCase": "33.260",
+          "notes": null
+        },
+        {
+          "name": "Half & Half",
+          "source": "Sysco",
+          "brand": "Wholesome Farms (Sysco)",
+          "quantitySize": "384.00",
+          "pricePerCase": "29.110",
+          "notes": null
+        },
+        {
+          "name": "Heavy Cream",
+          "source": "Sysco",
+          "brand": "Wholesome Farms (Sysco)",
+          "quantitySize": "384.00",
+          "pricePerCase": "56.690",
+          "notes": null
+        },
+        {
+          "name": "Whipped Cream - Extra Creamy",
+          "source": "Sysco",
+          "brand": "Wholesome Farms (Sysco)",
+          "quantitySize": "180.00",
+          "pricePerCase": "56.290",
+          "notes": null
+        },
+        {
+          "name": "Ice",
+          "source": "n/a",
+          "brand": "n/a",
+          "quantitySize": "1.00",
+          "pricePerCase": "0.010",
+          "notes": null
+        },
+        {
+          "name": "Caramel",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "64.00",
+          "pricePerCase": "16.990",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Dark Chocolate",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "64.00",
+          "pricePerCase": "15.990",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Sea Salt Caramel Toffee",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "64.00",
+          "pricePerCase": "17.490",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "White Chocolate",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "64.00",
+          "pricePerCase": "16.490",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Mango",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "46.00",
+          "pricePerCase": "8.690",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Strawberry",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "46.00",
+          "pricePerCase": "8.690",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Strawberry Banana",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "46.00",
+          "pricePerCase": "9.190",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Caramel - Zero",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "33.80",
+          "pricePerCase": "10.490",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Chocolate - Zero",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "25.40",
+          "pricePerCase": "7.890",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Hazelnut",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "33.80",
+          "pricePerCase": "9.290",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Honey",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "33.80",
+          "pricePerCase": "9.290",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Lavender",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "33.80",
+          "pricePerCase": "9.290",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Pure Cane",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "33.80",
+          "pricePerCase": "8.690",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Raspberry",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "33.80",
+          "pricePerCase": "9.290",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Raspberry - Zero",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "33.80",
+          "pricePerCase": "10.490",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Rose",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "33.80",
+          "pricePerCase": "9.290",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Wild Strawberry",
+          "source": "Webstaurant",
+          "brand": "Monin",
+          "quantitySize": "33.80",
+          "pricePerCase": "9.290",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Vanilla",
+          "source": "Webstaurant",
+          "brand": "Torani",
+          "quantitySize": "25.40",
+          "pricePerCase": "6.290",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "Vanilla (SF)",
+          "source": "Webstaurant",
+          "brand": "Torani",
+          "quantitySize": "25.40",
+          "pricePerCase": "6.290",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        },
+        {
+          "name": "White Chocolate (SF)",
+          "source": "Webstaurant",
+          "brand": "Torani",
+          "quantitySize": "25.40",
+          "pricePerCase": "6.290",
+          "notes": "<Price per Bottle      Column E=Ounces"
+        }
+      ]
+    }
+  ]
+}
