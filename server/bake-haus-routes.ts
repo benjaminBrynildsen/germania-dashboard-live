@@ -36,6 +36,9 @@ import {
   type DeliveryDay,
 } from './bake-haus.js';
 
+import db from './db.js';
+import { sendBakeHausOrderEmail } from './email.js';
+
 const DAY_LABELS: Record<DeliveryDay, string> = { mon: 'Monday', wed: 'Wednesday', fri: 'Friday' };
 const isDeliveryDay = (d: unknown): d is DeliveryDay => d === 'mon' || d === 'wed' || d === 'fri';
 
@@ -260,8 +263,18 @@ router.post('/bake-haus/save', requireAuth, async (req: AuthRequest, res: Respon
   if (snapshotMon && !isWeekLocked(week)) {
     await snapshotMonForStoreWeek(week, store);
   }
+  // Whether this (week, store) was already submitted decides the email's
+  // "submitted" vs "updated" wording — check before the upsert bumps it.
+  const wasSaved = !!db.prepare(
+    'SELECT 1 FROM bake_haus_saved_orders WHERE week_start_iso = ? AND store_label = ?',
+  ).get(week, store);
   await markOrderSaved(week, store, savedBy);
   res.json({ ok: true, savedAt: Date.now() });
+  // Fire-and-forget after the response — a slow or failing SMTP hop must
+  // never block the Save button. No-op until email env vars are configured.
+  sendBakeHausOrderEmail({ week, store, savedBy, isUpdate: wasSaved }).catch((err) => {
+    console.error('[bake-haus-email] send failed:', err instanceof Error ? err.message : err);
+  });
 });
 
 router.delete('/bake-haus/save', requireAuth, (req: AuthRequest, res: Response) => {
