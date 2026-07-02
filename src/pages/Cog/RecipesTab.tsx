@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '../../lib/api';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { useCanEdit, SummaryCard, InfoBox, Modal, inputStyle, labelStyle } from './ui';
+import { useCanEdit, SummaryCard, InfoBox, Modal, NumInput, inputStyle, labelStyle } from './ui';
 
 interface Recipe {
   id: number;
@@ -274,8 +274,7 @@ export default function RecipesTab() {
                   <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexDirection: isMobile ? 'column' : 'row' }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.5)', display: 'block', marginBottom: 6 }}>Menu Price</label>
-                      <input type="number" step="0.01" placeholder="5.00" value={menuPrice} onChange={(e) => setMenuPrice(e.target.value)}
-                        style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.1)', fontSize: 16, fontFamily: 'inherit' }} />
+                      <NumInput value={menuPrice} onChange={setMenuPrice} step={0.25} placeholder="5.00" />
                     </div>
                     {margin && (
                       <div style={{ flex: 2, padding: '14px 18px', background: margin.marginPercent > 70 ? 'rgba(34,197,94,0.1)' : margin.marginPercent > 60 ? 'rgba(234,179,8,0.1)' : 'rgba(239,68,68,0.1)', borderRadius: 10 }}>
@@ -295,8 +294,7 @@ export default function RecipesTab() {
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexDirection: isMobile ? 'column' : 'row' }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.5)', display: 'block', marginBottom: 6 }}>Multiplier</label>
-                      <input type="number" step="0.5" min="0.1" placeholder="1" value={batchMultiplier} onChange={(e) => setBatchMultiplier(e.target.value)}
-                        style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.1)', fontSize: 16, fontFamily: 'inherit' }} />
+                      <NumInput value={batchMultiplier} onChange={setBatchMultiplier} step={0.5} min={0.1} placeholder="1" />
                     </div>
                     <div style={{ flex: 2, padding: '14px 18px', background: 'rgba(0,0,0,0.03)', borderRadius: 10 }}>
                       <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginBottom: 2 }}>Scaled Yield</div>
@@ -474,11 +472,11 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
         </div>
         <div>
           <label style={labelStyle}>Pack cost $</label>
-          <input type="number" step="any" value={packCost} onChange={(e) => setPackCost(e.target.value)} style={inputStyle} placeholder="39.98" />
+          <NumInput value={packCost} onChange={setPackCost} step={1} placeholder="39.98" />
         </div>
         <div>
           <label style={labelStyle}>Pack size</label>
-          <input type="number" step="any" value={packSize} onChange={(e) => setPackSize(e.target.value)} style={inputStyle} placeholder="50" />
+          <NumInput value={packSize} onChange={setPackSize} step={1} placeholder="50" />
         </div>
         <div>
           <label style={labelStyle}>Pack unit</label>
@@ -486,7 +484,7 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
         </div>
         <div>
           <label style={labelStyle}>Units per pack unit</label>
-          <input type="number" step="any" value={conversion} onChange={(e) => setConversion(e.target.value)} style={inputStyle} placeholder="454" title="How many usage units in one pack unit, e.g. 454 g per lb" />
+          <NumInput value={conversion} onChange={setConversion} step={1} placeholder="454" />
         </div>
         <div>
           <label style={labelStyle}>Usage unit</label>
@@ -494,15 +492,15 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
         </div>
         <div>
           <label style={labelStyle}>AP price / unit</label>
-          <input type="number" step="any" value={apPrice} onChange={(e) => { setApTouched(true); setApPrice(e.target.value); }} style={inputStyle} />
+          <NumInput value={apPrice} onChange={(v) => { setApTouched(true); setApPrice(v); }} step={0.01} />
         </div>
         <div>
           <label style={labelStyle}>Yield %</label>
-          <input type="number" step="any" value={yieldPct} onChange={(e) => setYieldPct(e.target.value)} style={inputStyle} />
+          <NumInput value={yieldPct} onChange={setYieldPct} step={5} />
         </div>
         <div>
           <label style={labelStyle}>Qty used</label>
-          <input type="number" step="any" value={qtyUsed} onChange={(e) => setQtyUsed(e.target.value)} style={inputStyle} />
+          <NumInput value={qtyUsed} onChange={setQtyUsed} step={0.25} />
         </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
@@ -587,7 +585,7 @@ function RecipeModal({ recipe, isMobile, onClose, onSaved }: {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
         <div>
           <label style={labelStyle}>Total yield</label>
-          <input type="number" step="any" value={totalYield} onChange={(e) => setTotalYield(e.target.value)} style={inputStyle} placeholder="1000" />
+          <NumInput value={totalYield} onChange={setTotalYield} step={1} placeholder="1000" />
         </div>
         <div>
           <label style={labelStyle}>Yield unit</label>
@@ -597,19 +595,19 @@ function RecipeModal({ recipe, isMobile, onClose, onSaved }: {
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12, marginBottom: 6 }}>
         <div>
           <label style={labelStyle}>Labor time (hrs)</label>
-          <input type="number" step="any" value={laborTime} onChange={(e) => setLaborTime(e.target.value)} style={inputStyle} />
+          <NumInput value={laborTime} onChange={setLaborTime} step={0.25} />
         </div>
         <div>
           <label style={labelStyle}>Batches made</label>
-          <input type="number" step="any" value={laborQty} onChange={(e) => setLaborQty(e.target.value)} style={inputStyle} />
+          <NumInput value={laborQty} onChange={setLaborQty} step={1} />
         </div>
         <div>
           <label style={labelStyle}>Cook rate $/hr</label>
-          <input type="number" step="any" value={laborRate} onChange={(e) => setLaborRate(e.target.value)} style={inputStyle} />
+          <NumInput value={laborRate} onChange={setLaborRate} step={0.5} />
         </div>
         <div>
           <label style={labelStyle}>Labor $/unit</label>
-          <input type="number" step="any" value={laborCost} onChange={(e) => { setLaborTouched(true); setLaborCost(e.target.value); }} style={inputStyle} />
+          <NumInput value={laborCost} onChange={(v) => { setLaborTouched(true); setLaborCost(v); }} step={0.25} />
         </div>
       </div>
       <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 16 }}>

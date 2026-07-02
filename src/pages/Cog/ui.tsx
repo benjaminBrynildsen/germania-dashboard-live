@@ -59,6 +59,51 @@ export function InfoBox({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Number input with real +/- buttons. The native spinner arrows are ~8px and
+// nearly unclickable; these are proper 28px hit targets. Typing still works —
+// the buttons just step by `step` (clamped at `min`).
+export function NumInput({ value, onChange, step = 1, min = 0, width, placeholder, disabled, autoFocus, onCommit }: {
+  value: string;
+  onChange: (v: string) => void;
+  step?: number;
+  min?: number | null;
+  width?: number | string;
+  placeholder?: string;
+  disabled?: boolean;
+  autoFocus?: boolean;
+  onCommit?: (v: string) => void;   // fired on blur and after +/- clicks
+}) {
+  const decimals = (String(step).split('.')[1] || '').length;
+  const bump = (dir: 1 | -1) => {
+    const cur = parseFloat(value);
+    let next = (Number.isFinite(cur) ? cur : 0) + dir * step;
+    if (min != null && next < min) next = min;
+    const v = String(parseFloat(next.toFixed(Math.max(decimals, 6))));
+    onChange(v);
+    onCommit?.(v);
+  };
+  const btn: React.CSSProperties = {
+    width: 28, minWidth: 28, border: '1px solid rgba(0,0,0,0.12)', background: 'rgba(0,0,0,0.04)',
+    color: 'rgba(0,0,0,0.6)', fontSize: 15, fontWeight: 700, cursor: disabled ? 'default' : 'pointer',
+    fontFamily: 'inherit', padding: 0, lineHeight: 1,
+  };
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch', width, borderRadius: 8, overflow: 'hidden' }}>
+      <button type="button" tabIndex={-1} disabled={disabled} onClick={() => bump(-1)}
+        style={{ ...btn, borderRadius: '8px 0 0 8px', borderRight: 'none' }} aria-label="decrease">−</button>
+      <input
+        type="number" step="any" className="no-spinner"
+        value={value} placeholder={placeholder} disabled={disabled} autoFocus={autoFocus}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onCommit?.(e.target.value)}
+        style={{ ...inputStyle, borderRadius: 0, textAlign: 'center', flex: 1, minWidth: 0, padding: '9px 4px' }}
+      />
+      <button type="button" tabIndex={-1} disabled={disabled} onClick={() => bump(1)}
+        style={{ ...btn, borderRadius: '0 8px 8px 0', borderLeft: 'none' }} aria-label="increase">+</button>
+    </div>
+  );
+}
+
 // Simple centered modal shell (matches the app's inline-style aesthetic).
 export function Modal({ title, onClose, children, width = 560 }: { title: string; onClose: () => void; children: React.ReactNode; width?: number }) {
   return (

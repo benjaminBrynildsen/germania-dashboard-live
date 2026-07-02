@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
-import { useCanEdit, inputStyle, labelStyle } from './ui';
+import { useCanEdit, NumInput, inputStyle, labelStyle } from './ui';
 
 interface Settings {
   default_target_cogs_pct: number;
@@ -61,13 +61,7 @@ export default function SettingsTab({ onChanged }: { onChanged?: () => void }) {
 
       <div style={{ marginBottom: 18 }}>
         <label style={labelStyle}>Default target COG %</label>
-        <input
-          type="number" step="0.5" min="1" max="100"
-          value={target}
-          disabled={!canEdit}
-          onChange={(e) => setTarget(e.target.value)}
-          style={{ ...inputStyle, maxWidth: 160 }}
-        />
+        <NumInput value={target} onChange={setTarget} step={0.5} min={1} width={160} disabled={!canEdit} />
         <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', marginTop: 6 }}>
           e.g. 25 means ingredients should be 25% of the menu price → a $1.00 drink is priced at $4.00.
         </div>

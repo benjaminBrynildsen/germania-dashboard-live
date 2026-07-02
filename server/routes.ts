@@ -9,6 +9,7 @@ import { fetchLocationPhoto, fetchPlaceReviews, syncAllReviews } from './places.
 import { seedCogData } from './seed-cog.js';
 import { drinkVariants, drinkCogRange, recommendedPrice, defaultTargetPct } from './cog-cost.js';
 import { fetchAllProducts, COG_CATEGORIES, getDriposPrices } from './dripos.js';
+import { fillStandardRecipes } from './cog-fill.js';
 
 const router = Router();
 
@@ -1155,6 +1156,23 @@ router.post('/cog/drinks/sync-dripos', requireAuth, async (_req: AuthRequest, re
   } catch (err: any) {
     console.error('Dripos drink sync error:', err);
     res.status(500).json({ error: err.message || 'Sync failed' });
+  }
+});
+
+// Auto-fill standard recipes onto every uncosted drink: link the obvious
+// spreadsheet-drink/Dripos-product pairs, cost food items straight from their
+// batch recipe, and clone the per-size structure from an archetype template
+// (latte, chai, matcha, milkshake, ...) with the right flavor swapped in.
+// Idempotent — drinks that already have components are never touched.
+router.post('/cog/drinks/fill-standard', requireAuth, async (_req: AuthRequest, res: Response) => {
+  try {
+    const settings = db.prepare('SELECT drink_location_id FROM cog_settings WHERE id = 1').get() as any;
+    const products = await fetchAllProducts(settings?.drink_location_id ?? 131);
+    const report = fillStandardRecipes(products.filter((p) => COG_CATEGORIES.has(p.CATEGORY_NAME)));
+    res.json({ success: true, ...report });
+  } catch (err: any) {
+    console.error('COGS fill-standard error:', err);
+    res.status(500).json({ error: err.message || 'Fill failed' });
   }
 });
 

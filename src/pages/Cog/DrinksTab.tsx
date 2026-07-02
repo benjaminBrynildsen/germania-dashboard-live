@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../../lib/api';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { useCanEdit, inputStyle, labelStyle, money, SummaryCard, Modal } from './ui';
+import { useCanEdit, inputStyle, labelStyle, money, SummaryCard, Modal, NumInput } from './ui';
 
 interface DrinkRow {
   id: number;
@@ -86,6 +86,7 @@ export default function DrinksTab() {
   const [detail, setDetail] = useState<DrinkDetail | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [filling, setFilling] = useState(false);
   const [creating, setCreating] = useState(false);
   const [ingredients, setIngredients] = useState<PickIngredient[]>([]);
   const [recipes, setRecipes] = useState<PickRecipe[]>([]);
@@ -154,6 +155,22 @@ export default function DrinksTab() {
     finally { setImporting(false); }
   };
 
+  const fillStandard = async () => {
+    if (!confirm('Auto-fill a standard recipe onto every drink that has none yet?\n\nEach one is cloned from the closest template (latte, chai, milkshake, ...) with its flavor swapped in, and food items get their batch recipe. Drinks that already have components are never touched. Every auto-fill is tagged with a note so you can verify quantities.')) return;
+    setFilling(true);
+    try {
+      const r = await api.post('/api/cog/drinks/fill-standard', {});
+      const lines = [
+        `Linked ${r.linked.length} drinks to their Dripos products.`,
+        `Filled ${r.cloned.length} drinks from templates + ${r.recipe_filled.length} food items from batch recipes.`,
+        r.skipped.length ? `Skipped ${r.skipped.length}: ${r.skipped.map((s: any) => s.drink).join(', ')}` : '',
+      ].filter(Boolean);
+      alert(lines.join('\n\n'));
+      refresh();
+    } catch (e: any) { alert(`Fill failed: ${e.message}`); }
+    finally { setFilling(false); }
+  };
+
   const removeDrink = async (d: DrinkRow) => {
     if (!confirm(`Delete "${d.name}" and all its variants? This cannot be undone.`)) return;
     try {
@@ -212,6 +229,7 @@ export default function DrinksTab() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="btn btn-secondary" onClick={sync} disabled={syncing}>{syncing ? 'Syncing...' : '⟳ Sync from Dripos'}</button>
             <button className="btn btn-secondary" onClick={importRecipes} disabled={importing}>{importing ? 'Importing...' : '↓ Import recipes'}</button>
+            <button className="btn btn-secondary" onClick={fillStandard} disabled={filling}>{filling ? 'Filling...' : '✦ Fill standard recipes'}</button>
             <button className="btn btn-primary" onClick={() => setCreating(true)}>+ Add drink</button>
           </div>
         )}
@@ -315,11 +333,13 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPr
   const [activeVariant, setActiveVariant] = useState<number | null>(detail.variants[0]?.id ?? null);
   const [addingVariant, setAddingVariant] = useState(false);
 
-  const saveTarget = async () => {
+  // Takes the committed value directly — state hasn't re-rendered yet when
+  // NumInput's +/- fires onChange and onCommit in the same tick.
+  const saveTarget = async (v: string) => {
     try {
       await api.put(`/api/cog/drinks/${detail.id}`, {
         name: detail.name, category: detail.category,
-        target_cogs_pct: targetOverride === '' ? null : parseFloat(targetOverride),
+        target_cogs_pct: v === '' ? null : parseFloat(v),
       });
       onChanged();
     } catch (e: any) { alert(`Save failed: ${e.message}`); }
@@ -375,9 +395,8 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPr
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.5)' }}>Target COG % for this drink:</span>
-          <input type="number" step="0.5" value={targetOverride} disabled={!canEdit}
-            onChange={(e) => setTargetOverride(e.target.value)} onBlur={saveTarget}
-            placeholder={String(detail.effective_target_cogs_pct)} style={{ ...inputStyle, width: 90 }} />
+          <NumInput value={targetOverride} onChange={setTargetOverride} step={0.5} width={120} disabled={!canEdit}
+            placeholder={String(detail.effective_target_cogs_pct)} onCommit={saveTarget} />
           <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>{targetOverride === '' ? '(global default)' : ''}</span>
         </div>
         {canEdit && <button className="btn btn-danger btn-sm" onClick={onDelete}>Delete drink</button>}
@@ -508,9 +527,9 @@ function VariantBlock({ variant, isMobile, canEdit, ingredients, recipes, dripos
                 </td>
                 <td style={td('right')}>
                   {canEdit ? (
-                    <input type="number" step="any" defaultValue={c.quantity ?? ''}
-                      onBlur={(e) => { if (e.target.value !== String(c.quantity ?? '')) setQty(c, e.target.value); }}
-                      style={{ ...inputStyle, width: 72, padding: '5px 8px', textAlign: 'right' }} />
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <QtyCell key={`${c.id}-${c.quantity}`} component={c} onSave={(v) => setQty(c, v)} />
+                    </div>
                   ) : (c.quantity ?? '—')}
                   <span style={{ color: 'rgba(0,0,0,0.4)', marginLeft: 4 }}>{c.unit || c.source_unit || ''}</span>
                 </td>
@@ -592,13 +611,22 @@ function EditVariantRow({ variant, onClose, onSaved }: { variant: Variant; onClo
           {SIZE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
-      <div style={{ width: 110 }}>
+      <div style={{ width: 130 }}>
         <label style={labelStyle}>Menu price</label>
-        <input type="number" step="0.01" value={menuPrice} onChange={(e) => setMenuPrice(e.target.value)} style={inputStyle} />
+        <NumInput value={menuPrice} onChange={setMenuPrice} step={0.25} />
       </div>
       <button className="btn btn-primary btn-sm" onClick={save} disabled={!label.trim() || saving}>{saving ? '...' : 'Save'}</button>
       <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
     </div>
+  );
+}
+
+// Controlled qty editor for a component row: saves on blur or +/- click.
+function QtyCell({ component, onSave }: { component: Component; onSave: (v: string) => void }) {
+  const [v, setV] = useState(component.quantity != null ? String(component.quantity) : '');
+  return (
+    <NumInput value={v} onChange={setV} step={0.25} width={118}
+      onCommit={(val) => { if (val !== String(component.quantity ?? '')) onSave(val); }} />
   );
 }
 
@@ -660,9 +688,9 @@ function AddVariantRow({ drinkId, onClose, onAdded }: { drinkId: number; onClose
         <label style={labelStyle}>Label</label>
         <input value={label} onChange={(e) => setLabel(e.target.value)} style={inputStyle} placeholder="Hot - Large" />
       </div>
-      <div style={{ width: 110 }}>
+      <div style={{ width: 130 }}>
         <label style={labelStyle}>Menu price</label>
-        <input type="number" step="0.01" value={menuPrice} onChange={(e) => setMenuPrice(e.target.value)} style={inputStyle} />
+        <NumInput value={menuPrice} onChange={setMenuPrice} step={0.25} />
       </div>
       <button className="btn btn-primary btn-sm" onClick={add} disabled={!label.trim() || saving}>{saving ? '...' : 'Add'}</button>
       <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
@@ -720,9 +748,9 @@ function AddComponentRow({ variantId, isMobile, ingredients, recipes, onClose, o
             : recipes.map((r) => <option key={r.id} value={r.id}>{r.name} ({money(r.cog_per_unit, 3)}/{r.yield_unit})</option>)}
         </select>
       </div>
-      <div style={{ width: 84 }}>
+      <div style={{ width: 130 }}>
         <label style={labelStyle}>Qty</label>
-        <input type="number" step="any" value={qty} onChange={(e) => setQty(e.target.value)} style={inputStyle} />
+        <NumInput value={qty} onChange={setQty} step={0.25} />
       </div>
       <div style={{ width: 76 }}>
         <label style={labelStyle}>Unit</label>

@@ -228,3 +228,14 @@ select option {
      widths off the page. Tables that need a minimum should set it
      themselves (e.g. .dripos-table). */
 }
+
+/* NumInput renders its own +/- buttons; kill the ~8px native spinners. */
+input.no-spinner::-webkit-outer-spin-button,
+input.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input.no-spinner {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
