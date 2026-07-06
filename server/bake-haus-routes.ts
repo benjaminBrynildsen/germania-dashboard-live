@@ -68,12 +68,14 @@ router.get('/bake-haus/syrups', requireAuth, (_req: AuthRequest, res: Response) 
   res.json({ ok: true, syrups: listSyrups(true) });
 });
 
-/** Returns the Dripos product list (one call, first store's catalog
- *  — products are chain-shared) so Maggie can pick from a dropdown
- *  when adding a syrup. Filtered to a syrup-like candidate set
- *  (BOTTLE- prefix, sauce category, etc.) is up to the UI to filter
- *  further; we ship the raw list so future categories don't need a
- *  backend change. */
+/** Returns the Dripos product list (one call, G1's catalog) so Maggie
+ *  can pick from a dropdown when adding a syrup. NOTE: Dripos product
+ *  IDs are per-location — the ID captured here is a G1 ID, and the
+ *  inventory/sales lookups resolve the same product at G2-G4 by exact
+ *  product-name match (see findProductForSyrup). Filtering to a
+ *  syrup-like candidate set (BOTTLE- prefix, sauce category, etc.) is
+ *  up to the UI; we ship the raw list so future categories don't need
+ *  a backend change. */
 router.get('/bake-haus/dripos-products', requireAuth, async (_req: AuthRequest, res: Response) => {
   res.set('Cache-Control', 'no-store');
   try {

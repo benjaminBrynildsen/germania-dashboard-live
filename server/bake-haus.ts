@@ -186,11 +186,13 @@ export async function getBakeHausInventoryByStore(): Promise<Record<string, Reco
           map[store.label][item.name] = found.INVENTORY;
         }
       }
-      // Syrups: ID-based exact match across the full product list.
-      const byId = new Map<number, typeof allProducts[number]>();
-      for (const p of allProducts) byId.set(p.ID, p);
+      // Syrups: ID match where it works, exact-name fallback otherwise.
+      // Dripos product IDs are per-location and the catalog admin picker
+      // captures IDs from G1's product list, so at G2-G4 the ID lookup
+      // misses — without the name fallback only G1 ever subtracted
+      // syrup/sauce inventory.
       for (const s of syrups) {
-        const found = byId.get(s.driposProductId);
+        const found = findProductForSyrup(s, allProducts);
         if (found && typeof found.INVENTORY === 'number') {
           map[store.label][s.displayName] = found.INVENTORY;
         }
@@ -232,6 +234,53 @@ function findProductForCatalogItem(
     return aNum - bNum;
   });
   return candidates[0]?.p ?? null;
+}
+
+/** Resolve a syrup's product row within ONE store's product list.
+ *  The stored driposProductId is tried first, but Dripos product IDs
+ *  are per-location and the catalog admin picker reads G1's list —
+ *  so at the other stores the ID never matches. Fall back to an exact
+ *  normalized-name match on the linked Dripos product name (and the
+ *  display name), preferring a row with real numeric INVENTORY when a
+ *  store holds duplicate rows for the same product name. */
+export function findProductForSyrup<T extends { ID: number; NAME: string; INVENTORY?: number | null }>(
+  syrup: Pick<SyrupRow, 'driposProductId' | 'driposProductName' | 'displayName'>,
+  products: T[],
+): T | null {
+  const idMatch = products.find((p) => p.ID === syrup.driposProductId) ?? null;
+  if (idMatch && typeof idMatch.INVENTORY === 'number') return idMatch;
+  const wanted = new Set(
+    [syrup.driposProductName, syrup.displayName]
+      .map((n) => normalizeForMatch(n || ''))
+      .filter(Boolean),
+  );
+  const named = products.filter((p) => wanted.has(normalizeForMatch(p.NAME)));
+  const namedWithInventory = named.find((p) => typeof p.INVENTORY === 'number');
+  return namedWithInventory ?? idMatch ?? named[0] ?? null;
+}
+
+/** Units of a syrup sold, from per-PRODUCT_ID and per-LINE_ITEM_NAME
+ *  sale aggregates for one store. Same ID-then-name strategy as
+ *  findProductForSyrup: the PRODUCT_ID match only fires at the store
+ *  whose catalog the syrup was linked from (G1), so everywhere else
+ *  we match the line-item name against the linked product name. */
+export function syrupUnitsFromSales(
+  syrup: Pick<SyrupRow, 'driposProductId' | 'driposProductName' | 'displayName'>,
+  byProductId: Map<number, number>,
+  byLineName: Map<string, number>,
+): number {
+  const byId = byProductId.get(syrup.driposProductId) ?? 0;
+  if (byId > 0) return byId;
+  const wanted = new Set(
+    [syrup.driposProductName, syrup.displayName]
+      .map((n) => normalizeForMatch(n || ''))
+      .filter(Boolean),
+  );
+  let units = 0;
+  for (const [lineName, n] of byLineName.entries()) {
+    if (wanted.has(normalizeForMatch(lineName))) units += n;
+  }
+  return units;
 }
 
 /**
@@ -1010,8 +1059,6 @@ async function getBakeHausSalesByStoreSince(
   for (const store of STORES) out[store.label] = {};
 
   const syrups = listSyrups(false);
-  const syrupByDriposId = new Map<number, SyrupRow>();
-  for (const s of syrups) syrupByDriposId.set(s.driposProductId, s);
 
   await Promise.all(
     STORES.map(async (store) => {
@@ -1039,11 +1086,12 @@ async function getBakeHausSalesByStoreSince(
             if (units > 0) out[store.label][item.name] = (out[store.label][item.name] ?? 0) + units;
           }
         }
-        // Syrups: exact PRODUCT_ID match.
-        for (const [pid, units] of byProductId.entries()) {
-          const syrup = syrupByDriposId.get(pid);
-          if (!syrup) continue;
-          out[store.label][syrup.displayName] = (out[store.label][syrup.displayName] ?? 0) + units;
+        // Syrups: PRODUCT_ID match with line-item-name fallback — sale
+        // rows carry per-location product IDs, and the catalog only
+        // stores G1's, so the ID path misses at the other stores.
+        for (const syrup of syrups) {
+          const units = syrupUnitsFromSales(syrup, byProductId, byLineName);
+          if (units > 0) out[store.label][syrup.displayName] = (out[store.label][syrup.displayName] ?? 0) + units;
         }
       } catch (err) {
         console.warn(
