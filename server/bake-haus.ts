@@ -259,6 +259,21 @@ export function findProductForSyrup<T extends { ID: number; NAME: string; INVENT
   return namedWithInventory ?? idMatch ?? named[0] ?? null;
 }
 
+/** Net qty to deliver for one order row. Food (and ad-hoc custom
+ *  items) subtract the store's current on-hand so we don't over-bake;
+ *  syrups/sauces deliver the ordered qty as-is — bottles on the shelf
+ *  are working stock the chef plans around, not a reason to short the
+ *  order. On-hand still displays in the UI for those, it just doesn't
+ *  reduce the delivery. */
+export function netQtyForRow(
+  category: 'food' | 'syrup-sauce' | 'custom',
+  weeklyQty: number,
+  onHand: number,
+): number {
+  if (category === 'syrup-sauce') return Math.max(0, weeklyQty);
+  return Math.max(0, weeklyQty - onHand);
+}
+
 /** Units of a syrup sold, from per-PRODUCT_ID and per-LINE_ITEM_NAME
  *  sale aggregates for one store. Same ID-then-name strategy as
  *  findProductForSyrup: the PRODUCT_ID match only fires at the store
@@ -464,7 +479,8 @@ export interface BakeHausOrderRow {
   /** Current Dripos on-hand inventory for this (store, item). 0 if no
    *  inventory tracking or no Dripos product match. */
   onHand: number;
-  /** Net qty to deliver = max(0, weeklyQty - onHand). */
+  /** Net qty to deliver. Food/custom: max(0, weeklyQty - onHand).
+   *  Syrups/sauces: weeklyQty as-is — on-hand is informational only. */
   netQty: number;
   /** Mon/Wed/Fri split of netQty. */
   delivery: { mon: number; wed: number; fri: number };
@@ -603,11 +619,11 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
 
   for (const r of rows) {
     const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
-    const netQty = Math.max(0, r.weekly_qty - onHand);
     const catEntry = catalogByName.get(r.item_name);
     const includeMonday = catEntry?.includeMonday ?? true;
     const category: 'food' | 'syrup-sauce' | 'custom' =
       catEntry?.category ?? 'custom';
+    const netQty = netQtyForRow(category, r.weekly_qty, onHand);
     // Out-of-stock at this store → prioritize the earliest delivery
     // so the next truck gets the bigger chunk.
     const prioritizeEarly = onHand === 0 && netQty > 0;
@@ -759,9 +775,9 @@ export async function lockWeek(
   const txn = db.transaction(() => {
     for (const r of rows) {
       const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
-      const netQty = Math.max(0, r.weekly_qty - onHand);
       const catEntry = catalogByName.get(r.item_name);
       const includeMonday = catEntry?.includeMonday ?? true;
+      const netQty = netQtyForRow(catEntry?.category ?? 'custom', r.weekly_qty, onHand);
       const prioritizeEarly = onHand === 0 && netQty > 0;
       // Preserve any value that's already been snapshotted — locks
       // are additive, not destructive. A Mon-only legacy lock keeps
@@ -941,9 +957,9 @@ export async function lockDay(
   const txn = db.transaction(() => {
     for (const r of rows) {
       const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
-      const netQty = Math.max(0, r.weekly_qty - onHand);
       const catEntry = catalogByName.get(r.item_name);
       const includeMonday = catEntry?.includeMonday ?? true;
+      const netQty = netQtyForRow(catEntry?.category ?? 'custom', r.weekly_qty, onHand);
       const prioritizeEarly = onHand === 0 && netQty > 0;
 
       // Items that skip Monday never freeze a Mon qty.
@@ -1136,6 +1152,9 @@ export async function snapshotMonForStoreWeek(
 
   const inventoryByStore = await getBakeHausInventoryByStore().catch(() => ({} as Record<string, Record<string, number>>));
 
+  const catalogByName = new Map<string, BakeHausCatalogItem>();
+  for (const c of getMergedCatalog()) catalogByName.set(c.name, c);
+
   const updateRow = db.prepare(
     `UPDATE bake_haus_orders SET mon_locked_qty = ?
       WHERE week_start_iso = ? AND store_label = ? AND item_name = ?`,
@@ -1144,8 +1163,10 @@ export async function snapshotMonForStoreWeek(
   const txn = db.transaction(() => {
     for (const r of rows) {
       const onHand = inventoryByStore[r.store_label]?.[r.item_name] ?? 0;
-      const netQty = Math.max(0, r.weekly_qty - onHand);
-      const split = splitForDeliveries(netQty, null);
+      const catEntry = catalogByName.get(r.item_name);
+      const includeMonday = catEntry?.includeMonday ?? true;
+      const netQty = netQtyForRow(catEntry?.category ?? 'custom', r.weekly_qty, onHand);
+      const split = splitForDeliveries(netQty, null, includeMonday);
       updateRow.run(split.mon, r.week_start_iso, r.store_label, r.item_name);
     }
   });

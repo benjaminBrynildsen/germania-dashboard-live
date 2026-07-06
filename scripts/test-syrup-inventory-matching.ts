@@ -9,7 +9,7 @@
  * product rows (and their own sales, for as-of-last-night lock
  * reconstruction).
  */
-import { findProductForSyrup, syrupUnitsFromSales } from '../server/bake-haus.js';
+import { findProductForSyrup, netQtyForRow, syrupUnitsFromSales } from '../server/bake-haus.js';
 
 let failures = 0;
 function check(name: string, actual: unknown, expected: unknown) {
@@ -96,6 +96,16 @@ check(
 
 // Nothing sold → 0.
 check('sales: no match → 0', syrupUnitsFromSales(SYRUP, new Map(), new Map()), 0);
+
+// ── netQtyForRow ────────────────────────────────────────────────────
+// Syrups/sauces deliver the ordered qty as-is; on-hand only deducts
+// for food (and ad-hoc custom items).
+
+check('net: food deducts on-hand', netQtyForRow('food', 21, 4), 17);
+check('net: food never goes negative', netQtyForRow('food', 3, 10), 0);
+check('net: custom deducts on-hand', netQtyForRow('custom', 10, 2), 8);
+check('net: syrup ignores on-hand', netQtyForRow('syrup-sauce', 15, 6), 15);
+check('net: syrup with zero on-hand unchanged', netQtyForRow('syrup-sauce', 5, 0), 5);
 
 console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);
