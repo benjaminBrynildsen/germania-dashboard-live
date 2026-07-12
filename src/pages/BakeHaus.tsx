@@ -200,6 +200,17 @@ function shiftWeeks(weekIso: string, weeks: number): string {
   return isoMondayOf(d);
 }
 
+/** Week the page should open to. Sunday belongs to the UPCOMING
+ *  delivery week: the calendar week that started six days ago was
+ *  auto-locked Monday 23:59, so a manager placing an order on Sunday
+ *  is always ordering for the week that starts tomorrow. Defaulting
+ *  to the locked week made Sunday ordering look impossible. */
+function defaultWeekIso(d: Date = new Date()): string {
+  const local = new Date(d);
+  if (local.getDay() === 0) local.setDate(local.getDate() + 1);
+  return isoMondayOf(local);
+}
+
 /** True when `weekIso` (a Monday) is the current or a past week AND
  *  it's now past Monday 23:59 America/Chicago. Used by the schedule
  *  banner to surface a "week didn't auto-lock" warning loud enough
@@ -233,7 +244,7 @@ export default function BakeHaus() {
   const [weekLockBusy, setWeekLockBusy] = useState(false);
   // Which day's lock toggle is mid-request ('mon'|'wed'|'fri'), or null.
   const [dayLockBusy, setDayLockBusy] = useState<'mon' | 'wed' | 'fri' | null>(null);
-  const [weekIso, setWeekIso] = useState<string>(isoMondayOf(new Date()));
+  const [weekIso, setWeekIso] = useState<string>(defaultWeekIso());
   const [report, setReport] = useState<WeekReport | null>(null);
   const [stores, setStores] = useState<string[]>(['G1', 'G2', 'G3', 'G4']);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -654,7 +665,7 @@ export default function BakeHaus() {
           }}>
             <button onClick={() => setWeekIso(shiftWeeks(weekIso, -1))}
               style={pillBtn}>‹ Prev wk</button>
-            <button onClick={() => setWeekIso(isoMondayOf(new Date()))}
+            <button onClick={() => setWeekIso(defaultWeekIso())}
               style={pillBtn}>This week</button>
             <button onClick={() => setWeekIso(shiftWeeks(weekIso, 1))}
               style={pillBtn}>Next wk ›</button>
