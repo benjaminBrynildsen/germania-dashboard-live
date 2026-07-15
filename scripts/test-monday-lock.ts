@@ -4,10 +4,10 @@
  *
  * Allocation under test (July 2026, per Joe + Chef Maggie):
  *   Food + Haus Vanilla:  Mon 25% / Wed 30% / Fri 45%
- *   Wed/Fri-only syrups:  Wed 30% / Fri 70%
+ *   Wed/Fri-only syrups:  Wed 40% / Fri 60%
  *
  * Verifies:
- *   1. Unlocked split produces the 25/30/45 (or 30/70) distribution,
+ *   1. Unlocked split produces the 25/30/45 (or 40/60) distribution,
  *      with rounding leftovers/ties resolved toward the later day.
  *   2. Locked split keeps Mon at the snapshot value, redistributes
  *      remaining to Wed:Fri at their 30:45 ratio.
@@ -128,31 +128,31 @@ check(
   splitForDeliveries(21),
 );
 
-// 8. includeMonday=false (syrup behavior) — Mon always 0, Wed/Fri 30:70.
+// 8. includeMonday=false (syrup behavior) — Mon always 0, Wed/Fri 40:60.
 check(
-  'syrup split: qty=10 → 0/3/7 (exact 30/70)',
+  'syrup split: qty=10 → 0/4/6 (exact 40/60)',
   splitForDeliveries(10, null, false),
-  { mon: 0, wed: 3, fri: 7 },
+  { mon: 0, wed: 4, fri: 6 },
 );
 check(
-  'syrup split: qty=15 → 0/4/11 (rounding tie goes to Fri)',
+  'syrup split: qty=15 → 0/6/9 (exact 40/60)',
   splitForDeliveries(15, null, false),
-  { mon: 0, wed: 4, fri: 11 },
+  { mon: 0, wed: 6, fri: 9 },
 );
 check(
-  'syrup split: qty=5 → 0/1/4 (rounding tie goes to Fri)',
+  'syrup split: qty=5 → 0/2/3 (exact 40/60)',
   splitForDeliveries(5, null, false),
-  { mon: 0, wed: 1, fri: 4 },
+  { mon: 0, wed: 2, fri: 3 },
 );
 check(
-  'syrup split: qty=1 → single unit lands on Fri (70%)',
+  'syrup split: qty=1 → single unit lands on Fri (60%)',
   splitForDeliveries(1, null, false),
   { mon: 0, wed: 0, fri: 1 },
 );
 check(
   'syrup split: lock arg ignored when includeMonday=false',
   splitForDeliveries(20, 5, false),
-  { mon: 0, wed: 6, fri: 14 },
+  { mon: 0, wed: 8, fri: 12 },
 );
 check(
   'syrup split: qty=0 still 0/0/0',
@@ -176,9 +176,9 @@ check(
   { mon: 4, wed: 4, fri: 6 },
 );
 check(
-  'no front-loading: syrup qty=10 stays 0/3/7',
+  'no front-loading: syrup qty=10 stays 0/4/6',
   splitForDeliveries(10, null, false),
-  { mon: 0, wed: 3, fri: 7 },
+  { mon: 0, wed: 4, fri: 6 },
 );
 
 console.log('');
