@@ -31,6 +31,9 @@ interface Syrup {
   driposProductName: string;
   sort: number;
   includeMonday: boolean;
+  /** 'food' rows show in the Food section, deduct on-hand, and split
+   *  25/30/45; 'syrup-sauce' rows split 40/60 Wed/Fri. */
+  category: 'food' | 'syrup-sauce';
   active: boolean;
   createdAt: number;
   updatedAt: number;
@@ -637,7 +640,7 @@ export default function BakeHaus() {
           { id: 'production', label: 'Production Schedule', short: 'Production' },
           { id: 'schedule',   label: 'Delivery Schedule',   short: 'Schedule' },
           { id: 'saved',      label: 'Saved Orders',        short: 'Saved' },
-          { id: 'manage',   label: 'Manage Syrups & Sauces', short: 'Manage' },
+          { id: 'manage',   label: 'Manage Syrups, Sauces & Food', short: 'Manage' },
         ] as Array<{ id: Tab; label: string; short: string }>).map((t) => {
           const active = tab === t.id;
           return (
@@ -1167,6 +1170,9 @@ function ManageSyrupsView({
   const [newDripos, setNewDripos] = useState<DriposProductOption | null>(null);
   const [newName, setNewName] = useState('');
   const [newIncludeMon, setNewIncludeMon] = useState(false);
+  // What's being added: syrups default to Wed/Fri delivery; food
+  // defaults to Mon/Wed/Fri and deducts on-hand inventory.
+  const [newCategory, setNewCategory] = useState<'syrup-sauce' | 'food'>('syrup-sauce');
   const [productSearch, setProductSearch] = useState('');
 
   const load = useCallback(async () => {
@@ -1210,9 +1216,10 @@ function ManageSyrupsView({
         .filter((p) => p.name.toLowerCase().includes(q) || p.categoryName.toLowerCase().includes(q))
         .slice(0, 80);
     }
-    // No search query → surface "Bottle ..." / "Sauce" items first
-    // since that's what Maggie is here to manage. Everything else
-    // sorts alphabetically below, still reachable via scroll.
+    // No search query → surface the likely candidates first based on
+    // what's being added: BAKE HAUS FOOD products for food, "Bottle
+    // ..." / sauce items for syrups. Everything else sorts
+    // alphabetically below, still reachable via scroll.
     const isLikelySyrup = (p: DriposProductOption) => {
       const name = p.name.toLowerCase();
       const cat = p.categoryName.toLowerCase();
@@ -1223,13 +1230,17 @@ function ManageSyrupsView({
         || cat.includes('sauce')
         || cat.includes('bottle');
     };
+    const isLikelyMatch = (p: DriposProductOption) =>
+      newCategory === 'food'
+        ? p.categoryName.toUpperCase() === 'BAKE HAUS FOOD'
+        : isLikelySyrup(p);
     const sorted = [...available].sort((a, b) => {
-      const aSyrup = isLikelySyrup(a) ? 0 : 1;
-      const bSyrup = isLikelySyrup(b) ? 0 : 1;
-      return aSyrup - bSyrup || a.name.localeCompare(b.name);
+      const aHit = isLikelyMatch(a) ? 0 : 1;
+      const bHit = isLikelyMatch(b) ? 0 : 1;
+      return aHit - bHit || a.name.localeCompare(b.name);
     });
     return sorted.slice(0, 80);
-  }, [products, productSearch, syrups]);
+  }, [products, productSearch, syrups, newCategory]);
 
   const create = async () => {
     if (!newDripos) { setError('Pick a Dripos product first.'); return; }
@@ -1245,6 +1256,7 @@ function ManageSyrupsView({
           driposProductId: newDripos.id,
           driposProductName: newDripos.name,
           includeMonday: newIncludeMon,
+          category: newCategory,
         }),
       });
       const body = await r.json().catch(() => ({}));
@@ -1253,6 +1265,7 @@ function ManageSyrupsView({
       setNewDripos(null);
       setNewName('');
       setNewIncludeMon(false);
+      setNewCategory('syrup-sauce');
       setProductSearch('');
       await load();
       onChanged();
@@ -1307,10 +1320,12 @@ function ManageSyrupsView({
   return (
     <>
       <p style={{ color: 'rgba(0,0,0,0.5)', fontSize: 13, marginTop: -8, marginBottom: 18 }}>
-        Manage the syrup + sauce catalog. Each item links to a Dripos product so
-        on-hand inventory and net-qty math stay accurate. Toggle items off
-        between seasons; they disappear from the ordering page without
-        losing their Dripos link.
+        Manage the orderable catalog — food items as well as syrups + sauces.
+        Each item links to a Dripos product so on-hand inventory stays
+        accurate (food subtracts on-hand from the order; syrups don't).
+        Toggle items off between seasons; they disappear from the ordering
+        page without losing their Dripos link. The nine core food items
+        (BEC, biscuits, croffles…) are built in and always available.
       </p>
 
       {error && (
@@ -1329,10 +1344,48 @@ function ManageSyrupsView({
       }}>
         {!adding ? (
           <button onClick={() => setAdding(true)} style={primaryBtn}>
-            + Add syrup or sauce
+            + Add item (food, syrup, or sauce)
           </button>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{
+              fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.55)',
+              textTransform: 'uppercase', letterSpacing: 0.8,
+            }}>
+              What kind of item?
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {([
+                { id: 'syrup-sauce', label: 'Syrup / sauce' },
+                { id: 'food', label: 'Food' },
+              ] as const).map((c) => {
+                const selected = newCategory === c.id;
+                return (
+                  <button key={c.id}
+                    onClick={() => {
+                      setNewCategory(c.id);
+                      // Sensible delivery default per kind — still
+                      // toggleable below before saving.
+                      setNewIncludeMon(c.id === 'food');
+                    }}
+                    style={{
+                      ...pillBtn,
+                      background: selected ? '#1a1a1a' : 'transparent',
+                      color: selected ? '#fff' : 'rgba(0,0,0,0.6)',
+                      fontWeight: 600,
+                    }}>
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{
+              fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: -6,
+            }}>
+              {newCategory === 'food'
+                ? 'Food shows in the Food section, subtracts on-hand inventory, and splits Mon 25% / Wed 30% / Fri 45%.'
+                : 'Syrups & sauces don’t subtract on-hand, and split Wed 40% / Fri 60% (Mon optional below).'}
+            </div>
             <div style={{
               fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.55)',
               textTransform: 'uppercase', letterSpacing: 0.8,
@@ -1424,20 +1477,25 @@ function ManageSyrupsView({
                     checked={newIncludeMon}
                     onChange={(e) => setNewIncludeMon(e.target.checked)}
                   />
-                  <span>Delivered on Monday too (Haus Vanilla and similar)</span>
+                  <span>
+                    {newCategory === 'food'
+                      ? 'Delivered on Monday too (uncheck for Wed/Fri-only food)'
+                      : 'Delivered on Monday too (Haus Vanilla and similar)'}
+                  </span>
                 </label>
               </>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={create} disabled={!newDripos || busyId === 'new'}
                 style={{ ...primaryBtn, opacity: !newDripos || busyId === 'new' ? 0.5 : 1 }}>
-                {busyId === 'new' ? 'Adding…' : 'Add syrup'}
+                {busyId === 'new' ? 'Adding…' : newCategory === 'food' ? 'Add food item' : 'Add syrup'}
               </button>
               <button onClick={() => {
                 setAdding(false);
                 setNewDripos(null);
                 setNewName('');
                 setNewIncludeMon(false);
+                setNewCategory('syrup-sauce');
                 setProductSearch('');
               }} style={pillBtn}>Cancel</button>
             </div>
@@ -1456,7 +1514,7 @@ function ManageSyrupsView({
           padding: '14px 18px', borderBottom: '1px solid rgba(0,0,0,0.05)',
           fontSize: 14, fontWeight: 700,
         }}>
-          Syrup & sauce catalog
+          Item catalog
           <span style={{
             marginLeft: 10, fontSize: 11, fontWeight: 600,
             color: 'rgba(0,0,0,0.45)',
@@ -1464,10 +1522,14 @@ function ManageSyrupsView({
         </div>
         {(!syrups || syrups.length === 0) ? (
           <div style={{ padding: 28, textAlign: 'center', color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>
-            No syrups yet. Hit <strong>Add syrup or sauce</strong> above to link the first one.
+            Nothing here yet. Hit <strong>Add item</strong> above to link the first one.
           </div>
         ) : (
-          syrups.map((s) => (
+          [...syrups].sort((a, b) =>
+            (a.category === 'food' ? 0 : 1) - (b.category === 'food' ? 0 : 1)
+            || a.sort - b.sort
+            || a.displayName.localeCompare(b.displayName),
+          ).map((s) => (
             <SyrupRow
               key={s.id} syrup={s}
               busy={busyId === s.id}
@@ -1531,6 +1593,13 @@ function SyrupRow({
               display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
             }}>
               {syrup.displayName}
+              <span style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: 0.6,
+                textTransform: 'uppercase',
+                padding: '2px 6px', borderRadius: 4,
+                background: syrup.category === 'food' ? 'rgba(202, 138, 4, 0.12)' : 'rgba(0,0,0,0.05)',
+                color: syrup.category === 'food' ? '#a16207' : 'rgba(0,0,0,0.5)',
+              }}>{syrup.category === 'food' ? 'Food' : 'Syrup/Sauce'}</span>
               <button onClick={() => setEditing(true)}
                 title="Rename"
                 style={{
