@@ -606,9 +606,9 @@ export default function BakeHaus() {
         {!isMobile && (
           <p style={{ color: 'rgba(0,0,0,0.4)', fontSize: 14, marginTop: 4 }}>
             Weekly food orders to Chef Maggie, auto-split into the three Mon/Wed/Fri deliveries
-            (3–5pm). Each delivery gets a share weighted by how many days it covers
-            — 2/7 for Mon and Wed, 3/7 for Fri (covers the weekend). Syrups + sauces
-            are tracked separately on the chef's prep schedule.
+            (3–5pm). Each delivery is weighted by the business days it covers — food &amp;
+            Haus Vanilla: Mon 25% / Wed 30% / Fri 45% (weekend); other syrups + sauces
+            deliver Wed 30% / Fri 70% off the chef's Tue/Thu prep schedule.
           </p>
         )}
       </div>

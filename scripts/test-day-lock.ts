@@ -36,11 +36,10 @@ function rowFor(report: Awaited<ReturnType<typeof getWeekReport>>) {
 }
 
 async function main() {
-  // NOTE: locally there's no Dripos token, so onHand=0 → the split uses
-  // the out-of-stock "prioritize earliest" path. Exact numbers therefore
-  // differ from the in-stock case, so this test asserts INVARIANTS (a
-  // locked day never moves; unlocked days absorb edits) rather than
-  // hardcoded splits — which makes it inventory-independent.
+  // NOTE: locally there's no Dripos token, so onHand=0. The split no
+  // longer changes shape on stock-outs, but this test still asserts
+  // INVARIANTS (a locked day never moves; unlocked days absorb edits)
+  // rather than hardcoded splits — keeping it inventory-independent.
   upsertOrderItem({ weekStartIso: WEEK, storeLabel: STORE, itemName: ITEM, weeklyQty: 21 });
 
   let report = await getWeekReport(WEEK);

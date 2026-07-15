@@ -38,8 +38,8 @@ export interface BakeHausItem {
 /** Unified catalog item — covers both the hardcoded food list AND
  *  the DB-backed editable syrup catalog. `category` distinguishes
  *  them; the order card renders food + syrup as two sections.
- *  `includeMonday` controls the delivery split: true → 2/7-2/7-3/7,
- *  false → 0 / Wed:Fri at 2:3. */
+ *  `includeMonday` controls the delivery split: true → Mon 25% /
+ *  Wed 30% / Fri 45%, false → Wed 30% / Fri 70%. */
 export interface BakeHausCatalogItem {
   name: string;            // canonical item_name stored in bake_haus_orders
   sort: number;
@@ -301,21 +301,28 @@ export function syrupUnitsFromSales(
 /**
  * Split a weekly qty across the three deliveries (Mon/Wed/Fri).
  *
- * Coverage windows:
- *   Mon delivery covers Mon + Tue (2 days)
- *   Wed delivery covers Wed + Thu (2 days)
- *   Fri delivery covers Fri + Sat + Sun (3 days)
+ * Allocation percentages (set with Joe/Maggie, July 2026 — each truck's
+ * share tracks the business days it covers until the next delivery):
  *
- * Weights: 2/7, 2/7, 3/7. Always returns whole integers — these orders
- * are counts of sandwiches/scones/etc., not weight measurements.
- * Fractional inputs are rounded to the nearest whole before splitting.
- * Rounding leftovers go to Fri so the three components always sum back
- * to the original weekly qty exactly.
+ *   Food + Haus Vanilla (Monday items):
+ *     Mon 25% (Tue-Wed business) · Wed 30% (Thu-Fri) · Fri 45% (Sat-Mon)
+ *   Other syrups & sauces (made Tue/Thu, delivered Wed/Fri):
+ *     Wed 30% (Thu-Fri business) · Fri 70% (Sat-Wed)
+ *
+ * Always returns whole integers — these orders are counts of
+ * sandwiches/bottles/etc. Rounding uses largest-remainder with ties and
+ * leftovers going to the LATER day, so the weekend (the biggest
+ * coverage window) is never the share that rounding shorts.
+ *
+ * On-hand inventory does NOT change the weighting. An out-of-stock
+ * override used to front-load the week (Wed:Fri 3:2) which read as
+ * "the dashboard splits differently than we would" — removed 2026-07
+ * by team decision.
  */
 /** Per-delivery-day lock snapshot. Any day set to a finite number is
  *  frozen — splitForDeliveries returns that value verbatim. NULL/undefined
- *  for unlocked days, which then divide the remaining qty using the
- *  baseline 2/7-2/7-3/7 ratio (or 3/2/2 when prioritizing early). */
+ *  for unlocked days, which then divide the remaining qty using their
+ *  relative weights from the baseline allocation. */
 export interface DayLocks {
   mon?: number | null;
   wed?: number | null;
@@ -326,19 +333,14 @@ export function splitForDeliveries(
   weeklyQty: number,
   /** Per-day locks. When a day's value is a finite number, it's frozen
    *  to that value and unlocked days split the remainder using their
-   *  relative weights from the 2/2/3 (or 3/2/2 when prioritizeEarly)
-   *  baseline. Pass an empty object (or omit) for the unlocked split.
-   *  Backwards-compatible with a bare `number` (legacy Monday-lock arg). */
+   *  relative weights from the baseline allocation. Pass an empty
+   *  object (or omit) for the unlocked split. Backwards-compatible
+   *  with a bare `number` (legacy Monday-lock arg). */
   locks: DayLocks | number | null = null,
-  /** When false, this item skips Monday entirely (Mon=0, Wed/Fri at
-   *  2:3). Used for most syrups + sauces which are made Tue/Thu and
-   *  only delivered Wed/Fri. Defaults to true. */
+  /** When false, this item skips Monday entirely (Wed 30% / Fri 70%).
+   *  Used for most syrups + sauces which are made Tue/Thu and only
+   *  delivered Wed/Fri. Defaults to true. */
   includeMonday: boolean = true,
-  /** When true, weight the earliest delivery day more heavily — used
-   *  when the store is fully out of stock and needs the next shipment
-   *  ASAP. Flips Wed:Fri from 2:3 → 3:2 (no-Monday syrups), and
-   *  Mon:Wed:Fri from 2:2:3 → 3:2:2 (food / Haus Vanilla). */
-  prioritizeEarly: boolean = false,
 ): {
   mon: number;
   wed: number;
@@ -360,45 +362,14 @@ export function splitForDeliveries(
   const total = Math.round(weeklyQty);
   if (total <= 0) return { mon: 0, wed: 0, fri: 0 };
 
-  // Baseline weights (sum to 1) used for both the unlocked split and
-  // the redistribution of remainder when some days are locked.
-  // includeMonday=false forces the Mon weight to 0; the rest is
-  // renormalized to 1 across wed/fri.
-  const w = baselineWeights(includeMonday, prioritizeEarly);
+  // Baseline weights used for both the unlocked split and the
+  // redistribution of remainder when some days are locked.
+  // includeMonday=false forces the Mon weight to 0.
+  const w = baselineWeights(includeMonday);
 
   // ── Fast path: nothing locked ─────────────────────────────────────
-  // The historical no-lock branches do exact integer balancing with
-  // remainder-to-Fri (or Wed when prioritizeEarly) so we preserve the
-  // pre-existing test expectations verbatim instead of routing
-  // through the generic redistribution code.
   if (monLocked === null && wedLocked === null && friLocked === null) {
-    if (!includeMonday) {
-      const wed = Math.round(total * w.wed / (w.wed + w.fri));
-      const fri = Math.max(0, total - wed);
-      return { mon: 0, wed, fri };
-    }
-    if (prioritizeEarly) {
-      let mon = Math.round(total * (3 / 7));
-      let wed = Math.round(total * (2 / 7));
-      let fri = total - mon - wed;
-      if (mon < 0) mon = 0;
-      if (wed < 0) wed = 0;
-      if (fri < 0) fri = 0;
-      return { mon, wed, fri };
-    }
-    let mon = Math.round(total * (2 / 7));
-    let wed = Math.round(total * (2 / 7));
-    let fri = total - mon - wed;
-    if (fri < wed) {
-      const diff = wed - fri;
-      const give = Math.ceil(diff / 2);
-      wed -= give;
-      fri += give;
-    }
-    if (mon < 0) mon = 0;
-    if (wed < 0) wed = 0;
-    if (fri < 0) fri = 0;
-    return { mon, wed, fri };
+    return apportion(total, w);
   }
 
   // ── Locked path: clamp each locked day to <= total, distribute
@@ -426,31 +397,14 @@ export function splitForDeliveries(
 
   // Distribute remainder across whatever days are still unlocked.
   const remaining = Math.max(0, total - usedTotal);
-  const unlocked = {
+  const add = apportion(remaining, {
     mon: monLocked === null && monActive ? w.mon : 0,
     wed: wedLocked === null ? w.wed : 0,
     fri: friLocked === null ? w.fri : 0,
-  };
-  const weightSum = unlocked.mon + unlocked.wed + unlocked.fri;
-  if (remaining > 0 && weightSum > 0) {
-    // Round Mon and Wed; send the leftover to whichever unlocked day
-    // sits later in the week so cumulative rounding error doesn't
-    // double-bill the early trucks.
-    if (unlocked.mon > 0) out.mon += Math.round(remaining * (unlocked.mon / weightSum));
-    if (unlocked.wed > 0) out.wed += Math.round(remaining * (unlocked.wed / weightSum));
-    const used = (unlocked.mon > 0 ? Math.round(remaining * (unlocked.mon / weightSum)) : 0)
-               + (unlocked.wed > 0 ? Math.round(remaining * (unlocked.wed / weightSum)) : 0);
-    const leftover = remaining - used;
-    // Drop the leftover on the latest unlocked day, or wed if fri is
-    // locked, or mon if wed+fri are both locked.
-    if (unlocked.fri > 0) out.fri += leftover;
-    else if (unlocked.wed > 0) out.wed += leftover;
-    else if (unlocked.mon > 0) out.mon += leftover;
-  }
-
-  if (out.mon < 0) out.mon = 0;
-  if (out.wed < 0) out.wed = 0;
-  if (out.fri < 0) out.fri = 0;
+  });
+  out.mon += add.mon;
+  out.wed += add.wed;
+  out.fri += add.fri;
   return out;
 }
 
@@ -458,16 +412,39 @@ function isFiniteNum(v: any): boolean {
   return typeof v === 'number' && Number.isFinite(v);
 }
 
-function baselineWeights(includeMonday: boolean, prioritizeEarly: boolean): { mon: number; wed: number; fri: number } {
-  if (!includeMonday) {
-    // Wed/Fri only — 2/5 vs 3/5 normally, flipped when prioritizing early.
-    return prioritizeEarly
-      ? { mon: 0, wed: 3, fri: 2 }
-      : { mon: 0, wed: 2, fri: 3 };
-  }
-  return prioritizeEarly
-    ? { mon: 3, wed: 2, fri: 2 }
-    : { mon: 2, wed: 2, fri: 3 };
+/** Delivery-day allocation percentages (July 2026, per Joe + Maggie):
+ *  Monday items (food + Haus Vanilla) 25/30/45; Wed/Fri-only syrups &
+ *  sauces 30/70. Values are percent but only the ratios matter — the
+ *  locked path renormalizes across whichever days remain unlocked. */
+function baselineWeights(includeMonday: boolean): { mon: number; wed: number; fri: number } {
+  return includeMonday
+    ? { mon: 25, wed: 30, fri: 45 }
+    : { mon: 0, wed: 30, fri: 70 };
+}
+
+/** Largest-remainder apportionment of `total` whole units across the
+ *  three delivery days. Ties and leftovers resolve toward the LATER
+ *  day, so rounding never shorts the weekend truck in favor of an
+ *  earlier one. Days with weight 0 always get 0. */
+function apportion(
+  total: number,
+  w: { mon: number; wed: number; fri: number },
+): { mon: number; wed: number; fri: number } {
+  const out = { mon: 0, wed: 0, fri: 0 };
+  const weightSum = w.mon + w.wed + w.fri;
+  if (total <= 0 || weightSum <= 0) return out;
+  const days: Array<{ day: 'mon' | 'wed' | 'fri'; rem: number; pos: number }> = [];
+  let used = 0;
+  (['mon', 'wed', 'fri'] as const).forEach((day, pos) => {
+    if (w[day] <= 0) return;
+    const quota = (total * w[day]) / weightSum;
+    out[day] = Math.floor(quota);
+    used += out[day];
+    days.push({ day, rem: quota - out[day], pos });
+  });
+  days.sort((a, b) => b.rem - a.rem || b.pos - a.pos);
+  for (let i = 0; i < total - used; i++) out[days[i % days.length].day] += 1;
+  return out;
 }
 
 export interface BakeHausOrderRow {
@@ -624,9 +601,6 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
     const category: 'food' | 'syrup-sauce' | 'custom' =
       catEntry?.category ?? 'custom';
     const netQty = netQtyForRow(category, r.weekly_qty, onHand);
-    // Out-of-stock at this store → prioritize the earliest delivery
-    // so the next truck gets the bigger chunk.
-    const prioritizeEarly = onHand === 0 && netQty > 0;
     // Lock semantics: each delivery day freezes independently. For a
     // locked day, the per-row *_locked_qty snapshot is authoritative;
     // if it's NULL (legacy row predating the column, or a row added
@@ -639,7 +613,7 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
     let wedLockedQty: number | null = null;
     let friLockedQty: number | null = null;
     if (lockMon || lockWed || lockFri) {
-      const unlockedSplit = splitForDeliveries(netQty, null, includeMonday, prioritizeEarly);
+      const unlockedSplit = splitForDeliveries(netQty, null, includeMonday);
       if (lockMon) monLockedQty = r.mon_locked_qty != null ? r.mon_locked_qty : unlockedSplit.mon;
       if (lockWed) wedLockedQty = r.wed_locked_qty != null ? r.wed_locked_qty : unlockedSplit.wed;
       if (lockFri) friLockedQty = r.fri_locked_qty != null ? r.fri_locked_qty : unlockedSplit.fri;
@@ -648,7 +622,6 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
       netQty,
       { mon: monLockedQty, wed: wedLockedQty, fri: friLockedQty },
       includeMonday,
-      prioritizeEarly,
     );
     // A locked day must show its frozen snapshot EXACTLY — once a day is
     // locked, live inventory is irrelevant (the snapshot already had
@@ -778,11 +751,10 @@ export async function lockWeek(
       const catEntry = catalogByName.get(r.item_name);
       const includeMonday = catEntry?.includeMonday ?? true;
       const netQty = netQtyForRow(catEntry?.category ?? 'custom', r.weekly_qty, onHand);
-      const prioritizeEarly = onHand === 0 && netQty > 0;
       // Preserve any value that's already been snapshotted — locks
       // are additive, not destructive. A Mon-only legacy lock keeps
       // its Mon qty when the week-wide lock fires.
-      const split = splitForDeliveries(netQty, null, includeMonday, prioritizeEarly);
+      const split = splitForDeliveries(netQty, null, includeMonday);
       const monSnap = r.mon_locked_qty != null
         ? r.mon_locked_qty
         : (includeMonday ? split.mon : 0);
@@ -960,7 +932,6 @@ export async function lockDay(
       const catEntry = catalogByName.get(r.item_name);
       const includeMonday = catEntry?.includeMonday ?? true;
       const netQty = netQtyForRow(catEntry?.category ?? 'custom', r.weekly_qty, onHand);
-      const prioritizeEarly = onHand === 0 && netQty > 0;
 
       // Items that skip Monday never freeze a Mon qty.
       if (day === 'mon' && !includeMonday) {
@@ -973,7 +944,7 @@ export async function lockDay(
 
       // Build the split with the OTHER already-locked days pinned so the
       // value we capture matches what the report currently shows.
-      const unlockedSplit = splitForDeliveries(netQty, null, includeMonday, prioritizeEarly);
+      const unlockedSplit = splitForDeliveries(netQty, null, includeMonday);
       const locks: DayLocks = {};
       if (day !== 'mon' && otherState.mon && includeMonday) {
         locks.mon = r.mon_locked_qty != null ? r.mon_locked_qty : unlockedSplit.mon;
@@ -984,7 +955,7 @@ export async function lockDay(
       if (day !== 'fri' && otherState.fri) {
         locks.fri = r.fri_locked_qty != null ? r.fri_locked_qty : unlockedSplit.fri;
       }
-      const split = splitForDeliveries(netQty, locks, includeMonday, prioritizeEarly);
+      const split = splitForDeliveries(netQty, locks, includeMonday);
       updateRow.run(split[day], r.week_start_iso, r.store_label, r.item_name);
     }
     insertLock.run(weekStartIso, day, lockedAt, lockedBy, source);
