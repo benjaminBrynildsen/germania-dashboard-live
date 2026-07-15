@@ -7,7 +7,7 @@
  * down by the chef on prep days and handled outside this system.
  */
 import db from './db.js';
-import { BAKE_HAUS_CATEGORY, fetchAllProducts, fetchInventory, fetchProductSales, STORES } from './dripos.js';
+import { BAKE_HAUS_CATEGORY, fetchAllProducts, fetchProductSales, STORES } from './dripos.js';
 
 /** CDN base for Dripos product images. The /products endpoint returns
  *  each item's LOGO field as either:
@@ -127,18 +127,25 @@ let imageMapCache: CachedImageMap | null = null;
 const IMAGE_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 /** Build a map from catalog item name -> resolved image URL by joining
- *  our static catalog against Dripos /products. Cached for an hour
- *  since menu photos rarely change. Returns an empty map (no images
- *  rendered, no crash) if Dripos is unavailable. */
+ *  our catalog against Dripos /products. Built-in food items match by
+ *  fuzzy name within the BAKE HAUS FOOD category; DB catalog rows
+ *  (manage-tab food + syrups) resolve through their linked product.
+ *  Cached for an hour since menu photos rarely change. Returns an
+ *  empty map (no images rendered, no crash) if Dripos is unavailable. */
 export async function getCatalogImageMap(): Promise<Record<string, string | null>> {
   if (imageMapCache && Date.now() - imageMapCache.fetchedAt < IMAGE_CACHE_TTL_MS) {
     return imageMapCache.map;
   }
   try {
-    const products = await fetchInventory(STORES[0].locationId);
+    const products = await fetchAllProducts(STORES[0].locationId);
+    const foodProducts = products.filter((p) => p.CATEGORY_NAME === BAKE_HAUS_CATEGORY);
     const map: Record<string, string | null> = {};
     for (const item of BAKE_HAUS_ITEMS) {
-      map[item.name] = findImageForCatalogItem(item, products);
+      map[item.name] = findImageForCatalogItem(item, foodProducts);
+    }
+    for (const s of listSyrups(false)) {
+      const found = findProductForSyrup(s, products);
+      map[s.displayName] = found?.LOGO ? resolveImageUrl(found.LOGO) : null;
     }
     imageMapCache = { map, fetchedAt: Date.now() };
     return map;
@@ -540,10 +547,10 @@ interface DbRow {
   fri_locked_qty: number | null;
 }
 
-/** Sort items by the catalog order; unknown items go to the bottom. */
-function itemSortKey(name: string): number {
-  const found = BAKE_HAUS_ITEMS.find((i) => i.name === name);
-  return found?.sort ?? 1000;
+/** Sort key from the merged catalog; unknown (legacy custom) items go
+ *  to the bottom. */
+function itemSortKey(name: string, catalogByName: Map<string, BakeHausCatalogItem>): number {
+  return catalogByName.get(name)?.sort ?? 5000;
 }
 
 export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekReport> {
@@ -662,7 +669,7 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
 
   for (const store of Object.keys(byStore)) {
     byStore[store].sort((a, b) =>
-      itemSortKey(a.itemName) - itemSortKey(b.itemName)
+      itemSortKey(a.itemName, catalogByName) - itemSortKey(b.itemName, catalogByName)
       || a.itemName.localeCompare(b.itemName),
     );
   }
@@ -1331,6 +1338,10 @@ export interface SyrupRow {
   driposProductName: string;
   sort: number;
   includeMonday: boolean;
+  /** Despite the type name, the table backs the whole editable catalog:
+   *  'food' rows show in the Food section, deduct on-hand inventory,
+   *  and split 25/30/45; 'syrup-sauce' rows split 40/60 Wed/Fri. */
+  category: 'food' | 'syrup-sauce';
   active: boolean;
   createdAt: number;
   updatedAt: number;
@@ -1343,6 +1354,7 @@ interface SyrupDbRow {
   dripos_product_name: string;
   sort: number;
   include_monday: number;
+  category: string;
   active: number;
   created_at: number;
   updated_at: number;
@@ -1356,6 +1368,7 @@ function rowToSyrup(r: SyrupDbRow): SyrupRow {
     driposProductName: r.dripos_product_name,
     sort: r.sort,
     includeMonday: r.include_monday === 1,
+    category: r.category === 'food' ? 'food' : 'syrup-sauce',
     active: r.active === 1,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -1381,15 +1394,18 @@ export function createSyrup(args: {
   driposProductName: string;
   sort?: number;
   includeMonday?: boolean;
+  category?: 'food' | 'syrup-sauce';
 }): SyrupRow {
   const now = Date.now();
   const sort = args.sort ?? 100;
-  const include = args.includeMonday ? 1 : 0;
+  const category = args.category === 'food' ? 'food' : 'syrup-sauce';
+  // Food delivers Mon/Wed/Fri by default; syrups default to Wed/Fri.
+  const include = (args.includeMonday ?? (category === 'food')) ? 1 : 0;
   const info = db.prepare(
     `INSERT INTO bake_haus_syrups
-       (display_name, dripos_product_id, dripos_product_name, sort, include_monday, active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
-  ).run(args.displayName, args.driposProductId, args.driposProductName, sort, include, now, now);
+       (display_name, dripos_product_id, dripos_product_name, sort, include_monday, category, active, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+  ).run(args.displayName, args.driposProductId, args.driposProductName, sort, include, category, now, now);
   return getSyrup(info.lastInsertRowid as number)!;
 }
 
@@ -1401,6 +1417,7 @@ export function updateSyrup(
     driposProductName: string;
     sort: number;
     includeMonday: boolean;
+    category: 'food' | 'syrup-sauce';
     active: boolean;
   }>,
 ): SyrupRow | null {
@@ -1412,16 +1429,17 @@ export function updateSyrup(
     driposProductName: args.driposProductName ?? cur.driposProductName,
     sort: args.sort ?? cur.sort,
     includeMonday: args.includeMonday ?? cur.includeMonday,
+    category: args.category ?? cur.category,
     active: args.active ?? cur.active,
   };
   db.prepare(
     `UPDATE bake_haus_syrups SET
        display_name = ?, dripos_product_id = ?, dripos_product_name = ?,
-       sort = ?, include_monday = ?, active = ?, updated_at = ?
+       sort = ?, include_monday = ?, category = ?, active = ?, updated_at = ?
      WHERE id = ?`,
   ).run(
     next.displayName, next.driposProductId, next.driposProductName,
-    next.sort, next.includeMonday ? 1 : 0, next.active ? 1 : 0,
+    next.sort, next.includeMonday ? 1 : 0, next.category, next.active ? 1 : 0,
     Date.now(), id,
   );
   return getSyrup(id);
@@ -1432,9 +1450,10 @@ export function deleteSyrup(id: number): boolean {
   return info.changes > 0;
 }
 
-/** Merged catalog: hardcoded food items + active syrups. Stable item
- *  identity comes from `name` (food canonical name OR syrup display
- *  name). Order pages and getWeekReport both consume this. */
+/** Merged catalog: hardcoded food items + active DB catalog rows
+ *  (editable food AND syrups from the manage tab). Stable item
+ *  identity comes from `name` (canonical food name OR display name).
+ *  Order pages and getWeekReport both consume this. */
 export function getMergedCatalog(): BakeHausCatalogItem[] {
   const food: BakeHausCatalogItem[] = BAKE_HAUS_ITEMS.map((i) => ({
     name: i.name,
@@ -1444,17 +1463,18 @@ export function getMergedCatalog(): BakeHausCatalogItem[] {
     driposProductId: null,
     driposProductName: null,
   }));
-  const syrups: BakeHausCatalogItem[] = listSyrups(false).map((s) => ({
+  const dbItems: BakeHausCatalogItem[] = listSyrups(false).map((s) => ({
     name: s.displayName,
-    // Syrups sort below food. Base at 1000 + per-row sort so adding
-    // a new food item with sort < 1000 still slots above all syrups.
-    sort: 1000 + s.sort,
-    category: 'syrup-sauce',
+    // DB food rows sort within the food block (built-in items are
+    // 10-90, DB rows default to 100 → right after them). Syrups keep
+    // the 1000+ band so every food item sorts above every syrup.
+    sort: s.category === 'food' ? s.sort : 1000 + s.sort,
+    category: s.category,
     includeMonday: s.includeMonday,
     driposProductId: s.driposProductId,
     driposProductName: s.driposProductName,
   }));
-  return [...food, ...syrups].sort((a, b) =>
+  return [...food, ...dbItems].sort((a, b) =>
     a.sort - b.sort || a.name.localeCompare(b.name),
   );
 }

@@ -182,6 +182,16 @@ db.pragma('foreign_keys = ON');
     db.exec("ALTER TABLE bake_haus_week_locks ADD COLUMN lock_source TEXT NOT NULL DEFAULT 'manual'");
   }
 }
+// bake_haus_syrups.category migration — the table originally held only
+// syrups/sauces; it now backs the whole editable catalog, with food
+// items distinguished by category='food'. Existing rows are all syrups.
+{
+  const tbl = db.prepare("PRAGMA table_info(bake_haus_syrups)").all() as Array<{ name: string }>;
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'category')) {
+    console.log('[migration] adding category to bake_haus_syrups');
+    db.exec("ALTER TABLE bake_haus_syrups ADD COLUMN category TEXT NOT NULL DEFAULT 'syrup-sauce'");
+  }
+}
 // Waffles → Waffle Wedge rename migration. The catalog item was renamed
 // to match the Dripos product name ("Waffle Wedge") so inventory matches;
 // existing order rows are keyed by item_name, so re-key them to the new
@@ -524,6 +534,10 @@ db.exec(`
     -- Haus Vanilla is the exception — set this to 1 for items that
     -- should follow the food Mon 25/Wed 30/Fri 45 split.
     include_monday INTEGER NOT NULL DEFAULT 0,
+    -- 'syrup-sauce' or 'food'. Despite the table name this backs the
+    -- whole editable catalog; food rows show in the order card's Food
+    -- section, deduct on-hand inventory, and split 25/30/45.
+    category TEXT NOT NULL DEFAULT 'syrup-sauce' CHECK(category IN ('food', 'syrup-sauce')),
     -- Soft delete / seasonal toggle. Inactive items hide from the
     -- ordering UI but stay in the DB so historical orders still
     -- resolve their display name.

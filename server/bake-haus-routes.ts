@@ -110,7 +110,12 @@ router.post('/bake-haus/syrups', requireAuth, (req: AuthRequest, res: Response) 
   const driposProductId = Number(req.body?.driposProductId);
   const driposProductName = String(req.body?.driposProductName ?? '').trim();
   const sort = req.body?.sort != null ? Number(req.body.sort) : 100;
-  const includeMonday = req.body?.includeMonday === true;
+  // Food items can be added through the same endpoint — they show in
+  // the Food section, deduct on-hand, and split 25/30/45.
+  const category = req.body?.category === 'food' ? 'food' as const : 'syrup-sauce' as const;
+  const includeMonday = typeof req.body?.includeMonday === 'boolean'
+    ? req.body.includeMonday
+    : undefined; // createSyrup defaults: food → true, syrup → false
   if (!displayName) {
     res.status(400).json({ error: 'invalid_display_name' });
     return;
@@ -123,7 +128,7 @@ router.post('/bake-haus/syrups', requireAuth, (req: AuthRequest, res: Response) 
     res.status(400).json({ error: 'invalid_dripos_name' });
     return;
   }
-  const syrup = createSyrup({ displayName, driposProductId, driposProductName, sort, includeMonday });
+  const syrup = createSyrup({ displayName, driposProductId, driposProductName, sort, includeMonday, category });
   res.json({ ok: true, syrup });
 });
 
@@ -139,6 +144,7 @@ router.put('/bake-haus/syrups/:id', requireAuth, (req: AuthRequest, res: Respons
   if (typeof req.body?.driposProductName === 'string')  patch.driposProductName = req.body.driposProductName.trim();
   if (typeof req.body?.sort === 'number')               patch.sort = req.body.sort;
   if (typeof req.body?.includeMonday === 'boolean')     patch.includeMonday = req.body.includeMonday;
+  if (req.body?.category === 'food' || req.body?.category === 'syrup-sauce') patch.category = req.body.category;
   if (typeof req.body?.active === 'boolean')            patch.active = req.body.active;
   const updated = updateSyrup(id, patch);
   if (!updated) {
