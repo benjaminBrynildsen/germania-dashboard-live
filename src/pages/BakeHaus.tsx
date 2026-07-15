@@ -200,6 +200,17 @@ function shiftWeeks(weekIso: string, weeks: number): string {
   return isoMondayOf(d);
 }
 
+/** Fixed delivery-day allocation shown (read-only) on the order card's
+ *  section headers. Display only — the actual split math lives in
+ *  server/bake-haus.ts (baselineWeights); keep the two in sync.
+ *  Haus Vanilla is the syrup exception: it delivers Monday and follows
+ *  the food split. Custom items follow the food split too. */
+const SPLIT_PERCENTS: Record<'food' | 'syrup-sauce' | 'custom', { mon: string; wed: string; fri: string }> = {
+  food:          { mon: '25%', wed: '30%', fri: '45%' },
+  'syrup-sauce': { mon: '—',   wed: '30%', fri: '70%' },
+  custom:        { mon: '25%', wed: '30%', fri: '45%' },
+};
+
 /** Week the page should open to. Sunday belongs to the UPCOMING
  *  delivery week: the calendar week that started six days ago was
  *  auto-locked Monday 23:59, so a manager placing an order on Sunday
@@ -1930,13 +1941,24 @@ function StoreOrderCard({
       <div>
         {renderItems.map((it, i) => {
           // Insert a section divider when the category changes — gives
-          // a visual break between Food and Syrups + Sauces.
+          // a visual break between Food and Syrups + Sauces, and shows
+          // the fixed (read-only) delivery allocation for the section,
+          // aligned under the Mon/Wed/Fri columns.
           const prev = renderItems[i - 1];
           const showDivider = !prev || prev.category !== it.category;
+          const pct = SPLIT_PERCENTS[it.category];
+          const sectionLabel =
+            it.category === 'food' ? 'Food'
+            : it.category === 'syrup-sauce' ? 'Syrups & sauces'
+            : 'Custom items';
           return (
             <Fragment key={it.name}>
               {showDivider && (
                 <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr' : '1fr 150px 200px 56px',
+                  gap: isMobile ? 4 : 28,
+                  alignItems: 'end',
                   padding: isMobile ? '10px 16px 6px' : '12px 24px 6px',
                   background: theme.rowAlt,
                   fontSize: 10, fontWeight: 700,
@@ -1945,9 +1967,35 @@ function StoreOrderCard({
                   fontFamily: 'var(--font-body)',
                   borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.06)',
                 }}>
-                  {it.category === 'food' && 'Food'}
-                  {it.category === 'syrup-sauce' && 'Syrups & sauces'}
-                  {it.category === 'custom' && 'Custom items'}
+                  <span>
+                    {sectionLabel}
+                    {isMobile && (
+                      <span style={{
+                        fontWeight: 600, letterSpacing: 0.4, marginLeft: 8,
+                        color: 'rgba(0,0,0,0.35)',
+                      }}>
+                        {pct.mon === '—' ? '' : `Mon ${pct.mon} · `}Wed {pct.wed} · Fri {pct.fri}
+                      </span>
+                    )}
+                    {it.category === 'syrup-sauce' && (
+                      <span style={{
+                        fontWeight: 600, letterSpacing: 0.3, marginLeft: 8,
+                        textTransform: 'none',
+                        color: 'rgba(0,0,0,0.35)',
+                      }}>
+                        Haus Vanilla follows the food split
+                      </span>
+                    )}
+                  </span>
+                  {!isMobile && <span />}
+                  {!isMobile && (
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <span style={{ flex: 1, textAlign: 'center', padding: '0 4px' }}>{pct.mon}</span>
+                      <span style={{ flex: 1, textAlign: 'center', padding: '0 4px' }}>{pct.wed}</span>
+                      <span style={{ flex: 1, textAlign: 'center', padding: '0 4px' }}>{pct.fri}</span>
+                    </div>
+                  )}
+                  {!isMobile && <span />}
                 </div>
               )}
               <CartRowEditor
