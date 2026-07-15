@@ -443,8 +443,8 @@ db.exec(`
   -- Bake Haus weekly orders. One row per (week × store × item). The
   -- week_start_iso is the Monday of the week (YYYY-MM-DD). Weekly qty
   -- is what Joe/Tristan are ordering from Chef Maggie; the Mon/Wed/Fri
-  -- split is computed on the fly (2/7-2/7-3/7 by default) rather than
-  -- persisted, so changes to the split formula don't require migration.
+  -- split is computed on the fly (Mon 25/Wed 30/Fri 45 by default)
+  -- rather than persisted, so split-formula changes need no migration.
   CREATE TABLE IF NOT EXISTS bake_haus_orders (
     week_start_iso TEXT NOT NULL,
     store_label TEXT NOT NULL,
@@ -522,7 +522,7 @@ db.exec(`
     sort INTEGER NOT NULL DEFAULT 100,
     -- Most syrups skip Monday (made Tue/Thu, delivered Wed/Fri only).
     -- Haus Vanilla is the exception — set this to 1 for items that
-    -- should follow the food 2/7-2/7-3/7 split.
+    -- should follow the food Mon 25/Wed 30/Fri 45 split.
     include_monday INTEGER NOT NULL DEFAULT 0,
     -- Soft delete / seasonal toggle. Inactive items hide from the
     -- ordering UI but stay in the DB so historical orders still
