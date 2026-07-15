@@ -207,7 +207,7 @@ function shiftWeeks(weekIso: string, weeks: number): string {
  *  the food split. Custom items follow the food split too. */
 const SPLIT_PERCENTS: Record<'food' | 'syrup-sauce' | 'custom', { mon: string; wed: string; fri: string }> = {
   food:          { mon: '25%', wed: '30%', fri: '45%' },
-  'syrup-sauce': { mon: '—',   wed: '30%', fri: '70%' },
+  'syrup-sauce': { mon: '—',   wed: '40%', fri: '60%' },
   custom:        { mon: '25%', wed: '30%', fri: '45%' },
 };
 
@@ -619,7 +619,7 @@ export default function BakeHaus() {
             Weekly food orders to Chef Maggie, auto-split into the three Mon/Wed/Fri deliveries
             (3–5pm). Each delivery is weighted by the business days it covers — food &amp;
             Haus Vanilla: Mon 25% / Wed 30% / Fri 45% (weekend); other syrups + sauces
-            deliver Wed 30% / Fri 70% off the chef's Tue/Thu prep schedule.
+            deliver Wed 40% / Fri 60% off the chef's Tue/Thu prep schedule.
           </p>
         )}
       </div>

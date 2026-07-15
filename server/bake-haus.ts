@@ -39,7 +39,7 @@ export interface BakeHausItem {
  *  the DB-backed editable syrup catalog. `category` distinguishes
  *  them; the order card renders food + syrup as two sections.
  *  `includeMonday` controls the delivery split: true → Mon 25% /
- *  Wed 30% / Fri 45%, false → Wed 30% / Fri 70%. */
+ *  Wed 30% / Fri 45%, false → Wed 40% / Fri 60%. */
 export interface BakeHausCatalogItem {
   name: string;            // canonical item_name stored in bake_haus_orders
   sort: number;
@@ -307,7 +307,7 @@ export function syrupUnitsFromSales(
  *   Food + Haus Vanilla (Monday items):
  *     Mon 25% (Tue-Wed business) · Wed 30% (Thu-Fri) · Fri 45% (Sat-Mon)
  *   Other syrups & sauces (made Tue/Thu, delivered Wed/Fri):
- *     Wed 30% (Thu-Fri business) · Fri 70% (Sat-Wed)
+ *     Wed 40% (Thu-Fri business) · Fri 60% (Sat-Wed)
  *
  * Always returns whole integers — these orders are counts of
  * sandwiches/bottles/etc. Rounding uses largest-remainder with ties and
@@ -337,7 +337,7 @@ export function splitForDeliveries(
    *  object (or omit) for the unlocked split. Backwards-compatible
    *  with a bare `number` (legacy Monday-lock arg). */
   locks: DayLocks | number | null = null,
-  /** When false, this item skips Monday entirely (Wed 30% / Fri 70%).
+  /** When false, this item skips Monday entirely (Wed 40% / Fri 60%).
    *  Used for most syrups + sauces which are made Tue/Thu and only
    *  delivered Wed/Fri. Defaults to true. */
   includeMonday: boolean = true,
@@ -414,12 +414,12 @@ function isFiniteNum(v: any): boolean {
 
 /** Delivery-day allocation percentages (July 2026, per Joe + Maggie):
  *  Monday items (food + Haus Vanilla) 25/30/45; Wed/Fri-only syrups &
- *  sauces 30/70. Values are percent but only the ratios matter — the
+ *  sauces 40/60. Values are percent but only the ratios matter — the
  *  locked path renormalizes across whichever days remain unlocked. */
 function baselineWeights(includeMonday: boolean): { mon: number; wed: number; fri: number } {
   return includeMonday
     ? { mon: 25, wed: 30, fri: 45 }
-    : { mon: 0, wed: 30, fri: 70 };
+    : { mon: 0, wed: 40, fri: 60 };
 }
 
 /** Largest-remainder apportionment of `total` whole units across the
