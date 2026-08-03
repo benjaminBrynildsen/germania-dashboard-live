@@ -491,6 +491,10 @@ export interface BakeHausWeekReport {
   /** When each store's order was last saved (ms epoch). null = never
    *  explicitly saved (only auto-saved per-item edits). */
   savedAtByStore: Record<string, number | null>;
+  /** When the Sunday auto-draft filled each store's order (ms epoch).
+   *  null = never drafted. The UI badges stores that were drafted but
+   *  not yet saved: "auto-draft — review & save". */
+  autoDraftByStore: Record<string, number | null>;
   /** Per-store rows, sorted by the canonical item catalog order. */
   byStore: Record<string, BakeHausOrderRow[]>;
   /** Cross-store summary: for each delivery day (mon/wed/fri), a map of
@@ -681,9 +685,17 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
   for (const store of STORES) savedAtByStore[store.label] = null;
   for (const r of savedRows) savedAtByStore[r.store_label] = r.saved_at;
 
+  const autoDraftRows = db.prepare(
+    'SELECT store_label, created_at FROM bake_haus_auto_drafts WHERE week_start_iso = ?',
+  ).all(weekStartIso) as Array<{ store_label: string; created_at: number }>;
+  const autoDraftByStore: Record<string, number | null> = {};
+  for (const store of STORES) autoDraftByStore[store.label] = null;
+  for (const r of autoDraftRows) autoDraftByStore[r.store_label] = r.created_at;
+
   return {
     weekStartIso,
     savedAtByStore,
+    autoDraftByStore,
     byStore,
     deliverySummary,
     inventoryByStore,
@@ -1041,13 +1053,22 @@ export async function reconstructOnHandAt(
 }
 
 /** Pull units sold per (store, canonical item name) for the time
- *  window [sinceMs, now]. Aggregates across all platforms (POS,
+ *  window [sinceMs, now]. Thin wrapper over the windowed version. */
+async function getBakeHausSalesByStoreSince(
+  sinceMs: number,
+): Promise<Record<string, Record<string, number>>> {
+  return getBakeHausSalesByStoreWindow(sinceMs, Date.now());
+}
+
+/** Pull units sold per (store, canonical item name) for an arbitrary
+ *  [startMs, endMs] window. Aggregates across all platforms (POS,
  *  Mobile, Web, Kiosk, etc.) and translates Dripos product names
  *  to bake-haus catalog names using the same matchers as the
  *  inventory map. Falls back to an empty map on Dripos failure
  *  (no token, API error) — caller decides how to degrade. */
-async function getBakeHausSalesByStoreSince(
-  sinceMs: number,
+async function getBakeHausSalesByStoreWindow(
+  startMs: number,
+  endMs: number,
 ): Promise<Record<string, Record<string, number>>> {
   const out: Record<string, Record<string, number>> = {};
   for (const store of STORES) out[store.label] = {};
@@ -1057,7 +1078,7 @@ async function getBakeHausSalesByStoreSince(
   await Promise.all(
     STORES.map(async (store) => {
       try {
-        const rows = await fetchProductSales([store.locationId], sinceMs, Date.now());
+        const rows = await fetchProductSales([store.locationId], startMs, endMs);
         // Aggregate ORDER_COUNT per LINE_ITEM_NAME for food and
         // per PRODUCT_ID for syrups. Then map both into canonical
         // bake-haus catalog names.
@@ -1089,7 +1110,7 @@ async function getBakeHausSalesByStoreSince(
         }
       } catch (err) {
         console.warn(
-          `[bake-haus] sales-since-${sinceMs} fetch for ${store.label} failed:`,
+          `[bake-haus] sales window ${startMs}-${endMs} fetch for ${store.label} failed:`,
           err instanceof Error ? err.message : err,
         );
       }
@@ -1477,6 +1498,189 @@ export function getMergedCatalog(): BakeHausCatalogItem[] {
   return [...food, ...dbItems].sort((a, b) =>
     a.sort - b.sort || a.name.localeCompare(b.name),
   );
+}
+
+// ─── Order suggestions ────────────────────────────────────────────
+// Suggested weekly quantities shown on the order card (never applied
+// automatically — a manager taps to accept). Food learns from actual
+// Dripos unit sales; syrups/sauces learn from order history, because
+// bottle *sales* badly understate real usage (most syrup goes into
+// drinks, not out the door as bottles).
+
+export interface OrderSuggestion {
+  qty: number;
+  basis: 'sales' | 'orders';
+  /** Human-readable lines for the ⓘ "how is this calculated" tooltip. */
+  detail: string[];
+}
+
+/** Food suggestion from the last three full weeks of unit sales
+ *  (most recent first). Weighted toward the best week so a stockout
+ *  week doesn't drag the number down, then +10% buffer. Null when
+ *  there are no sales to learn from. */
+export function suggestFromSales(
+  weeklyUnits: number[],
+  weekLabels: string[],
+): OrderSuggestion | null {
+  const units = weeklyUnits.map((u) => (Number.isFinite(u) && u > 0 ? Math.round(u) : 0));
+  if (units.length === 0 || units.every((u) => u === 0)) return null;
+  const max = Math.max(...units);
+  const base = (units.reduce((a, b) => a + b, 0) + max) / (units.length + 1);
+  const qty = Math.ceil(base * 1.1);
+  if (qty <= 0) return null;
+  return {
+    qty,
+    basis: 'sales',
+    detail: [
+      `Units sold, last ${units.length} weeks: ${units.map((u, i) => `${u} (wk of ${weekLabels[i] ?? '?'})`).join(' · ')}`,
+      `Weighted average — best week counts twice — is ${base.toFixed(1)}`,
+      `Plus a 10% buffer, rounded up → ${qty}`,
+    ],
+  };
+}
+
+/** Syrup/sauce suggestion: plain average of the last three weeks'
+ *  ORDERED qtys (weeks with no order are skipped, not counted as 0).
+ *  Null when there's no order history to learn from. */
+export function suggestFromOrders(
+  orderedQtys: Array<number | null>,
+  weekLabels: string[],
+): OrderSuggestion | null {
+  const entries: Array<{ q: number; label: string }> = [];
+  orderedQtys.forEach((q, i) => {
+    if (q != null && Number.isFinite(q) && q > 0) {
+      entries.push({ q: Math.round(q), label: weekLabels[i] ?? '?' });
+    }
+  });
+  if (entries.length === 0) return null;
+  const avg = entries.reduce((a, e) => a + e.q, 0) / entries.length;
+  const qty = Math.round(avg);
+  if (qty <= 0) return null;
+  return {
+    qty,
+    basis: 'orders',
+    detail: [
+      `Ordered, last ${entries.length} week${entries.length > 1 ? 's' : ''}: ${entries.map((e) => `${e.q} (wk of ${e.label})`).join(' · ')}`,
+      `Average, rounded → ${qty}`,
+    ],
+  };
+}
+
+interface CachedSuggestions {
+  at: number;
+  data: Record<string, Record<string, OrderSuggestion>>;
+}
+const suggestionsCache = new Map<string, CachedSuggestions>();
+const SUGGESTIONS_TTL_MS = 10 * 60 * 1000;
+
+/** Per-store, per-item suggested weekly qtys for a target week, from
+ *  the three Mon-Sun weeks immediately before it. Cached 10 minutes —
+ *  the underlying Dripos sales windows are fully in the past so the
+ *  report cache absorbs repeat sweeps anyway. */
+export async function computeSuggestionsForWeek(
+  weekStartIso: string,
+): Promise<Record<string, Record<string, OrderSuggestion>>> {
+  const hit = suggestionsCache.get(weekStartIso);
+  if (hit && Date.now() - hit.at < SUGGESTIONS_TTL_MS) return hit.data;
+
+  const target = new Date(weekStartIso + 'T00:00:00');
+  const weeks = [1, 2, 3].map((n) => {
+    const start = new Date(target);
+    start.setDate(start.getDate() - 7 * n);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    const iso = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+    return {
+      iso,
+      label: start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      startMs: start.getTime(),
+      endMs: end.getTime() - 1,
+    };
+  });
+
+  // Food basis: per-week unit sales. Degrades to zeros per store if
+  // Dripos is unavailable (the per-store catch inside the sweep).
+  const salesByWeek = await Promise.all(
+    weeks.map((w) => getBakeHausSalesByStoreWindow(w.startMs, w.endMs)),
+  );
+
+  // Syrup basis: per-week order history.
+  const historyRows = db.prepare(
+    `SELECT week_start_iso, store_label, item_name, weekly_qty
+       FROM bake_haus_orders
+      WHERE week_start_iso IN (?, ?, ?)`,
+  ).all(weeks[0].iso, weeks[1].iso, weeks[2].iso) as Array<{
+    week_start_iso: string; store_label: string; item_name: string; weekly_qty: number;
+  }>;
+  const historyByWeek = new Map<string, Map<string, number>>();
+  for (const r of historyRows) {
+    let m = historyByWeek.get(r.week_start_iso);
+    if (!m) { m = new Map(); historyByWeek.set(r.week_start_iso, m); }
+    m.set(`${r.store_label}|${r.item_name}`, r.weekly_qty);
+  }
+
+  const catalog = getMergedCatalog();
+  const labels = weeks.map((w) => w.label);
+  const out: Record<string, Record<string, OrderSuggestion>> = {};
+  for (const store of STORES) {
+    out[store.label] = {};
+    for (const item of catalog) {
+      const suggestion = item.category === 'syrup-sauce'
+        ? suggestFromOrders(
+            weeks.map((w) => historyByWeek.get(w.iso)?.get(`${store.label}|${item.name}`) ?? null),
+            labels,
+          )
+        : suggestFromSales(
+            weeks.map((_, i) => salesByWeek[i][store.label]?.[item.name] ?? 0),
+            labels,
+          );
+      if (suggestion) out[store.label][item.name] = suggestion;
+    }
+  }
+  suggestionsCache.set(weekStartIso, { at: Date.now(), data: out });
+  return out;
+}
+
+/** Sunday-evening safety net: fill any store that hasn't saved the
+ *  week's order with suggested qtys, so Chef Maggie has numbers by
+ *  Monday 8:30 even when a store forgets. Never overwrites anything a
+ *  manager already entered — only items with NO order row get a
+ *  drafted qty. Records a bake_haus_auto_drafts row per store so the
+ *  UI can badge it "auto-draft — review & save" until someone saves.
+ *  Idempotent per (week, store). */
+export async function autoDraftWeek(
+  weekStartIso: string,
+): Promise<{ drafted: Array<{ store: string; items: number }> }> {
+  const suggestions = await computeSuggestionsForWeek(weekStartIso);
+  const drafted: Array<{ store: string; items: number }> = [];
+  for (const store of STORES) {
+    const saved = db.prepare(
+      'SELECT 1 FROM bake_haus_saved_orders WHERE week_start_iso = ? AND store_label = ?',
+    ).get(weekStartIso, store.label);
+    if (saved) continue;
+    const already = db.prepare(
+      'SELECT 1 FROM bake_haus_auto_drafts WHERE week_start_iso = ? AND store_label = ?',
+    ).get(weekStartIso, store.label);
+    if (already) continue;
+    const existing = new Set(
+      (db.prepare(
+        'SELECT item_name FROM bake_haus_orders WHERE week_start_iso = ? AND store_label = ?',
+      ).all(weekStartIso, store.label) as Array<{ item_name: string }>).map((r) => r.item_name),
+    );
+    let count = 0;
+    for (const [itemName, s] of Object.entries(suggestions[store.label] ?? {})) {
+      if (existing.has(itemName) || s.qty <= 0) continue;
+      upsertOrderItem({ weekStartIso, storeLabel: store.label, itemName, weeklyQty: s.qty, notes: null });
+      count++;
+    }
+    if (count > 0) {
+      db.prepare(
+        'INSERT INTO bake_haus_auto_drafts (week_start_iso, store_label, created_at, item_count) VALUES (?, ?, ?, ?)',
+      ).run(weekStartIso, store.label, Date.now(), count);
+      drafted.push({ store: store.label, items: count });
+    }
+  }
+  return { drafted };
 }
 
 // ─── Week / report helpers ────────────────────────────────────────

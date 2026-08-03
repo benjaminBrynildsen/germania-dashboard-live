@@ -547,6 +547,19 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_bake_haus_syrups_active ON bake_haus_syrups(active);
 
+  -- Sunday auto-draft markers. A row means the store's order for the
+  -- week was pre-filled from suggestions (sales-based food, order-
+  -- history syrups) because nobody had saved it by the Sunday-evening
+  -- cutoff. The UI badges these "auto-draft — review & save" until a
+  -- manager saves the order.
+  CREATE TABLE IF NOT EXISTS bake_haus_auto_drafts (
+    week_start_iso TEXT NOT NULL,
+    store_label TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    item_count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (week_start_iso, store_label)
+  );
+
   -- Patron snapshots from Dripos's /patrons/dumb/v2 endpoint. Pulled
   -- automatically on boot + every 6h (refresh button also available in
   -- the UI). dripos_id is the upstream PK; the table is replaced

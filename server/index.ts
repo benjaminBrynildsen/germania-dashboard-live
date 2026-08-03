@@ -166,6 +166,43 @@ app.listen(PORT, () => {
   };
   setInterval(autoLockTick, 60_000);
 
+  // Bake Haus auto-draft — fires Sunday 17:00 America/Chicago. Any
+  // store that hasn't saved the upcoming week's order gets pre-filled
+  // from suggestions (sales-based food, order-history syrups) so Chef
+  // Maggie has workable numbers by Monday 8:30 even when a store
+  // forgets. Never overwrites quantities a manager already entered;
+  // the UI badges drafted stores until someone reviews & saves.
+  const autoDraftTick = async () => {
+    try {
+      const { autoDraftWeek, mondayOfWeek } = await import('./bake-haus.js');
+      const tz = process.env.BAKE_HAUS_AUTO_LOCK_TZ || 'America/Chicago';
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        weekday: 'short', year: 'numeric', month: 'numeric', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      }).formatToParts(new Date());
+      const get = (t: string) => parts.find((p) => p.type === t)?.value || '';
+      if (get('weekday') !== 'Sun') return;
+      const hour = parseInt(get('hour'), 10);
+      const minute = parseInt(get('minute'), 10);
+      const targetHour = Number(process.env.BAKE_HAUS_AUTO_DRAFT_HOUR ?? 17);
+      const targetMinute = Number(process.env.BAKE_HAUS_AUTO_DRAFT_MINUTE ?? 0);
+      if (hour !== targetHour || minute !== targetMinute) return;
+      // Sunday belongs to the UPCOMING ordering week — target the week
+      // starting tomorrow, built from the Chicago calendar date.
+      const chicagoDate = new Date(Number(get('year')), Number(get('month')) - 1, Number(get('day')));
+      chicagoDate.setDate(chicagoDate.getDate() + 1);
+      const week = mondayOfWeek(chicagoDate);
+      const result = await autoDraftWeek(week);
+      if (result.drafted.length > 0) {
+        console.log(`[BakeHausAutoDraft] week ${week}: drafted ${result.drafted.map((d) => `${d.store} (${d.items} items)`).join(', ')}`);
+      }
+    } catch (err) {
+      console.warn('[BakeHausAutoDraft] tick failed:', err instanceof Error ? err.message : err);
+    }
+  };
+  setInterval(autoDraftTick, 60_000);
+
   // Tickets sync — pulls yesterday's tickets daily at 3 AM America/
   // Chicago. Aligns with low POS traffic + leaves room for Dripos's
   // own end-of-day batch processing. The same minute-based polling
