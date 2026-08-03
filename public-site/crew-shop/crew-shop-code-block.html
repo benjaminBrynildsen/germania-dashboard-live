@@ -122,7 +122,15 @@
   // url is left blank.
   var STORE_URL = 'https://germaniavirtualstore.itemorder.com/shop/sale/';
 
-  // ── EDIT YOUR PRODUCTS HERE ─────────────────────────────────────
+  // Live product feed from the Germania dashboard server, which mirrors
+  // the vendor storefront every 6 hours — new merch shows up here
+  // automatically. Set this to the deployed dashboard's URL, e.g.
+  //   'https://YOUR-DASHBOARD-DOMAIN/api/public/crew-shop/products'
+  // Leave '' to skip the live feed and use the FALLBACK list below.
+  var DATA_URL = '';
+
+  // ── FALLBACK PRODUCTS ───────────────────────────────────────────
+  // Shown when DATA_URL is unset, unreachable, or returns no items.
   var PRODUCTS = [
     { name: 'G Crew Hoodie',      desc: 'Black · S–3XL',    price: '$42', url: '', img: '', badge: 'Best Seller' },
     { name: 'Blackletter Tee',    desc: '3 Colors · S–3XL', price: '$22', url: '', img: '' },
@@ -145,37 +153,55 @@
     return node;
   }
 
-  PRODUCTS.forEach(function (p) {
-    var card = el('div', 'gbh-card');
+  function render(products) {
+    grid.querySelectorAll('.gbh-card').forEach(function (n) { n.remove(); });
+    products.forEach(function (p) {
+      var card = el('div', 'gbh-card');
 
-    var tile = el('div', 'gbh-tile');
-    if (p.badge) tile.appendChild(el('span', 'gbh-badge', p.badge));
-    if (p.img) {
-      var img = document.createElement('img');
-      img.src = p.img;
-      img.alt = p.name;
-      img.loading = 'lazy';
-      tile.appendChild(img);
-    } else {
-      tile.appendChild(el('span', 'gbh-placeholder', 'Add product photo'));
-    }
-    card.appendChild(tile);
+      var tile = el('div', 'gbh-tile');
+      if (p.badge) tile.appendChild(el('span', 'gbh-badge', p.badge));
+      if (p.img) {
+        var img = document.createElement('img');
+        img.src = p.img;
+        img.alt = p.name;
+        img.loading = 'lazy';
+        img.onerror = function () {
+          img.remove();
+          tile.appendChild(el('span', 'gbh-placeholder', 'Add product photo'));
+        };
+        tile.appendChild(img);
+      } else {
+        tile.appendChild(el('span', 'gbh-placeholder', 'Add product photo'));
+      }
+      card.appendChild(tile);
 
-    var body = el('div', 'gbh-body');
-    body.appendChild(el('div', 'gbh-name', p.name));
-    if (p.desc) body.appendChild(el('div', 'gbh-desc', p.desc));
-    body.appendChild(el('div', 'gbh-price', p.price));
+      var body = el('div', 'gbh-body');
+      body.appendChild(el('div', 'gbh-name', p.name));
+      if (p.desc) body.appendChild(el('div', 'gbh-desc', p.desc));
+      if (p.price) body.appendChild(el('div', 'gbh-price', p.price));
 
-    var buy = el('a', 'gbh-buy');
-    buy.href = p.url || STORE_URL;
-    buy.target = '_blank';
-    buy.rel = 'noopener';
-    buy.innerHTML = 'Buy ' + ARROW;
-    buy.setAttribute('aria-label', 'Buy ' + p.name + ' on our merch store');
-    body.appendChild(buy);
+      var buy = el('a', 'gbh-buy');
+      buy.href = p.url || STORE_URL;
+      buy.target = '_blank';
+      buy.rel = 'noopener';
+      buy.innerHTML = 'Buy ' + ARROW;
+      buy.setAttribute('aria-label', 'Buy ' + p.name + ' on our merch store');
+      body.appendChild(buy);
 
-    card.appendChild(body);
-    grid.appendChild(card);
-  });
+      card.appendChild(body);
+      grid.appendChild(card);
+    });
+  }
+
+  render(PRODUCTS);
+
+  if (DATA_URL) {
+    fetch(DATA_URL)
+      .then(function (res) { return res.ok ? res.json() : Promise.reject(new Error('feed ' + res.status)); })
+      .then(function (data) {
+        if (data && data.products && data.products.length > 0) render(data.products);
+      })
+      .catch(function () { /* fallback list is already on screen */ });
+  }
 })();
 </script>

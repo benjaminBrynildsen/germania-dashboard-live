@@ -25,7 +25,39 @@ Notes:
 - The page pulls Germania One / Oswald / Open Sans from Google Fonts, so it
   matches the brand even if the site theme uses different fonts.
 
-## Updating products
+## Automatic product sync (recommended)
+
+The dashboard server mirrors the vendor storefront every 6 hours
+(`server/crew-shop.ts`) and serves the current lineup at:
+
+```
+GET https://<dashboard-domain>/api/public/crew-shop/products
+```
+
+Point the Code block at it: set `DATA_URL` in the script to that URL.
+From then on the page updates itself — new vendor items appear (with an
+automatic red **New** pill for their first 14 days), retired items drop
+off. If the feed is ever unreachable, the page silently falls back to
+the `PRODUCTS` list, so it never breaks.
+
+Admin endpoints (dashboard login required):
+
+- `POST /api/crew-shop/sync` — run a sync right now.
+- `GET /api/crew-shop/status` — last sync result + every product row,
+  for debugging the scraper.
+- `PUT /api/crew-shop/products/:id` — per-item tweaks:
+  `{"hidden": true}` to keep an item off the page,
+  `{"badge_override": "Best Seller"}` to pin a pill,
+  `{"img_override": "https://..."}` to swap in our own photo.
+
+One caveat: the vendor's storefront markup dictates what the scraper
+sees. After the first deploy, check `GET /api/crew-shop/status` — if
+`last_status` says `parse_failed`, the parser needs a one-time
+adjustment to their markup (grab the page HTML and adjust
+`parseStorefront` in `server/crew-shop.ts`; tests live in
+`scripts/test-crew-shop.ts`).
+
+## Updating products manually (fallback list)
 
 Open the Code block and edit the `PRODUCTS` list near the bottom:
 
