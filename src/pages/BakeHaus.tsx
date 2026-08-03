@@ -45,9 +45,18 @@ interface DriposProductOption {
   categoryName: string;
 }
 
+/** Suggested weekly qty for one (store, item) — read-only hint, never
+ *  auto-applied. `detail` carries the ⓘ "how the math works" lines. */
+interface OrderSuggestion {
+  qty: number;
+  basis: 'sales' | 'orders';
+  detail: string[];
+}
+
 interface WeekReport {
   weekStartIso: string;
   savedAtByStore: Record<string, number | null>;
+  autoDraftByStore?: Record<string, number | null>;
   byStore: Record<string, OrderRow[]>;
   deliverySummary: {
     mon: Record<string, Record<string, number>>;
@@ -214,6 +223,48 @@ const SPLIT_PERCENTS: Record<'food' | 'syrup-sauce' | 'custom', { mon: string; w
   custom:        { mon: '25%', wed: '30%', fri: '45%' },
 };
 
+/** Small ⓘ dot with a hover (desktop) / tap (mobile) tooltip. Used to
+ *  explain how a suggested quantity was calculated. */
+function InfoDot({ lines }: { lines: string[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label="How this suggestion is calculated"
+        style={{
+          width: 16, height: 16, borderRadius: 999, padding: 0,
+          border: '1px solid rgba(0,0,0,0.25)',
+          background: 'transparent', color: 'rgba(0,0,0,0.45)',
+          fontSize: 10, fontWeight: 700, lineHeight: '14px',
+          cursor: 'pointer', fontFamily: 'var(--font-body)',
+          fontStyle: 'italic',
+        }}>i</button>
+      {open && (
+        <div style={{
+          position: 'absolute', bottom: 'calc(100% + 8px)', right: -10,
+          zIndex: 60, width: 250,
+          background: '#1a1a1a', color: 'rgba(255,255,255,0.92)',
+          borderRadius: 10, padding: '10px 12px',
+          fontSize: 11.5, lineHeight: 1.5, fontWeight: 500,
+          textAlign: 'left', textTransform: 'none', letterSpacing: 0,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+          fontFamily: 'var(--font-body)',
+          pointerEvents: 'none',
+        }}>
+          {lines.map((l, i) => (
+            <div key={i} style={{ marginBottom: i === lines.length - 1 ? 0 : 6 }}>{l}</div>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
 /** Week the page should open to. Sunday belongs to the UPCOMING
  *  delivery week: the calendar week that started six days ago was
  *  auto-locked Monday 23:59, so a manager placing an order on Sunday
@@ -260,6 +311,10 @@ export default function BakeHaus() {
   const [dayLockBusy, setDayLockBusy] = useState<'mon' | 'wed' | 'fri' | null>(null);
   const [weekIso, setWeekIso] = useState<string>(defaultWeekIso());
   const [report, setReport] = useState<WeekReport | null>(null);
+  // Suggested weekly qtys per store per item for the displayed week —
+  // loaded independently of the report so a slow Dripos sales sweep
+  // never blocks the order card from rendering.
+  const [suggestions, setSuggestions] = useState<Record<string, Record<string, OrderSuggestion>> | null>(null);
   const [stores, setStores] = useState<string[]>(['G1', 'G2', 'G3', 'G4']);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [savedOrders, setSavedOrders] = useState<SavedOrder[]>([]);
@@ -344,6 +399,18 @@ export default function BakeHaus() {
   }, []);
 
   useEffect(() => { loadWeek(weekIso); }, [weekIso, loadWeek]);
+
+  // Suggestions for the displayed week. Fire-and-forget: failures just
+  // mean no chips render.
+  useEffect(() => {
+    let cancelled = false;
+    setSuggestions(null);
+    fetch(`/api/bake-haus/suggestions?week=${weekIso}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((body) => { if (!cancelled && body.ok) setSuggestions(body.suggestions ?? null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [weekIso]);
 
   const loadSavedOrders = useCallback(async () => {
     try {
@@ -736,6 +803,8 @@ export default function BakeHaus() {
               inventory={report.inventoryByStore[activeStore] ?? {}}
               inventoryFetchedAt={report.inventoryFetchedAt}
               savedAt={report.savedAtByStore[activeStore] ?? null}
+              autoDraftAt={report.autoDraftByStore?.[activeStore] ?? null}
+              suggestions={report.weekLocked ? null : (suggestions?.[activeStore] ?? null)}
               saving={savingStores.has(activeStore)}
               isMobile={isMobile}
               onSaveOrder={() => handleSaveClick(activeStore)}
@@ -1894,7 +1963,8 @@ function getTheme(store: string) {
 }
 
 function StoreOrderCard({
-  store, rows, catalog, inventory, inventoryFetchedAt, savedAt, saving, isMobile, onSaveOrder, onSave, onDelete,
+  store, rows, catalog, inventory, inventoryFetchedAt, savedAt, autoDraftAt, suggestions,
+  saving, isMobile, onSaveOrder, onSave, onDelete,
 }: {
   store: string;
   rows: OrderRow[];
@@ -1902,6 +1972,11 @@ function StoreOrderCard({
   inventory: Record<string, number>;
   inventoryFetchedAt: number;
   savedAt: number | null;
+  /** When the Sunday auto-draft filled this store's order; badge shows
+   *  until the order is saved. */
+  autoDraftAt: number | null;
+  /** Per-item suggested weekly qtys (null while loading / week locked). */
+  suggestions: Record<string, OrderSuggestion> | null;
   saving: boolean;
   isMobile: boolean;
   onSaveOrder: () => void;
@@ -1954,6 +2029,18 @@ function StoreOrderCard({
   const orderedRows = rows.filter((r) => r.weeklyQty > 0);
   const total = orderedRows.reduce((sum, r) => sum + r.weeklyQty, 0);
 
+  // Apply suggestions to items that have NO quantity yet — never
+  // overwrites something a manager already typed.
+  const emptyWithSuggestion = renderItems.filter(
+    (it) => suggestions?.[it.name] && (it.row?.weeklyQty ?? 0) === 0,
+  );
+  const fillEmptyFromSuggestions = () => {
+    for (const it of emptyWithSuggestion) {
+      const s = suggestions?.[it.name];
+      if (s && s.qty > 0) onSave(it.name, s.qty);
+    }
+  };
+
   return (
     <div style={{
       background: theme.bg, borderRadius: 14,
@@ -1978,6 +2065,16 @@ function StoreOrderCard({
               fontSize: isMobile ? 13 : 17,
             }}>— {STORE_CITIES[store]}</span>
           )}
+          {autoDraftAt != null && !savedAt && (
+            <span style={{
+              marginLeft: 10, verticalAlign: 'middle',
+              fontSize: 10, fontWeight: 700, letterSpacing: 0.8,
+              textTransform: 'uppercase',
+              padding: '3px 8px', borderRadius: 999,
+              background: 'rgba(255,255,255,0.2)', color: '#fff',
+              border: '1px solid rgba(255,255,255,0.35)',
+            }}>Auto-draft — review &amp; save</span>
+          )}
         </span>
         <span style={{
           fontSize: isMobile ? 11 : 12,
@@ -1988,6 +2085,26 @@ function StoreOrderCard({
           )}
         </span>
       </div>
+      {/* Suggestions strip — one-tap fill for items still at zero. */}
+      {suggestions && emptyWithSuggestion.length > 0 && (
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10,
+          padding: isMobile ? '8px 16px' : '8px 24px',
+          background: theme.rowAlt,
+          borderBottom: '1px solid rgba(0,0,0,0.05)',
+          fontSize: 12, color: 'rgba(0,0,0,0.55)',
+          fontFamily: 'var(--font-body)',
+        }}>
+          <span>✨ Suggested quantities are shown under each item — tap one to use it.</span>
+          <button onClick={fillEmptyFromSuggestions} style={{
+            padding: '5px 12px', borderRadius: 999, cursor: 'pointer',
+            border: '1px solid rgba(0,0,0,0.15)', background: '#fff',
+            fontSize: 12, fontWeight: 600, color: '#1a1a1a',
+          }}>
+            Fill {emptyWithSuggestion.length} empty item{emptyWithSuggestion.length === 1 ? '' : 's'}
+          </button>
+        </div>
+      )}
       {/* Subtle column-header strip — desktop only; on mobile each row
           is self-labeling. */}
       {!isMobile && (
@@ -2072,6 +2189,7 @@ function StoreOrderCard({
                 imageUrl={it.imageUrl}
                 row={it.row}
                 onHand={inventory[it.name] ?? 0}
+                suggestion={suggestions?.[it.name] ?? null}
                 isCustom={it.custom}
                 theme={theme}
                 isLast={i === renderItems.length - 1}
@@ -2153,12 +2271,14 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, imageUrl, row, onHand, isCustom, theme, isLast, isMobile, onSave, onDelete,
+  itemName, imageUrl, row, onHand, suggestion, isCustom, theme, isLast, isMobile, onSave, onDelete,
 }: {
   itemName: string;
   imageUrl?: string | null;
   row: OrderRow | null;
   onHand: number;
+  /** Suggested weekly qty (null = none / still loading / week locked). */
+  suggestion?: OrderSuggestion | null;
   isCustom: boolean;
   theme: ReturnType<typeof getTheme>;
   isLast: boolean;
@@ -2290,6 +2410,27 @@ function CartRowEditor({
             {active && row && row.netQty !== row.weeklyQty && (
               <span style={{ color: 'rgba(0,0,0,0.4)' }}>
                 Net {row.netQty}
+              </span>
+            )}
+            {suggestion && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <button
+                  onClick={() => onSave(suggestion.qty)}
+                  disabled={currentQty === suggestion.qty}
+                  title={currentQty === suggestion.qty ? 'Order matches the suggestion' : `Set order to ${suggestion.qty}`}
+                  style={{
+                    padding: '2px 8px', borderRadius: 999,
+                    border: '1px solid rgba(202, 138, 4, 0.35)',
+                    background: currentQty === suggestion.qty ? 'transparent' : 'rgba(202, 138, 4, 0.08)',
+                    color: currentQty === suggestion.qty ? 'rgba(0,0,0,0.35)' : '#a16207',
+                    fontSize: 'inherit', fontWeight: 700,
+                    letterSpacing: 'inherit', textTransform: 'inherit',
+                    cursor: currentQty === suggestion.qty ? 'default' : 'pointer',
+                    fontFamily: 'var(--font-body)',
+                  }}>
+                  {currentQty === suggestion.qty ? `✓ Suggested ${suggestion.qty}` : `✨ Suggest ${suggestion.qty}`}
+                </button>
+                <InfoDot lines={suggestion.detail} />
               </span>
             )}
           </div>

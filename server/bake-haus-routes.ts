@@ -7,6 +7,7 @@ import { STORES } from './dripos.js';
 import { fetchAllProducts, STORES as DRIPOS_STORES } from './dripos.js';
 import {
   BAKE_HAUS_ITEMS,
+  computeSuggestionsForWeek,
   createSyrup,
   deleteOrderItem,
   deleteSyrup,
@@ -166,6 +167,27 @@ router.delete('/bake-haus/syrups/:id', requireAuth, (req: AuthRequest, res: Resp
     return;
   }
   res.json({ ok: true });
+});
+
+/** Suggested weekly qtys for the target week — food from the last 3
+ *  weeks of Dripos unit sales (best week weighted, +10%), syrups from
+ *  the last 3 weeks of order history (plain average). Read-only:
+ *  nothing is applied unless a manager taps a suggestion. */
+router.get('/bake-haus/suggestions', requireAuth, async (req: AuthRequest, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  const weekParam = String(req.query.week ?? '').trim();
+  const week = weekParam || mondayOfWeek();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) {
+    res.status(400).json({ error: 'invalid_week', message: 'Expected YYYY-MM-DD.' });
+    return;
+  }
+  try {
+    const suggestions = await computeSuggestionsForWeek(week);
+    res.json({ ok: true, suggestions });
+  } catch (err) {
+    console.error('[bake-haus-suggestions] failed:', err);
+    res.status(500).json({ error: 'suggestions_failed', message: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 router.get('/bake-haus/week', requireAuth, async (req: AuthRequest, res: Response) => {
