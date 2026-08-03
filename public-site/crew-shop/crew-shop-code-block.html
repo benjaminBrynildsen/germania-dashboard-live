@@ -1,0 +1,181 @@
+<!--
+  GERMANIA BREW HAUS — CREW SHOP (Squarespace Code Block)
+
+  Paste this entire file into a Code Block on a blank "Crew Shop" page.
+  The site header/nav/footer come from Squarespace — this is just the
+  page content.
+
+  TO UPDATE PRODUCTS: edit the PRODUCTS list in the <script> at the
+  bottom. Each item needs:
+    name  — product name (shown in Oswald caps, like the menu boards)
+    desc  — short spec line, e.g. "Black · S–3XL"
+    price — display price, e.g. "$42"
+    url   — the product's page on the vendor store (open the item on
+            germaniavirtualstore.itemorder.com and copy the address bar)
+    img   — product photo URL. Upload the photo in Squarespace
+            (any page > image block > copy image address, or use the
+            /s/ file storage) and paste the link here. Leave "" to show
+            an "add photo" placeholder.
+    badge — optional red pill, e.g. "Best Seller" or "New". Omit or ""
+            for none.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Germania+One&family=Open+Sans:wght@800&family=Oswald:wght@200;400&display=swap" rel="stylesheet">
+
+<style>
+  .gbh-crew-shop { --ink: #1a1a1a; --paper: #ffffff; --cut: #f5f5f5;
+    --muted: #555; --faint: #9a9a9a; --red: #e74c3c;
+    color: var(--ink); font-family: 'Open Sans', sans-serif; }
+  .gbh-crew-shop * { box-sizing: border-box; margin: 0; }
+
+  .gbh-shop-head { text-align: center; padding: 24px 0 8px; }
+  .gbh-shop-head h1 { font-family: 'Oswald', sans-serif; font-weight: 200;
+    font-size: clamp(44px, 7vw, 72px); letter-spacing: 0.08em;
+    text-transform: uppercase; line-height: 1.02; color: var(--ink); }
+  .gbh-shop-sub { font-family: 'Open Sans', sans-serif; font-weight: 800;
+    font-size: 13px; letter-spacing: 0.34em; text-transform: uppercase;
+    margin-top: 10px; }
+  .gbh-shop-rule { width: 72px; height: 3px; background: var(--ink);
+    margin: 24px auto 0; }
+  .gbh-shop-note { margin-top: 16px; color: var(--muted); font-size: 14px;
+    font-family: inherit; font-weight: 400; }
+
+  .gbh-grid { display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 22px; padding: 32px 0 8px; }
+
+  .gbh-card { background: var(--paper); border: 1px solid var(--ink);
+    display: flex; flex-direction: column;
+    transition: box-shadow .15s ease, transform .15s ease; }
+  .gbh-card:hover { transform: translateY(-2px); box-shadow: 0 6px 0 0 var(--ink); }
+  @media (prefers-reduced-motion: reduce) {
+    .gbh-card, .gbh-card:hover { transition: none; transform: none; box-shadow: none; }
+  }
+
+  .gbh-tile { aspect-ratio: 1 / 0.95; background: var(--cut);
+    border-bottom: 1px solid var(--ink); position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; }
+  .gbh-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gbh-tile .gbh-placeholder { font-family: 'Open Sans', sans-serif;
+    font-weight: 800; font-size: 10px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--faint); }
+  .gbh-badge { position: absolute; top: 10px; left: 10px; z-index: 1;
+    font-family: 'Open Sans', sans-serif; font-weight: 800; font-size: 10px;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    background: var(--red); color: #fff; padding: 4px 12px;
+    border-radius: 999px; }
+
+  .gbh-body { padding: 16px; display: flex; flex-direction: column;
+    gap: 8px; flex: 1; text-align: center; }
+  .gbh-name { font-family: 'Oswald', sans-serif; font-weight: 400;
+    font-size: 19px; line-height: 1.2; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--ink); }
+  .gbh-desc { font-family: 'Open Sans', sans-serif; font-weight: 800;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); }
+  .gbh-price { font-family: 'Oswald', sans-serif; font-weight: 200;
+    font-size: 24px; letter-spacing: 0.06em; color: var(--ink);
+    font-variant-numeric: tabular-nums; }
+
+  a.gbh-buy { margin-top: auto; display: inline-flex; align-items: center;
+    justify-content: center; gap: 8px; border: 1px solid var(--ink);
+    background: var(--ink); color: var(--paper);
+    font-family: 'Oswald', sans-serif; font-weight: 400; font-size: 13px;
+    letter-spacing: 0.2em; text-transform: uppercase; padding: 12px 14px;
+    text-decoration: none; cursor: pointer;
+    transition: background .15s ease, color .15s ease; }
+  a.gbh-buy:hover { background: var(--paper); color: var(--ink); }
+  a.gbh-buy:focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+  a.gbh-buy svg { width: 12px; height: 12px; }
+
+  .gbh-foot { border-top: 1px solid var(--ink); margin-top: 28px;
+    padding: 18px 0 8px; font-size: 12.5px; color: var(--muted);
+    display: flex; flex-wrap: wrap; gap: 6px 24px; font-weight: 400; }
+  .gbh-foot b { color: var(--ink); font-weight: 800; }
+</style>
+
+<div class="gbh-crew-shop">
+  <div class="gbh-shop-head">
+    <h1>Crew Shop</h1>
+    <div class="gbh-shop-sub">Official Germania Brew Haus Merch</div>
+    <div class="gbh-shop-rule"></div>
+    <p class="gbh-shop-note">Printed to order &middot; shipped by our print partner</p>
+  </div>
+
+  <div class="gbh-grid" id="gbh-shop-grid">
+    <noscript>
+      <a href="https://germaniavirtualstore.itemorder.com/shop/sale/">Shop Germania merch on our store</a>
+    </noscript>
+  </div>
+
+  <div class="gbh-foot">
+    <span><b>Checkout &amp; fulfillment</b> by our print partner via their secure store.</span>
+    <span>Questions about an order? Contact the shop &mdash; we&rsquo;ll chase it down.</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  // The vendor storefront. Used as the Buy link for any product whose
+  // url is left blank.
+  var STORE_URL = 'https://germaniavirtualstore.itemorder.com/shop/sale/';
+
+  // ── EDIT YOUR PRODUCTS HERE ─────────────────────────────────────
+  var PRODUCTS = [
+    { name: 'G Crew Hoodie',      desc: 'Black · S–3XL',    price: '$42', url: '', img: '', badge: 'Best Seller' },
+    { name: 'Blackletter Tee',    desc: '3 Colors · S–3XL', price: '$22', url: '', img: '' },
+    { name: 'Brew Haus Crewneck', desc: 'Heather · S–2XL',  price: '$38', url: '', img: '', badge: 'New' },
+    { name: 'G Dad Hat',          desc: 'Black / Stone',              price: '$26', url: '', img: '' },
+    { name: 'Winter Beanie',      desc: 'Cuffed Knit',                price: '$24', url: '', img: '' },
+    { name: '12oz Camp Mug',      desc: 'Enamel · Cream',        price: '$18', url: '', img: '' }
+  ];
+  // ────────────────────────────────────────────────────────────────
+
+  var grid = document.getElementById('gbh-shop-grid');
+  if (!grid) return;
+
+  var ARROW = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 10 L10 2 M4 2 h6 v6"/></svg>';
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text) node.textContent = text;
+    return node;
+  }
+
+  PRODUCTS.forEach(function (p) {
+    var card = el('div', 'gbh-card');
+
+    var tile = el('div', 'gbh-tile');
+    if (p.badge) tile.appendChild(el('span', 'gbh-badge', p.badge));
+    if (p.img) {
+      var img = document.createElement('img');
+      img.src = p.img;
+      img.alt = p.name;
+      img.loading = 'lazy';
+      tile.appendChild(img);
+    } else {
+      tile.appendChild(el('span', 'gbh-placeholder', 'Add product photo'));
+    }
+    card.appendChild(tile);
+
+    var body = el('div', 'gbh-body');
+    body.appendChild(el('div', 'gbh-name', p.name));
+    if (p.desc) body.appendChild(el('div', 'gbh-desc', p.desc));
+    body.appendChild(el('div', 'gbh-price', p.price));
+
+    var buy = el('a', 'gbh-buy');
+    buy.href = p.url || STORE_URL;
+    buy.target = '_blank';
+    buy.rel = 'noopener';
+    buy.innerHTML = 'Buy ' + ARROW;
+    buy.setAttribute('aria-label', 'Buy ' + p.name + ' on our merch store');
+    body.appendChild(buy);
+
+    card.appendChild(body);
+    grid.appendChild(card);
+  });
+})();
+</script>
