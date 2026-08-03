@@ -223,6 +223,23 @@ const SPLIT_PERCENTS: Record<'food' | 'syrup-sauce' | 'custom', { mon: string; w
   custom:        { mon: '25%', wed: '30%', fri: '45%' },
 };
 
+/** Client-side mirror of the server's Monday share under the 25/30/45
+ *  split (largest-remainder rounding, ties toward the later day). Used
+ *  only for the ghost "suggested" numbers on the delivery schedule
+ *  while a store's real order hasn't come in. */
+function suggestedMonShare(total: number): number {
+  if (total <= 0) return 0;
+  const w = [25, 30, 45];
+  const quotas = w.map((x) => (total * x) / 100);
+  const floors = quotas.map(Math.floor);
+  const leftover = total - floors.reduce((a, b) => a + b, 0);
+  const order = [0, 1, 2]
+    .map((i) => ({ i, rem: quotas[i] - floors[i] }))
+    .sort((a, b) => b.rem - a.rem || b.i - a.i);
+  for (let k = 0; k < leftover; k++) floors[order[k % 3].i] += 1;
+  return floors[0];
+}
+
 /** Small ⓘ dot with a hover (desktop) / tap (mobile) tooltip. Used to
  *  explain how a suggested quantity was calculated. */
 function InfoDot({ lines }: { lines: string[] }) {
@@ -411,6 +428,37 @@ export default function BakeHaus() {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [weekIso]);
+
+  // Ghost Monday quantities for the delivery schedule: for (store,
+  // item) pairs with no real order yet, project the suggestion's
+  // Monday share so Chef Maggie has numbers to plan against while she
+  // waits for orders to come in. Cleared once the week locks (orders
+  // are final then) and per-cell as real orders land.
+  const ghostMon = useMemo(() => {
+    if (!report || report.weekLocked || report.dayLocks.mon || !suggestions) return null;
+    const catByName = new Map(catalog.map((c) => [c.name, c]));
+    const out: Record<string, Record<string, number>> = {};
+    for (const store of stores) {
+      const storeSuggestions = suggestions[store];
+      if (!storeSuggestions) continue;
+      const ordered = new Set(
+        (report.byStore[store] ?? []).filter((r) => r.weeklyQty > 0).map((r) => r.itemName),
+      );
+      for (const [item, s] of Object.entries(storeSuggestions)) {
+        if (ordered.has(item)) continue;
+        const cat = catByName.get(item);
+        if (cat?.includeMonday === false) continue; // Wed/Fri-only syrups skip Monday
+        // Mirror the order math: food subtracts on-hand, syrups don't.
+        const onHand = report.inventoryByStore[store]?.[item] ?? 0;
+        const net = cat?.category === 'syrup-sauce' ? s.qty : Math.max(0, s.qty - onHand);
+        const mon = suggestedMonShare(net);
+        if (mon <= 0) continue;
+        if (!out[item]) out[item] = {};
+        out[item][store] = mon;
+      }
+    }
+    return Object.keys(out).length > 0 ? out : null;
+  }, [report, suggestions, catalog, stores]);
 
   const loadSavedOrders = useCallback(async () => {
     try {
@@ -1053,6 +1101,11 @@ export default function BakeHaus() {
           </div>
           <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13, marginBottom: 14 }}>
             What goes out each delivery day. Empty cells mean that store didn't order the item this week.
+            {ghostMon && (
+              <> Amber <span style={{ color: '#a16207', fontWeight: 600 }}>✨ numbers</span> in
+              Monday are <strong>suggestions</strong> for stores that haven't ordered yet —
+              they're replaced by real quantities as orders come in.</>
+            )}
           </p>
           <div style={{
             display: 'grid',
@@ -1064,7 +1117,7 @@ export default function BakeHaus() {
             gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(540px, 1fr))',
             gap: 12,
           }}>
-            <DeliveryCard day="Monday"    items={report.deliverySummary.mon} stores={stores} catalog={catalog} locked={report.dayLocks.mon} />
+            <DeliveryCard day="Monday"    items={report.deliverySummary.mon} stores={stores} catalog={catalog} locked={report.dayLocks.mon} ghost={ghostMon} />
             <DeliveryCard day="Wednesday" items={report.deliverySummary.wed} stores={stores} catalog={catalog} locked={report.dayLocks.wed} />
             <DeliveryCard day="Friday"    items={report.deliverySummary.fri} stores={stores} catalog={catalog} locked={report.dayLocks.fri} />
           </div>
@@ -3155,32 +3208,62 @@ function PrintableDayPage({
 }
 
 function DeliveryCard({
-  day, items, stores, catalog, locked,
+  day, items, stores, catalog, locked, ghost,
 }: {
   day: string;
   items: Record<string, Record<string, number>>;
   stores: string[];
   catalog: CatalogItem[];
   locked?: DayLockMeta | null;
+  /** Suggested qtys for (item, store) cells with no real order yet —
+   *  rendered as amber ✨ placeholders so the kitchen has numbers to
+   *  plan against before orders come in. */
+  ghost?: Record<string, Record<string, number>> | null;
 }) {
   const itemNames = useMemo(() => {
-    return Object.keys(items).sort((a, b) => {
+    const names = new Set([...Object.keys(items), ...Object.keys(ghost ?? {})]);
+    return Array.from(names).sort((a, b) => {
       const ai = catalog.find((c) => c.name === a)?.sort ?? 1000;
       const bi = catalog.find((c) => c.name === b)?.sort ?? 1000;
       return ai - bi || a.localeCompare(b);
     });
-  }, [items, catalog]);
+  }, [items, ghost, catalog]);
 
   const totalsByStore: Record<string, number> = {};
   const totalsByItem: Record<string, number> = {};
   let grandTotal = 0;
+  const ghostByStore: Record<string, number> = {};
+  const ghostByItem: Record<string, number> = {};
+  let ghostGrand = 0;
   for (const item of itemNames) {
     for (const [store, qty] of Object.entries(items[item] ?? {})) {
       totalsByStore[store] = (totalsByStore[store] ?? 0) + qty;
       totalsByItem[item] = (totalsByItem[item] ?? 0) + qty;
       grandTotal += qty;
     }
+    for (const [store, qty] of Object.entries(ghost?.[item] ?? {})) {
+      ghostByStore[store] = (ghostByStore[store] ?? 0) + qty;
+      ghostByItem[item] = (ghostByItem[item] ?? 0) + qty;
+      ghostGrand += qty;
+    }
   }
+
+  // "12 +8✨" (real + suggested), "✨8" (suggested only), "12", or —.
+  const mixedCell = (actual: number, suggested: number) => {
+    if (actual <= 0 && suggested <= 0) {
+      return <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>;
+    }
+    return (
+      <>
+        {actual > 0 && fmtNum(actual)}
+        {suggested > 0 && (
+          <span style={{ color: '#a16207', fontWeight: 600 }}>
+            {actual > 0 ? <> +{fmtNum(suggested)}✨</> : <>✨{fmtNum(suggested)}</>}
+          </span>
+        )}
+      </>
+    );
+  };
 
   return (
     <div style={{
@@ -3204,7 +3287,12 @@ function DeliveryCard({
             </span>
           )}
         </span>
-        <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{grandTotal} units</span>
+        <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>
+          {grandTotal} units
+          {ghostGrand > 0 && (
+            <span style={{ color: '#a16207', fontWeight: 600 }}> +{ghostGrand} suggested✨</span>
+          )}
+        </span>
       </div>
       {/* overflow-x: auto so on narrow viewports (chromebooks/tablets)
           the table can scroll horizontally inside the card instead of
@@ -3226,16 +3314,13 @@ function DeliveryCard({
             {itemNames.map((name) => (
               <tr key={name} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
                 <Td style={{ fontSize: 14 }}>{name}</Td>
-                {stores.map((s) => {
-                  const q = items[name]?.[s];
-                  return (
-                    <Td key={s} align="right" style={delivCell}>
-                      {q ? fmtNum(q) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
-                    </Td>
-                  );
-                })}
+                {stores.map((s) => (
+                  <Td key={s} align="right" style={delivCell}>
+                    {mixedCell(items[name]?.[s] ?? 0, ghost?.[name]?.[s] ?? 0)}
+                  </Td>
+                ))}
                 <Td align="right" style={delivRowTotalCell}>
-                  {totalsByItem[name] ? fmtNum(totalsByItem[name]) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                  {mixedCell(totalsByItem[name] ?? 0, ghostByItem[name] ?? 0)}
                 </Td>
               </tr>
             ))}
@@ -3255,11 +3340,11 @@ function DeliveryCard({
                 <Td>Total</Td>
                 {stores.map((s) => (
                   <Td key={s} align="right" style={delivCell}>
-                    {totalsByStore[s] ? fmtNum(totalsByStore[s]) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                    {mixedCell(totalsByStore[s] ?? 0, ghostByStore[s] ?? 0)}
                   </Td>
                 ))}
                 <Td align="right" style={delivRowTotalCell}>
-                  {grandTotal > 0 ? fmtNum(grandTotal) : <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}
+                  {mixedCell(grandTotal, ghostGrand)}
                 </Td>
               </tr>
             )}
