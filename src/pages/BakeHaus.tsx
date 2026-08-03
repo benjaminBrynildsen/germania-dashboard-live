@@ -3248,7 +3248,19 @@ function DeliveryCard({
     }
   }
 
-  // "12 +8✨" (real + suggested), "✨8" (suggested only), "12", or —.
+  // Renders a cell that may carry a suggested (not yet ordered)
+  // portion. The suggested part is a dashed amber pill so it can't be
+  // mistaken for a confirmed quantity: "12 [+8 sugg.]", "[8 sugg.]",
+  // plain "12", or —.
+  const suggestedPill: React.CSSProperties = {
+    display: 'inline-block',
+    padding: '1px 7px', borderRadius: 999,
+    background: 'rgba(202, 138, 4, 0.10)',
+    border: '1px dashed rgba(202, 138, 4, 0.55)',
+    color: '#a16207', fontWeight: 700,
+    fontSize: '0.92em', lineHeight: 1.5,
+    whiteSpace: 'nowrap',
+  };
   const mixedCell = (actual: number, suggested: number) => {
     if (actual <= 0 && suggested <= 0) {
       return <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>;
@@ -3257,8 +3269,11 @@ function DeliveryCard({
       <>
         {actual > 0 && fmtNum(actual)}
         {suggested > 0 && (
-          <span style={{ color: '#a16207', fontWeight: 600 }}>
-            {actual > 0 ? <> +{fmtNum(suggested)}✨</> : <>✨{fmtNum(suggested)}</>}
+          <span
+            title="Suggested — this store hasn't submitted its order yet"
+            style={{ ...suggestedPill, marginLeft: actual > 0 ? 5 : 0 }}
+          >
+            {actual > 0 ? '+' : ''}✨{fmtNum(suggested)} sugg.
           </span>
         )}
       </>
@@ -3290,7 +3305,15 @@ function DeliveryCard({
         <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>
           {grandTotal} units
           {ghostGrand > 0 && (
-            <span style={{ color: '#a16207', fontWeight: 600 }}> +{ghostGrand} suggested✨</span>
+            <span
+              title="Suggested — from stores that haven't submitted orders yet"
+              style={{
+                display: 'inline-block', marginLeft: 6,
+                padding: '1px 7px', borderRadius: 999,
+                background: 'rgba(202, 138, 4, 0.10)',
+                border: '1px dashed rgba(202, 138, 4, 0.55)',
+                color: '#a16207', fontWeight: 700,
+              }}>+{ghostGrand} suggested ✨</span>
           )}
         </span>
       </div>
