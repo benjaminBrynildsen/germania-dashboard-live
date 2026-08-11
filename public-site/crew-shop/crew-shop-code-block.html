@@ -127,7 +127,12 @@
   // automatically. Set this to the deployed dashboard's URL, e.g.
   //   'https://YOUR-DASHBOARD-DOMAIN/api/public/crew-shop/products'
   // Leave '' to skip the live feed and use the FALLBACK list below.
-  var DATA_URL = '';
+  var DATA_URL = 'https://dashboard.germaniabrewhaus.com/api/public/crew-shop/products';
+
+  // Set to false if the Squarespace page already shows its own title/
+  // banner and the block's big "Crew Shop" heading doubles it — the
+  // product grid then flows directly under the page's own header.
+  var SHOW_HEADER = true;
 
   // ── FALLBACK PRODUCTS ───────────────────────────────────────────
   // Shown when DATA_URL is unset, unreachable, or returns no items.
@@ -143,6 +148,11 @@
 
   var grid = document.getElementById('gbh-shop-grid');
   if (!grid) return;
+
+  if (!SHOW_HEADER) {
+    var head = document.querySelector('.gbh-crew-shop .gbh-shop-head');
+    if (head) head.style.display = 'none';
+  }
 
   var ARROW = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 10 L10 2 M4 2 h6 v6"/></svg>';
 
