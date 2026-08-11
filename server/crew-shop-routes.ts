@@ -11,9 +11,14 @@
  *     pin a badge, swap in our own photo).
  */
 import { Router, Response } from 'express';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
 import { syncCrewShop, getPublicProducts, getSyncStatus } from './crew-shop.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const EMBED_PATH = path.join(__dirname, '..', 'public-site', 'crew-shop', 'embed.js');
 
 const router = Router();
 
@@ -25,6 +30,16 @@ router.get('/public/crew-shop/products', (_req, res: Response) => {
     'Cache-Control': 'public, max-age=300',
   });
   res.json(getPublicProducts());
+});
+
+// The whole merch page as a script, loaded by a one-time stub in a
+// Squarespace Code Block. Serving it from here means design changes
+// deploy with the dashboard — the Code Block never needs re-pasting.
+router.get('/public/crew-shop/embed.js', (_req, res: Response) => {
+  res.set('Cache-Control', 'public, max-age=600');
+  res.sendFile(EMBED_PATH, { headers: { 'Content-Type': 'application/javascript; charset=utf-8' } }, (err) => {
+    if (err) res.status(500).type('application/javascript').send('/* embed unavailable */');
+  });
 });
 
 router.post('/crew-shop/sync', requireAuth, async (_req: AuthRequest, res: Response) => {

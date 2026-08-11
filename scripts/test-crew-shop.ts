@@ -11,6 +11,71 @@ import db from '../server/db.js';
 
 const BASE = 'https://germaniavirtualstore.itemorder.com/shop/sale/';
 
+// ── strategy 0: Next.js __NEXT_DATA__ (real OMG storefront shape) ───
+// Trimmed from the actual germaniavirtualstore page source: products
+// live in props.pageProps.categories keyed by category name, with
+// integer-cent prices and assetly thumbnail URLs.
+{
+  const nextData = {
+    props: {
+      pageProps: {
+        store: { name: 'Germania Brew Haus Virtual Store' },
+        categories: {
+          Apparel: [
+            {
+              id: '59529280', name: 'Unisex Germania Tee - 1717 - Arched Design',
+              is_available: true, category: 'Apparel', color_count: 11,
+              image: 'https://assetly.ordermygear.com/images/h_276,w_276,c_limit,s_1/43917854acbb',
+              price: 2500, min_price: 2500, max_price: 2900, hide_price: false,
+            },
+            {
+              id: '00000001', name: 'Retired Hoodie - 9999',
+              is_available: false, category: 'Apparel', color_count: 2,
+              image: 'https://assetly.ordermygear.com/images/h_276,w_276,c_limit,s_1/dead',
+              price: 4200, min_price: 4200, max_price: 4200,
+            },
+          ],
+          Hats: [
+            {
+              id: '59534251', name: 'Germania Logo, Dad Hat - LP101',
+              is_available: true, category: 'Hats', color_count: 0,
+              image: 'https://assetly.ordermygear.com/images/h_276,w_276,c_limit,s_1/ff499d',
+              price: 2500, min_price: 2500, max_price: 2500,
+            },
+          ],
+          'Accessories & Bags': [
+            {
+              id: '59534257', name: 'Craft Coffee Tote Bag - Logo It Stock',
+              is_available: true, category: 'Accessories & Bags', color_count: 0,
+              image: 'https://assetly.ordermygear.com/images/h_276,w_276,c_limit,s_1/d616f8',
+              price: 1500, min_price: 1500, max_price: 1500,
+            },
+          ],
+        },
+      },
+    },
+  };
+  const html = `<html><body><div id="__next">...</div>
+  <script id="__NEXT_DATA__" type="application/json" crossorigin="anonymous">${JSON.stringify(nextData)}</script>
+  </body></html>`;
+  const { products, method } = parseStorefront(html, BASE);
+  assert.equal(method, 'next-data');
+  assert.equal(products.length, 3); // unavailable item skipped
+  const tee = products[0];
+  assert.equal(tee.name, 'Unisex Germania Tee - Arched Design'); // SKU "1717" stripped
+  assert.equal(tee.price, '$25–$29'); // cents → dollars, size-upcharge range
+  assert.equal(tee.url, 'https://germaniavirtualstore.itemorder.com/shop/product/59529280/');
+  assert.ok(tee.img!.includes('h_600,w_600')); // upscaled from the 276px thumb
+  assert.equal(tee.description, 'Apparel · 11 colors');
+  const hat = products.find((p) => p.name.includes('Dad Hat'))!;
+  assert.equal(hat.name, 'Germania Logo, Dad Hat'); // "LP101" stripped
+  assert.equal(hat.price, '$25');
+  const tote = products.find((p) => p.name.includes('Tote'))!;
+  assert.equal(tote.name, 'Craft Coffee Tote Bag'); // "Logo It Stock" stripped
+  assert.equal(tote.description, 'Accessories & Bags');
+  console.log('✓ next-data strategy (real OMG shape)');
+}
+
 // ── strategy 1: JSON-LD ─────────────────────────────────────────────
 {
   const html = `<html><head><script type="application/ld+json">
