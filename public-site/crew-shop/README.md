@@ -1,81 +1,66 @@
 # Crew Shop page for germaniabrewhaus.com
 
-A branded merch page for the public Squarespace site. It shows our products
-in the Brew Haus look (menu-board typography: Oswald caps, Open Sans labels,
-black/white, red pills) and deep-links each **Buy** button to the item on the
-vendor store (`germaniavirtualstore.itemorder.com`, OrderMyGear). The vendor
-still handles cart, payment, and fulfillment — this page just replaces their
-generic storefront as the thing customers browse.
+A branded merch page for the public Squarespace site, in the Brew Haus
+look (menu-board typography: Oswald caps, Open Sans labels, black/white,
+red pills). Each **Buy** button deep-links to the item on the vendor
+store (`germaniavirtualstore.itemorder.com`, OrderMyGear); the vendor
+still handles cart, payment, and fulfillment.
 
-`crew-shop-code-block.html` is the whole page. It is self-contained
-(HTML + CSS + a small script that renders the product grid from a list).
+## How it's wired
 
-## Adding it to Squarespace
+```
+Squarespace Code Block (6-line stub, pasted once)
+  └─ loads /api/public/crew-shop/embed.js   ← embed.js, served by the dashboard
+       └─ fetches /api/public/crew-shop/products   ← mirrored from the vendor store
+            └─ synced from the OMG storefront every 6h (server/crew-shop.ts)
+```
 
-1. In Squarespace: **Pages → + → Blank Page**, name it **Crew Shop**, and
-   place it in the main navigation.
+Squarespace only ever holds the stub (`crew-shop-code-block.html`).
+Everything else lives in this repo and ships by deploying the dashboard:
+**design changes, new products, price changes — all automatic, no
+Squarespace edits ever again.**
+
+## One-time Squarespace setup
+
+1. **Pages → + → Blank Page**, name it **Crew Shop**, place it in the nav.
 2. Edit the page, add a **Code** block (type: HTML).
-3. Paste the entire contents of `crew-shop-code-block.html` into the block
-   and save.
+3. Paste the contents of `crew-shop-code-block.html`. Save.
 
 Notes:
-- Code blocks with scripts require a Squarespace **Business** plan or higher.
-  On a Personal plan the script tag is stripped — if that's our plan, ask and
-  we'll generate a static (no-script) version of the grid instead.
-- The page pulls Germania One / Oswald / Open Sans from Google Fonts, so it
-  matches the brand even if the site theme uses different fonts.
+- Script-bearing Code Blocks need a Squarespace **Business** plan or higher.
+- In the Squarespace **editor preview**, script blocks render inside a
+  fixed-height scrollable sandbox — that's an editor artifact. The
+  published page runs the script inline at natural height.
+- To hide the block's big "Crew Shop" heading (when the page already has
+  its own title/banner), change the stub's script tag to
+  `data-header="false"`.
 
-## Automatic product sync (recommended)
+## Product sync
 
-The dashboard server mirrors the vendor storefront every 6 hours
-(`server/crew-shop.ts`) and serves the current lineup at:
-
-```
-GET https://<dashboard-domain>/api/public/crew-shop/products
-```
-
-Point the Code block at it: set `DATA_URL` in the script to that URL.
-From then on the page updates itself — new vendor items appear (with an
-automatic red **New** pill for their first 14 days), retired items drop
-off. If the feed is ever unreachable, the page silently falls back to
-the `PRODUCTS` list, so it never breaks.
+`server/crew-shop.ts` mirrors the vendor storefront on boot and every
+6 hours. The storefront is a Next.js app, so the primary parse strategy
+reads the `__NEXT_DATA__` JSON state (products, cent-prices, categories,
+availability, images); generic fallbacks (JSON-LD, embedded JSON, anchor
+scan) cover a future storefront redesign. A failed fetch or parse keeps
+the last good lineup — the page never goes blank because the vendor had
+a bad day. New items carry a red **New** pill for their first 14 days;
+items removed from the storefront drop off automatically.
 
 Admin endpoints (dashboard login required):
 
 - `POST /api/crew-shop/sync` — run a sync right now.
-- `GET /api/crew-shop/status` — last sync result + every product row,
-  for debugging the scraper.
+- `GET /api/crew-shop/status` — last sync result + every product row.
 - `PUT /api/crew-shop/products/:id` — per-item tweaks:
-  `{"hidden": true}` to keep an item off the page,
-  `{"badge_override": "Best Seller"}` to pin a pill,
-  `{"img_override": "https://..."}` to swap in our own photo.
+  `{"hidden": true}` keeps an item off the page,
+  `{"badge_override": "Best Seller"}` pins a pill,
+  `{"img_override": "https://..."}` swaps in our own photo.
 
-One caveat: the vendor's storefront markup dictates what the scraper
-sees. After the first deploy, check `GET /api/crew-shop/status` — if
-`last_status` says `parse_failed`, the parser needs a one-time
-adjustment to their markup (grab the page HTML and adjust
-`parseStorefront` in `server/crew-shop.ts`; tests live in
-`scripts/test-crew-shop.ts`).
+Public endpoints (no auth, CORS-open):
 
-## Updating products manually (fallback list)
+- `GET /api/public/crew-shop/products` — the current lineup as JSON.
+- `GET /api/public/crew-shop/embed.js` — the page renderer
+  (`public-site/crew-shop/embed.js`), cached 10 minutes.
 
-Open the Code block and edit the `PRODUCTS` list near the bottom:
-
-```js
-{ name: 'G Crew Hoodie', desc: 'Black · S–3XL', price: '$42',
-  url: 'https://germaniavirtualstore.itemorder.com/shop/product/...',
-  img: 'https://images.squarespace-cdn.com/.../hoodie.jpg',
-  badge: 'Best Seller' }
-```
-
-- **url** — open the item on the vendor store and copy the address bar.
-  If left `''`, the button falls back to the store's front page.
-- **img** — upload the product photo to Squarespace (an image block on any
-  unlinked page works, or Design → Custom Files) and paste the image URL.
-  While `''`, the card shows an "add product photo" placeholder.
-  Ask the vendor for their high-res product mockups — they have them from
-  the proofing process.
-- **badge** — optional red pill ("New", "Best Seller"). Remove the field
-  for no badge.
-
-Items appear in list order. To retire an item, delete its line.
+Tests: `scripts/test-crew-shop.ts` (all parse strategies + lineup
+behavior). Run with
+`DB_PATH=/tmp/crew-shop-test.db node --import tsx scripts/test-crew-shop.ts`.
