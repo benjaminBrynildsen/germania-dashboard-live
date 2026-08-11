@@ -86,6 +86,8 @@
       '.gbh-foot{border-top:1px solid var(--ink);margin-top:28px;padding:18px 0 8px;font-size:12.5px;',
       '  color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 24px;font-weight:400}',
       '.gbh-foot b{color:var(--ink);font-weight:800}',
+      '.gbh-foot a{color:var(--ink);font-weight:800;text-decoration:none}',
+      '.gbh-foot a:hover{text-decoration:underline}',
       '.gbh-empty{text-align:center;padding:40px 0;color:var(--muted);font-size:14px}',
       '.gbh-empty a{color:var(--ink);font-weight:800}',
     ].join('\n');
@@ -112,11 +114,20 @@
   var grid = el('div', 'gbh-grid');
   mount.appendChild(grid);
 
+  // Order questions go straight to the print partner (Logo It), never
+  // to the coffee shops — owner's call, they don't handle merch orders.
   var foot = el('div', 'gbh-foot');
   var f1 = el('span');
   f1.appendChild(el('b', null, 'Checkout & fulfillment'));
-  f1.appendChild(document.createTextNode(' by our print partner via their secure store.'));
-  var f2 = el('span', null, 'Questions about an order? Contact the shop — we’ll chase it down.');
+  f1.appendChild(document.createTextNode(' by Logo It, our print partner, via their secure store.'));
+  var f2 = el('span', null, 'Order questions? Contact Logo It directly — ');
+  var mail = el('a', null, 'orders@wecanlogoit.com');
+  mail.href = 'mailto:orders@wecanlogoit.com';
+  f2.appendChild(mail);
+  f2.appendChild(document.createTextNode(' · '));
+  var tel = el('a', null, '(618) 462-1899');
+  tel.href = 'tel:+16184621899';
+  f2.appendChild(tel);
   foot.appendChild(f1);
   foot.appendChild(f2);
   mount.appendChild(foot);
