@@ -14,6 +14,7 @@ import holidayRouter from './holiday-routes.js';
 import pairingsRouter from './pairings-routes.js';
 import sopRouter from './sop-routes.js';
 import menuRouter from './menu-routes.js';
+import crewShopRouter from './crew-shop-routes.js';
 import { seedHolidaysForYear } from './holidays.js';
 import { seedCogIfEmpty } from './seed-cog.js';
 import { startReviewSync } from './places.js';
@@ -36,6 +37,7 @@ app.use('/api', holidayRouter);
 app.use('/api', pairingsRouter);
 app.use('/api', sopRouter);
 app.use('/api', menuRouter);
+app.use('/api', crewShopRouter);
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '..', 'dist');
@@ -97,6 +99,20 @@ app.listen(PORT, () => {
   };
   setTimeout(driposSyncOnce, 10_000);
   setInterval(driposSyncOnce, 6 * 60 * 60 * 1000);
+
+  // Crew Shop merch sync — mirrors the vendor's OrderMyGear storefront
+  // so the public site's merch page updates itself when the vendor adds
+  // or retires items. A failed scrape keeps the last good lineup.
+  const crewShopSyncOnce = async () => {
+    try {
+      const { syncCrewShop } = await import('./crew-shop.js');
+      await syncCrewShop();
+    } catch (err) {
+      console.warn('[CrewShopSync] failed:', err instanceof Error ? err.message : err);
+    }
+  };
+  setTimeout(crewShopSyncOnce, 20_000);
+  setInterval(crewShopSyncOnce, 6 * 60 * 60 * 1000);
 
   // Pre-warm the Hours Watch cache so the cold 52-wk pull happens out of
   // band of any user request. Past weeks cache forever, so this is mostly
