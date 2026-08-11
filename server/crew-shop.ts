@@ -80,6 +80,64 @@ const formatPrice = (value: unknown): string | null => {
   return Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`;
 };
 
+// OMG's __NEXT_DATA__ prices are integer cents (2500 = $25.00).
+const formatCents = (cents: number): string =>
+  cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`;
+
+const formatCentsRange = (min: unknown, max: unknown): string | null => {
+  const lo = Number(min);
+  if (!Number.isFinite(lo) || lo <= 0) return null;
+  const hi = Number(max);
+  if (Number.isFinite(hi) && hi > lo) return `${formatCents(lo)}–${formatCents(hi)}`;
+  return formatCents(lo);
+};
+
+// Vendor product names carry SKU/stock codes ("Unisex Germania Tee -
+// 1717 - Arched Design"); drop those segments so the public page shows
+// clean names.
+const cleanName = (name: string): string =>
+  name
+    .split(/\s+-\s+/)
+    .filter((seg) => !/^[A-Z]{0,4}\d{3,6}$/.test(seg.trim()) && !/^Logo It Stock$/i.test(seg.trim()))
+    .join(' - ')
+    .trim();
+
+/** Strategy 0: Next.js __NEXT_DATA__ page state (OMG "modern" storefronts). */
+function parseNextData(html: string, base: string): ScrapedProduct[] {
+  const m = /<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i.exec(html);
+  if (!m) return [];
+  let data: any;
+  try { data = JSON.parse(m[1]); } catch { return []; }
+  const categories = data?.props?.pageProps?.categories;
+  if (!categories || typeof categories !== 'object') return [];
+  let origin: string;
+  try { origin = new URL(base).origin; } catch { return []; }
+
+  const out: ScrapedProduct[] = [];
+  for (const [category, items] of Object.entries(categories)) {
+    if (!Array.isArray(items)) continue;
+    for (const p of items as any[]) {
+      if (!p || typeof p !== 'object' || !p.id || !p.name) continue;
+      if (p.is_available === false) continue;
+      // Ask assetly for a sharper rendition than the 276px grid thumb.
+      const img = typeof p.image === 'string'
+        ? p.image.replace('h_276,w_276', 'h_600,w_600')
+        : null;
+      out.push({
+        url: `${origin}/shop/product/${p.id}/`,
+        name: cleanName(String(p.name)),
+        price: formatCentsRange(p.min_price ?? p.price, p.max_price ?? p.price),
+        img: img ? absolutize(img, base) : null,
+        description: [
+          String(category).trim(),
+          Number(p.color_count) > 1 ? `${p.color_count} colors` : null,
+        ].filter(Boolean).join(' · '),
+      });
+    }
+  }
+  return out;
+}
+
 /** Strategy 1: schema.org Product entries in JSON-LD script tags. */
 function parseJsonLd(html: string, base: string): ScrapedProduct[] {
   const out: ScrapedProduct[] = [];
@@ -188,6 +246,7 @@ const dedupe = (products: ScrapedProduct[]): ScrapedProduct[] => {
 
 export function parseStorefront(html: string, base: string): { products: ScrapedProduct[]; method: string } {
   for (const [method, fn] of [
+    ['next-data', parseNextData],
     ['json-ld', parseJsonLd],
     ['embedded-json', parseEmbeddedJson],
     ['anchors', parseAnchors],
