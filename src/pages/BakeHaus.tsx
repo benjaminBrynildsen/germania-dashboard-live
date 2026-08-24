@@ -240,6 +240,72 @@ function suggestedMonShare(total: number): number {
   return floors[0];
 }
 
+/** Flavor keyword → liquid tint for the uniform bottle art on syrup/
+ *  sauce rows. First match wins, so more specific phrases ("white
+ *  mocha") sit above their generic substrings ("mocha"). Flavors not
+ *  listed get a stable pastel derived from the name, so every bottle
+ *  still has a distinct, consistent color. */
+const SYRUP_TINT_KEYWORDS: Array<[string, string]> = [
+  ['white mocha', '#E4D5BC'], ['hwm', '#E4D5BC'],
+  ['mocha', '#7A5236'], ['chocolate', '#6B4A32'],
+  ['vanilla', '#EFDDB4'],
+  ['caramel', '#C68A3F'], ['toffee', '#B57A42'],
+  ['brown sugar', '#A9713C'], ['maple', '#B06F2E'],
+  ['lavender', '#A78BDA'],
+  ['strawberry', '#E77C8D'], ['raspberry', '#C2517E'], ['cherry', '#C43F55'],
+  ['blueberry', '#6A78C9'], ['blue', '#5B8BD9'],
+  ['cinnamon', '#C87F35'], ['honey', '#DCA83E'],
+  ['cider', '#C98A2E'], ['pumpkin', '#D9762B'],
+  ['coconut', '#EDE6D6'], ['almond', '#D6B98C'], ['hazelnut', '#A9713C'],
+  ['peppermint', '#6FBF9B'], ['mint', '#6FBF9B'], ['matcha', '#88B04B'],
+  ['chai', '#B08150'], ['rose', '#E2A1B0'],
+  ['peach', '#F2A879'], ['mango', '#F2B03D'], ['orange', '#EF9432'],
+  ['lemon', '#E8D44D'], ['lime', '#A8C94E'], ['grape', '#8E5DB0'],
+  ['sauce', '#8A6248'],
+];
+
+function syrupTint(name: string): string {
+  const n = name.toLowerCase();
+  for (const [kw, color] of SYRUP_TINT_KEYWORDS) {
+    if (n.includes(kw)) return color;
+  }
+  // Deterministic pastel fallback — same name always gets the same hue.
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return `hsl(${h % 360}, 45%, 62%)`;
+}
+
+/** Uniform bottle art for syrup/sauce rows — same drawing for every
+ *  item, liquid tinted by flavor (syrupTint). Replaces the per-item
+ *  Dripos photos so the section reads as one consistent set. */
+function BottleImage({ name, size, radius }: { name: string; size: number; radius: number }) {
+  const tint = syrupTint(name);
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: size, height: size, borderRadius: radius, flexShrink: 0,
+        background: 'rgba(0,0,0,0.04)',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+      <svg width={Math.round(size * 0.5)} height={Math.round(size * 0.75)} viewBox="0 0 56 84">
+        {/* cap */}
+        <rect x="20" y="1" width="16" height="10" rx="2.5" fill="#55504a" />
+        {/* neck */}
+        <rect x="23" y="11" width="10" height="8" fill="#fdfdfc" stroke="rgba(0,0,0,0.14)" strokeWidth="1.5" />
+        {/* body */}
+        <rect x="12" y="18" width="32" height="63" rx="9" fill="#fdfdfc" stroke="rgba(0,0,0,0.14)" strokeWidth="1.5" />
+        {/* liquid */}
+        <rect x="15.5" y="34" width="25" height="43.5" rx="6" fill={tint} />
+        {/* sheen */}
+        <rect x="19.5" y="39" width="3.5" height="32" rx="1.75" fill="rgba(255,255,255,0.4)" />
+        {/* label band */}
+        <rect x="15.5" y="23" width="25" height="8" rx="2" fill="rgba(0,0,0,0.06)" />
+      </svg>
+    </span>
+  );
+}
+
 /** Small ⓘ dot with a hover (desktop) / tap (mobile) tooltip. Used to
  *  explain how a suggested quantity was calculated. */
 function InfoDot({ lines }: { lines: string[] }) {
@@ -2240,6 +2306,7 @@ function StoreOrderCard({
               <CartRowEditor
                 itemName={it.name}
                 imageUrl={it.imageUrl}
+                category={it.category}
                 row={it.row}
                 onHand={inventory[it.name] ?? 0}
                 suggestion={suggestions?.[it.name] ?? null}
@@ -2324,10 +2391,13 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, imageUrl, row, onHand, suggestion, isCustom, theme, isLast, isMobile, onSave, onDelete,
+  itemName, imageUrl, category, row, onHand, suggestion, isCustom, theme, isLast, isMobile, onSave, onDelete,
 }: {
   itemName: string;
   imageUrl?: string | null;
+  /** Syrup/sauce rows render the uniform tinted-bottle art instead of
+   *  a product photo. */
+  category?: 'food' | 'syrup-sauce' | 'custom';
   row: OrderRow | null;
   onHand: number;
   /** Suggested weekly qty (null = none / still loading / week locked). */
@@ -2410,7 +2480,11 @@ function CartRowEditor({
     }}>
       {/* Item: photo + name (display font) + on-hand subtitle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16, minWidth: 0 }}>
-        {imageUrl ? (
+        {category === 'syrup-sauce' ? (
+          <span style={{ opacity: active ? 1 : 0.55 }}>
+            <BottleImage name={itemName} size={photoSize} radius={isMobile ? 10 : 14} />
+          </span>
+        ) : imageUrl ? (
           <img src={imageUrl} alt="" loading="lazy"
             style={{
               width: photoSize, height: photoSize, borderRadius: isMobile ? 10 : 14,
