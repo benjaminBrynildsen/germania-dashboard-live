@@ -144,6 +144,15 @@ export async function getCatalogImageMap(): Promise<Record<string, string | null
       map[item.name] = findImageForCatalogItem(item, foodProducts);
     }
     for (const s of listSyrups(false)) {
+      // Syrups/sauces deliberately DON'T use Dripos product photos —
+      // the order card renders a uniform tinted-bottle graphic client-
+      // side so the section looks consistent no matter what image (if
+      // any) each bottle has in Dripos. Manage-tab FOOD rows still
+      // resolve their real product photo.
+      if (s.category === 'syrup-sauce') {
+        map[s.displayName] = null;
+        continue;
+      }
       const found = findProductForSyrup(s, products);
       map[s.displayName] = found?.LOGO ? resolveImageUrl(found.LOGO) : null;
     }
