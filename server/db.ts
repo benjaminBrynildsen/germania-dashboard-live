@@ -191,6 +191,12 @@ db.pragma('foreign_keys = ON');
     console.log('[migration] adding category to bake_haus_syrups');
     db.exec("ALTER TABLE bake_haus_syrups ADD COLUMN category TEXT NOT NULL DEFAULT 'syrup-sauce'");
   }
+  // Bottle-art color override (#rrggbb). NULL = automatic tint derived
+  // from the flavor name.
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'tint_color')) {
+    console.log('[migration] adding tint_color to bake_haus_syrups');
+    db.exec('ALTER TABLE bake_haus_syrups ADD COLUMN tint_color TEXT');
+  }
 }
 // Waffles → Waffle Wedge rename migration. The catalog item was renamed
 // to match the Dripos product name ("Waffle Wedge") so inventory matches;
@@ -538,6 +544,9 @@ db.exec(`
     -- whole editable catalog; food rows show in the order card's Food
     -- section, deduct on-hand inventory, and split 25/30/45.
     category TEXT NOT NULL DEFAULT 'syrup-sauce' CHECK(category IN ('food', 'syrup-sauce')),
+    -- Bottle-art color override (#rrggbb). NULL = automatic tint from
+    -- the flavor name.
+    tint_color TEXT,
     -- Soft delete / seasonal toggle. Inactive items hide from the
     -- ordering UI but stay in the DB so historical orders still
     -- resolve their display name.

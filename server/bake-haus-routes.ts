@@ -57,6 +57,7 @@ router.get('/bake-haus/catalog', requireAuth, async (_req: AuthRequest, res: Res
       category: c.category,
       includeMonday: c.includeMonday,
       imageUrl: imageMap[c.name] ?? null,
+      tintColor: c.tintColor,
     })),
   });
 });
@@ -146,6 +147,17 @@ router.put('/bake-haus/syrups/:id', requireAuth, (req: AuthRequest, res: Respons
   if (typeof req.body?.sort === 'number')               patch.sort = req.body.sort;
   if (typeof req.body?.includeMonday === 'boolean')     patch.includeMonday = req.body.includeMonday;
   if (req.body?.category === 'food' || req.body?.category === 'syrup-sauce') patch.category = req.body.category;
+  // Bottle color: a #rrggbb string sets an override, explicit null
+  // clears back to the automatic flavor-derived tint.
+  if ('tintColor' in (req.body ?? {})) {
+    const t = req.body.tintColor;
+    if (t === null) patch.tintColor = null;
+    else if (typeof t === 'string' && /^#[0-9a-fA-F]{6}$/.test(t)) patch.tintColor = t;
+    else {
+      res.status(400).json({ error: 'invalid_tint_color', message: 'Expected "#rrggbb" or null.' });
+      return;
+    }
+  }
   if (typeof req.body?.active === 'boolean')            patch.active = req.body.active;
   const updated = updateSyrup(id, patch);
   if (!updated) {

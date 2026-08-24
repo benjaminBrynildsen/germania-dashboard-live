@@ -34,6 +34,8 @@ interface Syrup {
   /** 'food' rows show in the Food section, deduct on-hand, and split
    *  25/30/45; 'syrup-sauce' rows split 40/60 Wed/Fri. */
   category: 'food' | 'syrup-sauce';
+  /** Bottle-art color override (#rrggbb); null = auto from name. */
+  tintColor: string | null;
   active: boolean;
   createdAt: number;
   updatedAt: number;
@@ -81,6 +83,8 @@ interface CatalogItem {
   imageUrl?: string | null;
   category?: 'food' | 'syrup-sauce';
   includeMonday?: boolean;
+  /** Bottle-art color override for syrup rows; null/absent = auto. */
+  tintColor?: string | null;
 }
 
 interface DeliverySnapshotSummary {
@@ -278,8 +282,12 @@ function syrupTint(name: string): string {
 /** Uniform bottle art for syrup/sauce rows — same drawing for every
  *  item, liquid tinted by flavor (syrupTint). Replaces the per-item
  *  Dripos photos so the section reads as one consistent set. */
-function BottleImage({ name, size, radius }: { name: string; size: number; radius: number }) {
-  const tint = syrupTint(name);
+function BottleImage({ name, size, radius, tint: override }: {
+  name: string; size: number; radius: number;
+  /** Explicit color override; falls back to the flavor-derived tint. */
+  tint?: string | null;
+}) {
+  const tint = override || syrupTint(name);
   return (
     <span
       aria-hidden="true"
@@ -302,6 +310,87 @@ function BottleImage({ name, size, radius }: { name: string; size: number; radiu
         {/* label band */}
         <rect x="15.5" y="23" width="25" height="8" rx="2" fill="rgba(0,0,0,0.06)" />
       </svg>
+    </span>
+  );
+}
+
+/** Preset palette for the bottle-color picker — the tint map's hues
+ *  plus a few extras, warm→cool. */
+const TINT_PRESETS: string[] = [
+  '#EFDDB4', '#E4D5BC', '#EDE6D6', '#D6B98C', '#DCA83E', '#C68A3F', '#B06F2E',
+  '#A9713C', '#8A6248', '#7A5236', '#C87F35', '#D9762B', '#C98A2E', '#B08150',
+  '#E77C8D', '#E2A1B0', '#C2517E', '#C43F55', '#8E5DB0', '#A78BDA', '#6A78C9',
+  '#5B8BD9', '#6FBF9B', '#88B04B', '#E8D44D', '#F2A879', '#F2B03D', '#EF9432',
+];
+
+/** The bottle-color control on manage-tab syrup rows: just a small
+ *  color dot (doubles as the current-color preview) that opens a
+ *  compact palette popover — presets, a custom picker, and "Auto"
+ *  (clear back to the name-derived tint). */
+function TintDot({ syrup, busy, onPick }: {
+  syrup: Syrup;
+  busy: boolean;
+  onPick: (color: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState<string>(syrup.tintColor ?? '#C68A3F');
+  const effective = syrup.tintColor || syrupTint(syrup.displayName);
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        disabled={busy}
+        title="Bottle color — click to change"
+        style={{
+          width: 18, height: 18, borderRadius: 999, padding: 0, flexShrink: 0,
+          cursor: 'pointer', background: effective,
+          border: syrup.tintColor ? '2px solid rgba(0,0,0,0.4)' : '1px solid rgba(0,0,0,0.2)',
+        }}
+      />
+      {open && (
+        <>
+          {/* click-away backdrop */}
+          <span onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 70 }} />
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 6px)', left: -8, zIndex: 71,
+            background: '#fff', borderRadius: 10,
+            border: '1px solid rgba(0,0,0,0.1)',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
+            padding: 10, width: 198,
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 8 }}>
+              {TINT_PRESETS.map((c) => (
+                <button key={c}
+                  onClick={() => { onPick(c); setOpen(false); }}
+                  title={c}
+                  style={{
+                    width: 20, height: 20, borderRadius: 999, padding: 0, cursor: 'pointer',
+                    background: c,
+                    border: c.toLowerCase() === syrup.tintColor?.toLowerCase()
+                      ? '2px solid #1a1a1a' : '1px solid rgba(0,0,0,0.12)',
+                  }} />
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="color" value={custom}
+                onChange={(e) => setCustom(e.target.value)}
+                title="Pick a custom color"
+                style={{ width: 24, height: 24, padding: 0, border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, background: 'transparent', cursor: 'pointer' }} />
+              <button onClick={() => { onPick(custom); setOpen(false); }}
+                style={{
+                  fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999,
+                  border: '1px solid rgba(0,0,0,0.15)', background: '#fff', cursor: 'pointer',
+                }}>Use custom</button>
+              <button onClick={() => { onPick(null); setOpen(false); }}
+                title="Back to the automatic flavor color"
+                style={{
+                  marginLeft: 'auto', fontSize: 11, border: 0, background: 'transparent',
+                  color: 'rgba(0,0,0,0.5)', cursor: 'pointer', textDecoration: 'underline',
+                }}>Auto</button>
+            </div>
+          </div>
+        </>
+      )}
     </span>
   );
 }
@@ -1725,6 +1814,7 @@ function ManageSyrupsView({
               onToggleActive={() => patchSyrup(s.id, { active: !s.active })}
               onToggleMonday={() => patchSyrup(s.id, { includeMonday: !s.includeMonday })}
               onRename={(name) => patchSyrup(s.id, { displayName: name })}
+              onTint={(color) => patchSyrup(s.id, { tintColor: color })}
               onDelete={() => removeSyrup(s.id, s.displayName)}
             />
           ))
@@ -1735,7 +1825,7 @@ function ManageSyrupsView({
 }
 
 function SyrupRow({
-  syrup, busy, isMobile, onToggleActive, onToggleMonday, onRename, onDelete,
+  syrup, busy, isMobile, onToggleActive, onToggleMonday, onRename, onTint, onDelete,
 }: {
   syrup: Syrup;
   busy: boolean;
@@ -1743,6 +1833,7 @@ function SyrupRow({
   onToggleActive: () => void;
   onToggleMonday: () => void;
   onRename: (name: string) => void;
+  onTint: (color: string | null) => void;
   onDelete: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -1780,6 +1871,9 @@ function SyrupRow({
               fontSize: 15, fontWeight: 600,
               display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
             }}>
+              {syrup.category === 'syrup-sauce' && (
+                <TintDot syrup={syrup} busy={busy} onPick={onTint} />
+              )}
               {syrup.displayName}
               <span style={{
                 fontSize: 9, fontWeight: 700, letterSpacing: 0.6,
@@ -2120,6 +2214,7 @@ function StoreOrderCard({
       custom: boolean;
       imageUrl: string | null;
       category: 'food' | 'syrup-sauce' | 'custom';
+      tintColor: string | null;
     }> = catalog.map((c) => ({
       name: c.name,
       row: rowByName.get(c.name) ?? null,
@@ -2127,6 +2222,7 @@ function StoreOrderCard({
       custom: false,
       imageUrl: c.imageUrl ?? null,
       category: c.category ?? 'food',
+      tintColor: c.tintColor ?? null,
     }));
     // Append any rows whose item isn't in the catalog — these are ad-hoc
     // additions and live at the bottom so they don't break the catalog
@@ -2135,7 +2231,7 @@ function StoreOrderCard({
       if (!catalogNames.has(r.itemName)) {
         cart.push({
           name: r.itemName, row: r, sort: 9999, custom: true,
-          imageUrl: null, category: 'custom',
+          imageUrl: null, category: 'custom', tintColor: null,
         });
       }
     }
@@ -2307,6 +2403,7 @@ function StoreOrderCard({
                 itemName={it.name}
                 imageUrl={it.imageUrl}
                 category={it.category}
+                tintColor={it.tintColor}
                 row={it.row}
                 onHand={inventory[it.name] ?? 0}
                 suggestion={suggestions?.[it.name] ?? null}
@@ -2391,13 +2488,15 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, imageUrl, category, row, onHand, suggestion, isCustom, theme, isLast, isMobile, onSave, onDelete,
+  itemName, imageUrl, category, tintColor, row, onHand, suggestion, isCustom, theme, isLast, isMobile, onSave, onDelete,
 }: {
   itemName: string;
   imageUrl?: string | null;
   /** Syrup/sauce rows render the uniform tinted-bottle art instead of
    *  a product photo. */
   category?: 'food' | 'syrup-sauce' | 'custom';
+  /** Bottle color override from the manage tab; null = auto. */
+  tintColor?: string | null;
   row: OrderRow | null;
   onHand: number;
   /** Suggested weekly qty (null = none / still loading / week locked). */
@@ -2482,7 +2581,7 @@ function CartRowEditor({
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16, minWidth: 0 }}>
         {category === 'syrup-sauce' ? (
           <span style={{ opacity: active ? 1 : 0.55 }}>
-            <BottleImage name={itemName} size={photoSize} radius={isMobile ? 10 : 14} />
+            <BottleImage name={itemName} size={photoSize} radius={isMobile ? 10 : 14} tint={tintColor} />
           </span>
         ) : imageUrl ? (
           <img src={imageUrl} alt="" loading="lazy"
