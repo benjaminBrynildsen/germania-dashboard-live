@@ -51,6 +51,9 @@ export interface BakeHausCatalogItem {
   /** Dripos product name — used as a fallback inventory match key
    *  and for showing the underlying Dripos name in the manage UI. */
   driposProductName: string | null;
+  /** Bottle-art color override for syrup rows (#rrggbb); null = the
+   *  client derives a tint from the flavor name. Always null for food. */
+  tintColor: string | null;
 }
 
 export const BAKE_HAUS_ITEMS: BakeHausItem[] = [
@@ -1372,6 +1375,9 @@ export interface SyrupRow {
    *  'food' rows show in the Food section, deduct on-hand inventory,
    *  and split 25/30/45; 'syrup-sauce' rows split 40/60 Wed/Fri. */
   category: 'food' | 'syrup-sauce';
+  /** Bottle-art color override (#rrggbb). null = automatic tint
+   *  derived from the flavor name. */
+  tintColor: string | null;
   active: boolean;
   createdAt: number;
   updatedAt: number;
@@ -1385,6 +1391,7 @@ interface SyrupDbRow {
   sort: number;
   include_monday: number;
   category: string;
+  tint_color: string | null;
   active: number;
   created_at: number;
   updated_at: number;
@@ -1399,6 +1406,7 @@ function rowToSyrup(r: SyrupDbRow): SyrupRow {
     sort: r.sort,
     includeMonday: r.include_monday === 1,
     category: r.category === 'food' ? 'food' : 'syrup-sauce',
+    tintColor: r.tint_color ?? null,
     active: r.active === 1,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -1448,6 +1456,8 @@ export function updateSyrup(
     sort: number;
     includeMonday: boolean;
     category: 'food' | 'syrup-sauce';
+    /** Pass a #rrggbb string to set, or null to clear back to auto. */
+    tintColor: string | null;
     active: boolean;
   }>,
 ): SyrupRow | null {
@@ -1460,16 +1470,19 @@ export function updateSyrup(
     sort: args.sort ?? cur.sort,
     includeMonday: args.includeMonday ?? cur.includeMonday,
     category: args.category ?? cur.category,
+    // null is a meaningful value here (clear back to auto), so key
+    // presence decides rather than ??.
+    tintColor: 'tintColor' in args ? (args.tintColor ?? null) : cur.tintColor,
     active: args.active ?? cur.active,
   };
   db.prepare(
     `UPDATE bake_haus_syrups SET
        display_name = ?, dripos_product_id = ?, dripos_product_name = ?,
-       sort = ?, include_monday = ?, category = ?, active = ?, updated_at = ?
+       sort = ?, include_monday = ?, category = ?, tint_color = ?, active = ?, updated_at = ?
      WHERE id = ?`,
   ).run(
     next.displayName, next.driposProductId, next.driposProductName,
-    next.sort, next.includeMonday ? 1 : 0, next.category, next.active ? 1 : 0,
+    next.sort, next.includeMonday ? 1 : 0, next.category, next.tintColor, next.active ? 1 : 0,
     Date.now(), id,
   );
   return getSyrup(id);
@@ -1492,6 +1505,7 @@ export function getMergedCatalog(): BakeHausCatalogItem[] {
     includeMonday: true,
     driposProductId: null,
     driposProductName: null,
+    tintColor: null,
   }));
   const dbItems: BakeHausCatalogItem[] = listSyrups(false).map((s) => ({
     name: s.displayName,
@@ -1503,6 +1517,7 @@ export function getMergedCatalog(): BakeHausCatalogItem[] {
     includeMonday: s.includeMonday,
     driposProductId: s.driposProductId,
     driposProductName: s.driposProductName,
+    tintColor: s.category === 'syrup-sauce' ? s.tintColor : null,
   }));
   return [...food, ...dbItems].sort((a, b) =>
     a.sort - b.sort || a.name.localeCompare(b.name),
