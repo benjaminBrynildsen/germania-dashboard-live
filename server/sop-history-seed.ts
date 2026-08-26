@@ -55,6 +55,34 @@ const HH_FROZEN: SeedRow = { name: 'Half & Half', cells: ['1 small bell', '2 sma
 const SIZES_HOT = ['S', 'R', 'L'];
 const SIZES_ICED = ['Kids', 'R', 'L'];
 
+/** Footnotes are stored as {marker, text} objects (the PDF renders
+ *  "{marker} {text}"). Seed data keeps plain strings for readability;
+ *  this splits a leading run of asterisks into the marker and falls
+ *  back to a bullet for un-starred notes. */
+function toFootnote(s: string): { marker: string; text: string } {
+  const m = s.match(/^(\*+)\s*(.*)$/s);
+  if (m) return { marker: m[1], text: m[2] };
+  return { marker: '•', text: s };
+}
+
+/** One-time fixup: earlier versions of this seed wrote footnotes as
+ *  plain string arrays, which render as "undefined undefined" in the
+ *  editor/PDF. Rewrite any string entries into {marker, text} objects.
+ *  Idempotent — object entries pass through untouched. */
+export function fixLegacyStringFootnotes(db: Database) {
+  const rows = db.prepare('SELECT id, footnotes_json FROM sop_variants').all() as Array<{ id: number; footnotes_json: string }>;
+  let fixed = 0;
+  for (const r of rows) {
+    let parsed: unknown;
+    try { parsed = JSON.parse(r.footnotes_json); } catch { continue; }
+    if (!Array.isArray(parsed) || !parsed.some((f) => typeof f === 'string')) continue;
+    const converted = parsed.map((f) => (typeof f === 'string' ? toFootnote(f) : f));
+    db.prepare('UPDATE sop_variants SET footnotes_json = ? WHERE id = ?').run(JSON.stringify(converted), r.id);
+    fixed++;
+  }
+  if (fixed > 0) console.log(`[sop-history-seed] fixed ${fixed} legacy string footnote list(s)`);
+}
+
 const CB_FOOTNOTE = '* = If the customer asks for half & half (etc), reduce the water by that amount.';
 const RED_SCOOP_FOOTNOTE = '* = Red Polar Powder scoop';
 const STEAM_TOGETHER_FOOTNOTE = '* — steam chai and milk together';
@@ -821,7 +849,7 @@ export function seedSopHistory(db: Database) {
       sop.variants.forEach((v, vi) => {
         const vinfo = insertVariant.run(
           sopId, v.temperature, vi,
-          JSON.stringify(v.sizeLabels), JSON.stringify(v.footnotes ?? []),
+          JSON.stringify(v.sizeLabels), JSON.stringify((v.footnotes ?? []).map(toFootnote)),
         );
         const variantId = vinfo.lastInsertRowid as number;
         v.rows.forEach((r, ri) => {
@@ -833,4 +861,5 @@ export function seedSopHistory(db: Database) {
   });
   tx();
   if (inserted > 0) console.log(`[sop-history-seed] inserted ${inserted} historical SOP(s)`);
+  fixLegacyStringFootnotes(db);
 }

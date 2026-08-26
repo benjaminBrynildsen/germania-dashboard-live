@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { seedSopPresets } from './sop-presets-seed.js';
 import { seedSopHistory } from './sop-history-seed.js';
+import { migrateSops2026ToOz } from './sop-oz-migration.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // In prod the SQLite file lives on a Render persistent disk (DB_PATH=/var/data/germania.db).
@@ -883,6 +884,11 @@ seedSopPresets(db);
 // Insert-only + keyed by slug and (name, collection), so hand edits in
 // the UI are never overwritten.
 seedSopHistory(db);
+
+// One-time: convert 2026-collection SOPs from bells to oz (team
+// decision Aug 2026 — oz is canonical from 2026 on). Originals are
+// backed up to sop_oz_migration_backup; flag-gated so it runs once.
+migrateSops2026ToOz(db);
 
 // Ensure the single COGS settings row exists (idempotent).
 db.prepare('INSERT OR IGNORE INTO cog_settings (id) VALUES (1)').run();
