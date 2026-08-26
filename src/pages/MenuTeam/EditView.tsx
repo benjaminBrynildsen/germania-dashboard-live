@@ -24,6 +24,34 @@ const PUMPS_OPTIONS = [
 
 type SopFull = Sop & { id: number };
 
+// ── Bells → oz conversion (display aid) ─────────────────────────────
+// House standard: 1 small bell = 3 oz, 1 large bell = 5 oz. Handles
+// decimals ("1.5 small bells"), unicode fractions ("½ large bell",
+// "2 ¼ large bells"), and the 2024-style "3-oz bell"/"5-oz bell"
+// wording. Returns null when the text has no bell measurement.
+const FRACTIONS: Record<string, number> = { '½': 0.5, '¼': 0.25, '¾': 0.75 };
+const BELL_RE = /(\d+(?:\.\d+)?\s*[½¼¾]?|[½¼¾])\s*(small|large|3-oz|3 oz|5-oz|5 oz)\s+bells?/gi;
+
+function parseBellQty(raw: string): number {
+  const t = raw.trim();
+  const m = t.match(/^(\d+)?\s*([½¼¾])$/);
+  if (m) return (m[1] ? parseInt(m[1], 10) : 0) + FRACTIONS[m[2]];
+  return parseFloat(t);
+}
+
+export function bellsToOz(text: string): string | null {
+  let hit = false;
+  const out = text.replace(BELL_RE, (match, qty: string, kind: string) => {
+    const q = parseBellQty(qty);
+    if (!Number.isFinite(q)) return match;
+    hit = true;
+    const perBell = /small|3/.test(kind.toLowerCase()) ? 3 : 5;
+    const oz = Math.round(q * perBell * 100) / 100;
+    return `${oz} oz`;
+  });
+  return hit ? out : null;
+}
+
 export default function EditView() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -39,6 +67,9 @@ export default function EditView() {
   // Matched by current row name; cells stay independent because per-size
   // quantities differ between iced and hot.
   const [syncAcrossTemps, setSyncAcrossTemps] = useState(true);
+  // Display aid: annotate bell measurements with their oz equivalent
+  // (1 small bell = 3 oz, 1 large bell = 5 oz). Never rewrites data.
+  const [showOz, setShowOz] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -217,6 +248,14 @@ export default function EditView() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <Link to="/menu-team" style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>← All SOPs</Link>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowOz((o) => !o)}
+            title="Convert bell measurements to ounces for reference (1 small bell = 3 oz, 1 large bell = 5 oz). Display only — the recipe stays in bells."
+            style={showOz ? { background: '#1a1a1a', color: '#fff' } : undefined}
+          >
+            {showOz ? 'Bells ✓→ oz' : 'Show oz'}
+          </button>
           <button className="btn btn-secondary" onClick={handleDelete}>Delete</button>
           <button className="btn btn-secondary" onClick={handleDuplicate}>Duplicate</button>
           <a className="btn btn-secondary" href={`/api/sops/${sop.slug}/pdf`} target="_blank" rel="noreferrer">Open PDF</a>
@@ -375,6 +414,7 @@ export default function EditView() {
           kind={sop.kind ?? 'drink'}
           variant={v}
           presets={presets}
+          showOz={showOz}
           onChange={(updater) => updateVariant(v.temperature, updater)}
           onRowField={(idx, oldName, patch) => updateRowField(v.temperature, idx, oldName, patch)}
         />
@@ -383,7 +423,7 @@ export default function EditView() {
   );
 }
 
-function VariantEditor({ kind, variant, presets, onChange, onRowField }: { kind: SopKind; variant: SopVariant; presets: SopPreset[]; onChange: (updater: (v: SopVariant) => SopVariant) => void; onRowField: (idx: number, oldName: string, patch: { name?: string; modifier?: string | null }) => void }) {
+function VariantEditor({ kind, variant, presets, showOz, onChange, onRowField }: { kind: SopKind; variant: SopVariant; presets: SopPreset[]; showOz?: boolean; onChange: (updater: (v: SopVariant) => SopVariant) => void; onRowField: (idx: number, oldName: string, patch: { name?: string; modifier?: string | null }) => void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   function setSizeLabel(i: number, label: string) {
@@ -606,16 +646,25 @@ function VariantEditor({ kind, variant, presets, onChange, onRowField }: { kind:
                   <td style={td}>
                     <input value={r.modifier || ''} placeholder="(Extra Pump)" onChange={(e) => onRowField(idx, r.name, { modifier: e.target.value || null })} style={inputCell} />
                   </td>
-                  {variant.sizeLabels.map((_, ci) => (
-                    <td key={ci} style={td}>
-                      <textarea
-                        value={r.cells[ci] ?? ''}
-                        onChange={(e) => updateRowCell(idx, ci, e.target.value)}
-                        rows={2}
-                        style={{ ...inputCell, resize: 'vertical', minHeight: 32, fontFamily: 'inherit' }}
-                      />
-                    </td>
-                  ))}
+                  {variant.sizeLabels.map((_, ci) => {
+                    const ozText = showOz ? bellsToOz(r.cells[ci] ?? '') : null;
+                    return (
+                      <td key={ci} style={td}>
+                        <textarea
+                          value={r.cells[ci] ?? ''}
+                          onChange={(e) => updateRowCell(idx, ci, e.target.value)}
+                          rows={2}
+                          style={{ ...inputCell, resize: 'vertical', minHeight: 32, fontFamily: 'inherit' }}
+                        />
+                        {ozText && (
+                          <div style={{
+                            marginTop: 2, fontSize: 11, fontWeight: 600,
+                            color: '#a16207', textAlign: 'center',
+                          }}>= {ozText}</div>
+                        )}
+                      </td>
+                    );
+                  })}
                   <td style={tdCenter}>
                     <button onClick={() => removeRow(idx)} style={btnGhost} title="Remove row">🗑</button>
                   </td>
