@@ -231,7 +231,13 @@ function CoverPage({ sops, collection, transitionNote, coverTagline }: { sops: S
   let sectionNum = 0;
 
   return (
+    // The whole cover lives in one unbreakable View: a fraction of
+    // overflow used to spill the footer onto a near-blank extra page
+    // after the cover. (Page-level wrap={false} would be simpler but
+    // crashes react-pdf's SVG renderer, so the no-split constraint
+    // goes on an inner View instead.)
     <Page size="LETTER" style={s.page}>
+      <View wrap={false} style={{ flex: 1 }}>
       {/* Corner logo */}
       <Text style={s.corner}>G/H</Text>
 
@@ -309,6 +315,7 @@ function CoverPage({ sops, collection, transitionNote, coverTagline }: { sops: S
       <View style={s.footer}>
         <Text>GERMANIA HAUS COFFEE</Text>
         <Text>00 / {String(totalPages).padStart(2, '0')}</Text>
+      </View>
       </View>
     </Page>
   );
