@@ -408,6 +408,44 @@ function serializeTransitionNote(leaving: TransitionItem[], coming: TransitionIt
 function CollectionMetaEditor({ collection }: { collection: string }) {
   const [meta, setMeta] = useState<{ transitionNote: string | null; coverTagline: string | null } | null>(null);
   const [editing, setEditing] = useState(false);
+  const [photos, setPhotos] = useState<Array<{ id: number; position: number }>>([]);
+  const [uploading, setUploading] = useState(false);
+
+  const loadPhotos = () => {
+    api.get(`/api/sop-collections/${encodeURIComponent(collection)}/photos`)
+      .then((r) => setPhotos(r.photos ?? []))
+      .catch(() => {});
+  };
+
+  async function uploadPhotos(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (!['image/jpeg', 'image/png'].includes(file.type)) {
+          alert(`${file.name}: only JPEG or PNG photos work in the packet PDF.`);
+          continue;
+        }
+        const r = await fetch(`/api/sop-collections/${encodeURIComponent(collection)}/photos`, {
+          method: 'POST',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          alert(`${file.name}: ${body.message || body.error || 'upload failed'}`);
+        }
+      }
+      loadPhotos();
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removePhoto(id: number) {
+    await api.delete(`/api/sop-collection-photos/${id}`);
+    loadPhotos();
+  }
   const [textMode, setTextMode] = useState(false);
   const [rawDraft, setRawDraft] = useState('');
   const [leaving, setLeaving] = useState<TransitionItem[]>([]);
@@ -435,6 +473,7 @@ function CollectionMetaEditor({ collection }: { collection: string }) {
     setComing(parsed.coming);
     setTaglineDraft(meta?.coverTagline || '');
     setTextMode(false);
+    loadPhotos();
     setEditing(true);
   }
 
@@ -511,6 +550,51 @@ function CollectionMetaEditor({ collection }: { collection: string }) {
             style={{ width: '100%', fontSize: 13, borderRadius: 8, border: '1px solid rgba(0,0,0,0.15)', padding: '8px 12px', resize: 'vertical' }}
             placeholder="A complete book of standard operating procedures for the summer season.&#10;Bridge drinks, sweet builds, artisanal pours, tea & smoothies."
           />
+        </div>
+
+        {/* Launch photos — collage page after the packet cover */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'rgba(0,0,0,0.6)' }}>
+            Launch photos <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.4)' }}>— shown as a collage page right after the cover (first 6 print; JPEG/PNG)</span>
+          </label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            {photos.map((p) => (
+              <div key={p.id} style={{ position: 'relative' }}>
+                <img
+                  src={`/api/sop-collection-photos/${p.id}`}
+                  alt=""
+                  style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(0,0,0,0.1)' }}
+                />
+                <button
+                  onClick={() => removePhoto(p.id)}
+                  title="Remove photo"
+                  style={{
+                    position: 'absolute', top: -6, right: -6,
+                    width: 20, height: 20, borderRadius: 999, padding: 0,
+                    border: '1px solid rgba(0,0,0,0.15)', background: '#fff',
+                    cursor: 'pointer', fontSize: 12, lineHeight: '18px', color: '#c0392b',
+                  }}
+                >×</button>
+              </div>
+            ))}
+            <label style={{
+              width: 84, height: 84, borderRadius: 8,
+              border: '1.5px dashed rgba(0,0,0,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: uploading ? 'wait' : 'pointer',
+              fontSize: 22, color: 'rgba(0,0,0,0.35)',
+            }}>
+              {uploading ? '…' : '+'}
+              <input
+                type="file"
+                accept="image/jpeg,image/png"
+                multiple
+                style={{ display: 'none' }}
+                disabled={uploading}
+                onChange={(e) => { void uploadPhotos(e.target.files); e.target.value = ''; }}
+              />
+            </label>
+          </div>
         </div>
 
         <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700 }}>Bottles &amp; Inventory</h4>
