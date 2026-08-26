@@ -659,9 +659,14 @@ function ListEditor({ list, onUpdate }: { list: MenuList; onUpdate: () => void }
   const [newItem, setNewItem] = useState('');
 
   async function save() {
+    // Include whatever is still typed in the "Add item" box — clicking
+    // Save without pressing Enter first used to silently drop it.
+    const pending = newItem.trim();
+    const finalItems = pending ? [...items, pending] : items;
     await api.put(`/api/menu-lists/${list.id}`, {
-      items: items.filter(Boolean).map((name, i) => ({ name, position: i })),
+      items: finalItems.filter(Boolean).map((name, i) => ({ name, position: i })),
     });
+    setNewItem('');
     setEditing(false);
     onUpdate();
   }
