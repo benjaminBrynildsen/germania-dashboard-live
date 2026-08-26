@@ -212,11 +212,6 @@ function FoodItem({ item, ctx }: { item: any; ctx: ScaleCtx }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: rowAlign, justifyContent: 'space-between', paddingVertical: 0, marginBottom: 22 * s, width: '100%' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 * s, flex: 1 }}>
-        {item.isNew && (
-          <View style={{ backgroundColor: '#e74c3c', borderRadius: 16 * s, width: 70 * s, height: 32 * s, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: 'Open Sans', fontWeight: 800, fontSize: 14 * s, color: '#fff', textTransform: 'uppercase' }}>NEW</Text>
-          </View>
-        )}
         <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 50 * s, lineHeight: 1.2, textTransform: 'uppercase' }}>
           {item.name}
         </Text>
@@ -224,6 +219,14 @@ function FoodItem({ item, ctx }: { item: any; ctx: ScaleCtx }) {
           <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 28 * s, lineHeight: 1.2, textTransform: 'uppercase' }}>
             {item.foodSubtitle}
           </Text>
+        )}
+        {item.isNew && (
+          // After the name, not before — and nudged up slightly so it
+          // centers on the uppercase glyphs rather than the full line
+          // box (which includes unused descender space).
+          <View style={{ backgroundColor: '#e74c3c', borderRadius: 16 * s, width: 70 * s, height: 32 * s, alignItems: 'center', justifyContent: 'center', marginTop: -6 * s }}>
+            <Text style={{ fontFamily: 'Open Sans', fontWeight: 800, fontSize: 14 * s, color: '#fff', textTransform: 'uppercase' }}>NEW</Text>
+          </View>
         )}
       </View>
       <Text style={{ fontFamily: 'Oswald', fontWeight: 400, fontSize: 50 * s, lineHeight: 1.2 }}>
