@@ -241,7 +241,7 @@ function BottomLists({ lists, ctx }: { lists: any[]; ctx: ScaleCtx }) {
   const { s, contentW } = ctx;
   const colW = contentW / lists.length;
   return (
-    <View style={{ flexDirection: 'row', marginTop: 'auto', paddingTop: 10 * s }}>
+    <View style={{ flexDirection: 'row', marginTop: 'auto', paddingTop: 10 * s, marginBottom: 45 * s }}>
       {lists.map((list: any) => (
         <View key={list.id} style={{ width: colW, alignItems: 'center' }}>
           <Text style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 36 * s, textTransform: 'uppercase', letterSpacing: 2 * s, marginBottom: 4 * s, textAlign: 'center' }}>
