@@ -29,6 +29,7 @@ export default function MenuTeam() {
   const [collections, setCollections] = useState<Array<{ collection: string; count: number }>>([]);
   const [templates, setTemplates] = useState<DrinkTemplateMeta[]>([]);
   const [collectionFilter, setCollectionFilter] = useState<string>('');
+  const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -61,7 +62,19 @@ export default function MenuTeam() {
 
   useEffect(() => { load(); }, [collectionFilter]);
 
-  const filteredCount = sops.length;
+  // Search filters the loaded list client-side across name, collection,
+  // and dietary tags — case-insensitive substring match.
+  const visibleSops = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return sops;
+    return sops.filter((s) =>
+      s.name.toLowerCase().includes(q)
+      || (s.collection ?? '').toLowerCase().includes(q)
+      || (s.dietaryTags ?? '').toLowerCase().includes(q),
+    );
+  }, [sops, search]);
+
+  const filteredCount = visibleSops.length;
   const selectedCount = selected.size;
 
   function toggleSelect(id: number) {
@@ -77,7 +90,7 @@ export default function MenuTeam() {
     if (selectedCount === filteredCount) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(sops.map((s) => s.id)));
+      setSelected(new Set(visibleSops.map((s) => s.id)));
     }
   }
 
@@ -187,7 +200,7 @@ export default function MenuTeam() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 10 }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <label style={{ fontSize: 12, color: 'rgba(0,0,0,0.6)' }}>Collection:</label>
           <select value={collectionFilter} onChange={(e) => setCollectionFilter(e.target.value)} style={{ minWidth: 200 }}>
             <option value="">All collections ({sops.length})</option>
@@ -195,6 +208,19 @@ export default function MenuTeam() {
               <option key={c.collection} value={c.collection}>{c.collection} ({c.count})</option>
             ))}
           </select>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search SOPs…"
+            aria-label="Search SOPs by name, collection, or dietary tag"
+            style={{ minWidth: 220 }}
+          />
+          {search && (
+            <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', whiteSpace: 'nowrap' }}>
+              {filteredCount} match{filteredCount === 1 ? '' : 'es'}
+            </span>
+          )}
           {collectionFilter && <CollectionMetaEditor collection={collectionFilter} />}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -224,6 +250,10 @@ export default function MenuTeam() {
           <div style={{ padding: 30, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>
             No SOPs yet. Create your first one above.
           </div>
+        ) : visibleSops.length === 0 ? (
+          <div style={{ padding: 30, textAlign: 'center', color: 'rgba(0,0,0,0.4)' }}>
+            No SOPs match “{search}”.
+          </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -239,7 +269,7 @@ export default function MenuTeam() {
               </tr>
             </thead>
             <tbody>
-              {sops.map((s) => (
+              {visibleSops.map((s) => (
                 <tr key={s.id} style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
                   <td style={{ padding: '12px 14px' }}>
                     <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleSelect(s.id)} />
