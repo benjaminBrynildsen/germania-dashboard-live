@@ -560,15 +560,25 @@ router.post('/sops/:id/duplicate', requireAuth, (req: AuthRequest, res: Response
     now,
   );
   const newId = Number(result.lastInsertRowid);
-  // Strip ids from the source so writeSop creates fresh rows for the copy.
+  // Strip ids from the source so writeSop creates fresh rows for the
+  // copy. Duplicates are the standard way to start a new season's
+  // drink from an old one, and oz is the canonical unit from 2026 on —
+  // so any bell measurements in the source convert to oz permanently
+  // in the COPY (cells, footnotes, assembly). The original SOP is
+  // untouched.
   const variants = source.variants.map((v) => ({
     temperature: v.temperature,
     position: v.position,
     sizeLabels: [...v.sizeLabels],
-    footnotes: v.footnotes.map((fn) => ({ ...fn })),
-    assemblyBigIdea: v.assemblyBigIdea,
-    assemblySteps: v.assemblySteps ? [...v.assemblySteps] : null,
-    rows: v.rows.map((r) => ({ presetId: r.presetId ?? null, name: r.name, modifier: r.modifier ?? null, cells: [...r.cells] })),
+    footnotes: v.footnotes.map((fn) => ({ ...fn, text: bellsToOz(fn.text) ?? fn.text })),
+    assemblyBigIdea: v.assemblyBigIdea ? (bellsToOz(v.assemblyBigIdea) ?? v.assemblyBigIdea) : v.assemblyBigIdea,
+    assemblySteps: v.assemblySteps ? v.assemblySteps.map((step) => bellsToOz(step) ?? step) : null,
+    rows: v.rows.map((r) => ({
+      presetId: r.presetId ?? null,
+      name: r.name,
+      modifier: r.modifier ?? null,
+      cells: r.cells.map((c) => bellsToOz(c) ?? c),
+    })),
   }));
   writeSop(newId, { variants });
   const sop = loadSopById(newId);
