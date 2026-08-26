@@ -5,14 +5,14 @@
  * of seasonal SOPs); write/delete require admin, manager, or menu_team
  * since the menu team owns recipe authority.
  */
-import { Router, Response } from 'express';
+import express, { Router, Response } from 'express';
 import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
 import type { Sop, SopVariant, SopRow, SopFootnote, Temperature, Availability } from '../src/lib/sop-types.js';
 import { AVAILABILITY_OPTIONS, SOP_CATEGORIES, bellsToOz, collectionMatches, parseCollectionSeasons } from '../src/lib/sop-types.js';
 import JSZip from 'jszip';
 import { renderSopsToPdfBuffer } from './sop-pdf.js';
-import { renderPacketPdfBuffer } from './sop-packet-pdf.js';
+import { renderPacketPdfBuffer, type PacketPhoto } from './sop-packet-pdf.js';
 import { expandTemplate, listTemplates } from './sop-templates.js';
 
 const router = Router();
@@ -386,6 +386,68 @@ function resolveSopsFromQuery(req: AuthRequest): { sops: Sop[]; collection: stri
   return { sops, collection };
 }
 
+// ── Launch photos (collection-level, shown as a collage page in the
+// packet right after the cover; up to 6 render) ─────────────────────
+
+const PHOTO_MIMES = new Set(['image/jpeg', 'image/png']);
+const MAX_PHOTOS_PER_COLLECTION = 12;
+
+function loadPacketPhotos(collection: string | null): PacketPhoto[] {
+  if (!collection) return [];
+  const rows = db.prepare(
+    'SELECT mime, data FROM sop_collection_photos WHERE collection = ? ORDER BY position, id',
+  ).all(collection) as Array<{ mime: string; data: Buffer }>;
+  return rows.map((r) => ({ mime: r.mime, data: r.data }));
+}
+
+router.get('/sop-collections/:collection/photos', requireAuth, (req: AuthRequest, res: Response) => {
+  const rows = db.prepare(
+    'SELECT id, mime, position FROM sop_collection_photos WHERE collection = ? ORDER BY position, id',
+  ).all(String(req.params.collection));
+  res.json({ photos: rows });
+});
+
+// Raw image body (not JSON) — the global express.json() limit is far
+// too small for photos, so this route parses its own body.
+router.post(
+  '/sop-collections/:collection/photos',
+  requireAuth,
+  express.raw({ type: ['image/jpeg', 'image/png'], limit: '8mb' }),
+  (req: AuthRequest, res: Response) => {
+    const collection = String(req.params.collection);
+    const mime = String(req.headers['content-type'] || '').split(';')[0].trim();
+    if (!PHOTO_MIMES.has(mime) || !Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ error: 'invalid_image', message: 'Send a JPEG or PNG as the request body.' });
+      return;
+    }
+    const count = (db.prepare('SELECT COUNT(*) AS n FROM sop_collection_photos WHERE collection = ?').get(collection) as any).n;
+    if (count >= MAX_PHOTOS_PER_COLLECTION) {
+      res.status(400).json({ error: 'too_many_photos', message: `Max ${MAX_PHOTOS_PER_COLLECTION} photos per collection.` });
+      return;
+    }
+    const pos = (db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM sop_collection_photos WHERE collection = ?').get(collection) as any).p;
+    const info = db.prepare(
+      'INSERT INTO sop_collection_photos (collection, mime, data, position) VALUES (?, ?, ?, ?)',
+    ).run(collection, mime, req.body, pos);
+    res.status(201).json({ ok: true, id: Number(info.lastInsertRowid), position: pos });
+  },
+);
+
+router.get('/sop-collection-photos/:id', requireAuth, (req: AuthRequest, res: Response) => {
+  const row = db.prepare('SELECT mime, data FROM sop_collection_photos WHERE id = ?').get(Number(req.params.id)) as
+    { mime: string; data: Buffer } | undefined;
+  if (!row) { res.status(404).json({ error: 'not_found' }); return; }
+  res.setHeader('Content-Type', row.mime);
+  res.setHeader('Cache-Control', 'private, max-age=300');
+  res.send(row.data);
+});
+
+router.delete('/sop-collection-photos/:id', requireAuth, (req: AuthRequest, res: Response) => {
+  const info = db.prepare('DELETE FROM sop_collection_photos WHERE id = ?').run(Number(req.params.id));
+  if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ ok: true });
+});
+
 /** ?units=oz on any SOP export converts bell measurements in the
  *  recipe cells to ounces for that render only (1 small bell = 3 oz,
  *  1 large bell = 5 oz) and notes the conversion under each drink
@@ -411,7 +473,7 @@ router.get('/sops/packet.pdf', requireAuth, async (req: AuthRequest, res: Respon
     ? db.prepare('SELECT transition_note, cover_tagline FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null; cover_tagline: string | null } | undefined
     : undefined;
   try {
-    const buf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null, meta?.cover_tagline ?? null);
+    const buf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null, meta?.cover_tagline ?? null, loadPacketPhotos(collection));
     const baseName = collection ? `${collection} Packet` : `Packet (${sops.length} SOPs)`;
     const filename = downloadFilename(baseName, null, 'pdf');
     res.setHeader('Content-Type', 'application/pdf');
@@ -431,7 +493,7 @@ router.get('/sops/packet.zip', requireAuth, async (req: AuthRequest, res: Respon
     ? db.prepare('SELECT transition_note, cover_tagline FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null; cover_tagline: string | null } | undefined
     : undefined;
   try {
-    const packetBuf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null, meta?.cover_tagline ?? null);
+    const packetBuf = await renderPacketPdfBuffer(sops, collection, meta?.transition_note ?? null, meta?.cover_tagline ?? null, loadPacketPhotos(collection));
     const individuals = await Promise.all(
       sops.filter((s) => s.sopRequired !== false).map(async (s) => ({
         sop: s,

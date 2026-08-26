@@ -1,7 +1,7 @@
 import React from 'react';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Document, Page, Text, View, Svg, G, Path, StyleSheet, Font, renderToBuffer } from '@react-pdf/renderer';
+import { Document, Page, Text, View, Svg, G, Path, Image, StyleSheet, Font, renderToBuffer } from '@react-pdf/renderer';
 import type { Sop, Availability } from '../src/lib/sop-types.js';
 import { SOP_CATEGORIES } from '../src/lib/sop-types.js';
 import { buildSopPages } from './sop-pdf.js';
@@ -180,8 +180,11 @@ const MENU_SVG_W = MENU_TOTAL_W * (TITLE_PT / UPEM); // ~191.6
 const MENU_SVG_H = MENU_H * (TITLE_PT / UPEM);       // ~78
 
 function MenuOutline() {
+  // Positive top margin: the FALL/SUMMER text above renders with its
+  // glyphs high in a 90pt line box, so a negative margin made the
+  // outline overlap the word. Stack them with a small clean gap.
   return (
-    <View style={{ width: MENU_SVG_W, height: MENU_SVG_H, marginTop: -2 }}>
+    <View style={{ width: MENU_SVG_W, height: MENU_SVG_H, marginTop: 30 }}>
       <Svg width={MENU_SVG_W} height={MENU_SVG_H} viewBox={`0 0 ${MENU_TOTAL_W} ${MENU_H}`}>
         <G transform={`translate(0,${MENU_H}) scale(1,-1)`}>
           {MENU_GLYPHS.map((g, i) => (
@@ -311,6 +314,95 @@ function CoverPage({ sops, collection, transitionNote, coverTagline }: { sops: S
   );
 }
 
+export interface PacketPhoto {
+  data: Buffer;
+  mime: string;
+}
+
+/** Launch-photo collage — one page right after the cover. Layout
+ *  adapts to the photo count (1 full-bleed, 2 stacked, 3 hero + pair,
+ *  4 grid, 5-6 two-by-three). Photos beyond six are not rendered. */
+function PhotoCollagePage({ photos, collection }: { photos: PacketPhoto[]; collection: string | null }) {
+  const shown = photos.slice(0, 6);
+  const n = shown.length;
+  const img = (p: PacketPhoto, i: number, style: object) => (
+    <Image
+      key={i}
+      src={{ data: p.data, format: p.mime.includes('png') ? 'png' : 'jpg' }}
+      style={{ objectFit: 'cover', borderRadius: 4, ...style }}
+    />
+  );
+  const GAP = 8;
+  // Content box inside the LETTER page padding, minus header/footer.
+  const gridH = 792 - 40 - 30 - 46 - 26;
+  const full = { width: '100%', height: gridH };
+  const halfH = (gridH - GAP) / 2;
+  const thirdH = (gridH - GAP * 2) / 3;
+
+  let grid: React.ReactElement;
+  if (n === 1) {
+    grid = <View>{img(shown[0], 0, full)}</View>;
+  } else if (n === 2) {
+    grid = (
+      <View style={{ gap: GAP }}>
+        {img(shown[0], 0, { width: '100%', height: halfH })}
+        {img(shown[1], 1, { width: '100%', height: halfH })}
+      </View>
+    );
+  } else if (n === 3) {
+    grid = (
+      <View style={{ gap: GAP }}>
+        {img(shown[0], 0, { width: '100%', height: halfH })}
+        <View style={{ flexDirection: 'row', gap: GAP }}>
+          {img(shown[1], 1, { flex: 1, height: halfH })}
+          {img(shown[2], 2, { flex: 1, height: halfH })}
+        </View>
+      </View>
+    );
+  } else if (n === 4) {
+    grid = (
+      <View style={{ gap: GAP }}>
+        <View style={{ flexDirection: 'row', gap: GAP }}>
+          {img(shown[0], 0, { flex: 1, height: halfH })}
+          {img(shown[1], 1, { flex: 1, height: halfH })}
+        </View>
+        <View style={{ flexDirection: 'row', gap: GAP }}>
+          {img(shown[2], 2, { flex: 1, height: halfH })}
+          {img(shown[3], 3, { flex: 1, height: halfH })}
+        </View>
+      </View>
+    );
+  } else {
+    const rows: PacketPhoto[][] = [shown.slice(0, 2), shown.slice(2, 4), shown.slice(4, 6)];
+    grid = (
+      <View style={{ gap: GAP }}>
+        {rows.map((row, r) => (
+          <View key={r} style={{ flexDirection: 'row', gap: GAP }}>
+            {row.map((p, i) => img(p, r * 2 + i, { flex: 1, height: thirdH }))}
+          </View>
+        ))}
+      </View>
+    );
+  }
+
+  return (
+    <Page size="LETTER" style={s.page}>
+      <View style={{
+        flexDirection: 'row', alignItems: 'baseline', gap: 8,
+        paddingBottom: 6, marginBottom: 10,
+        borderBottomWidth: 1.2, borderBottomColor: INK,
+      }}>
+        <Text style={{ fontFamily: 'Anton', fontSize: 22, textTransform: 'uppercase', letterSpacing: 0.4 }}>The Launch</Text>
+        <View style={{ flex: 1 }} />
+        <Text style={{ fontSize: 7.5, letterSpacing: 2, textTransform: 'uppercase', fontWeight: 600, opacity: 0.6 }}>
+          {shortSeason(collection)}
+        </Text>
+      </View>
+      {grid}
+    </Page>
+  );
+}
+
 function TocSection({ num, name, items, twoCol }: { num: string; name: string; items: Sop[]; twoCol: boolean }) {
   const count = items.length;
   return (
@@ -435,7 +527,7 @@ function CategoryDividerPage({ label }: { label: string }) {
   );
 }
 
-export async function renderPacketPdfBuffer(sops: Sop[], collection: string | null, transitionNote: string | null, coverTagline: string | null = null): Promise<Buffer> {
+export async function renderPacketPdfBuffer(sops: Sop[], collection: string | null, transitionNote: string | null, coverTagline: string | null = null, photos: PacketPhoto[] = []): Promise<Buffer> {
   const printable = sops.filter((sop) => sop.sopRequired !== false);
   const drinks = printable.filter((sop) => (sop.kind ?? 'drink') === 'drink');
   const recipes = printable.filter((sop) => sop.kind === 'recipe');
@@ -455,6 +547,11 @@ export async function renderPacketPdfBuffer(sops: Sop[], collection: string | nu
   const children: React.ReactElement[] = [
     <CoverPage key="cover" sops={sops} collection={collection} transitionNote={transitionNote} coverTagline={coverTagline} />,
   ];
+  // Launch-photo collage sits between the cover and the first
+  // category divider.
+  if (photos.length > 0) {
+    children.push(<PhotoCollagePage key="photos" photos={photos} collection={collection} />);
+  }
   for (const key of orderedKeys) {
     const cat = SOP_CATEGORIES.find((c) => c.key === key);
     const label = cat ? cat.name : 'Other';

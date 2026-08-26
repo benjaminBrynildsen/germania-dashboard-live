@@ -771,6 +771,20 @@ db.exec(`
   -- Per-collection metadata for the launch packet cover. Keyed by the
   -- collection string (e.g. "Spring 2026"). transition_note is the
   -- italic intro line on the cover. Idempotent — upserted on edit.
+  -- Launch photos for a collection's packet. Rendered as a collage
+  -- page right after the packet cover (up to 6 photos, by position).
+  -- Stored as blobs so they live in the same persistent SQLite file
+  -- as everything else.
+  CREATE TABLE IF NOT EXISTS sop_collection_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collection TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    data BLOB NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
+  );
+  CREATE INDEX IF NOT EXISTS idx_sop_collection_photos ON sop_collection_photos(collection, position);
+
   CREATE TABLE IF NOT EXISTS sop_collection_meta (
     collection TEXT PRIMARY KEY,
     transition_note TEXT,
