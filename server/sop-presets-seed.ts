@@ -1,4 +1,5 @@
 import type { Database } from 'better-sqlite3';
+import { bellsToOz } from '../src/lib/sop-types.js';
 
 // Default per-size cell values are stored as a JSON object keyed by
 // temperature so the picker can fill in size-appropriate quantities
@@ -125,4 +126,33 @@ export function seedSopPresets(db: Database) {
     });
   });
   tx(PRESETS);
+
+  // Oz twins — for every preset whose defaults carry bell measurements,
+  // seed a "<name> (oz)" duplicate with the quantities converted
+  // (1 small bell = 3 oz, 1 large bell = 5 oz). The bell originals stay
+  // for the pre-2026 house standard; 2026+ SOPs use the (oz) versions.
+  const ozTwins: SeedPreset[] = [];
+  PRESETS.forEach((p, i) => {
+    if (!p.defaults) return;
+    let hasBells = false;
+    const converted: PresetDefaults = {};
+    for (const [temp, cells] of Object.entries(p.defaults) as Array<[keyof PresetDefaults, string[]]>) {
+      converted[temp] = cells.map((c) => {
+        const oz = bellsToOz(c);
+        if (oz !== null) hasBells = true;
+        return oz ?? c;
+      });
+    }
+    if (!hasBells) return;
+    ozTwins.push({
+      slug: `${p.slug}-oz`,
+      category: p.category,
+      name: `${p.name} (oz)`,
+      default_modifier: p.default_modifier,
+      defaults: converted,
+      // Sort after the bell originals so pickers list bells first.
+      sort: (p.sort ?? i) + 500,
+    });
+  });
+  tx(ozTwins);
 }
