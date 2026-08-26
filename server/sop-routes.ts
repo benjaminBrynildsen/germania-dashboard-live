@@ -9,7 +9,7 @@ import { Router, Response } from 'express';
 import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
 import type { Sop, SopVariant, SopRow, SopFootnote, Temperature, Availability } from '../src/lib/sop-types.js';
-import { AVAILABILITY_OPTIONS, SOP_CATEGORIES, collectionMatches, parseCollectionSeasons } from '../src/lib/sop-types.js';
+import { AVAILABILITY_OPTIONS, SOP_CATEGORIES, bellsToOz, collectionMatches, parseCollectionSeasons } from '../src/lib/sop-types.js';
 import JSZip from 'jszip';
 import { renderSopsToPdfBuffer } from './sop-pdf.js';
 import { renderPacketPdfBuffer } from './sop-packet-pdf.js';
@@ -710,6 +710,19 @@ router.delete('/sop-presets/:id', requireAuth, (req: AuthRequest, res: Response)
 router.get('/sops/:slug/pdf', requireAuth, async (req: AuthRequest, res: Response) => {
   const sop = loadSop(String(req.params.slug));
   if (!sop) { res.status(404).json({ error: 'not_found' }); return; }
+  // ?units=oz converts bell measurements in the recipe cells to ounces
+  // (1 small bell = 3 oz, 1 large bell = 5 oz) for this render only —
+  // the stored SOP stays in bells. Driven by the editor's "Show oz"
+  // toggle.
+  if (req.query.units === 'oz') {
+    for (const v of sop.variants ?? []) {
+      for (const r of v.rows ?? []) {
+        r.cells = (r.cells ?? []).map((c: string) => bellsToOz(c) ?? c);
+      }
+    }
+    sop.subtitle = [sop.subtitle, 'Bell measurements shown in oz (small = 3 oz, large = 5 oz)']
+      .filter(Boolean).join(' · ');
+  }
   try {
     const buf = await renderSopsToPdfBuffer([sop]);
     const filename = downloadFilename(sop.name, yearFromCollection(sop.collection), 'pdf');

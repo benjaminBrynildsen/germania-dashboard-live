@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { AVAILABILITY_OPTIONS, DEFAULT_SIZE_LABELS, SOP_CATEGORIES, TEMP_LABEL, TEMP_ORDER, standardPumpCells, type Availability, type Sop, type SopFootnote, type SopKind, type SopPreset, type SopRow, type SopVariant, type Temperature } from '../../lib/sop-types';
+import { AVAILABILITY_OPTIONS, DEFAULT_SIZE_LABELS, SOP_CATEGORIES, TEMP_LABEL, TEMP_ORDER, bellsToOz, standardPumpCells, type Availability, type Sop, type SopFootnote, type SopKind, type SopPreset, type SopRow, type SopVariant, type Temperature } from '../../lib/sop-types';
 import SeasonYearPicker from './SeasonYearPicker';
 import ChipPicker from './ChipPicker';
 
@@ -23,34 +23,6 @@ const PUMPS_OPTIONS = [
 ];
 
 type SopFull = Sop & { id: number };
-
-// ── Bells → oz conversion (display aid) ─────────────────────────────
-// House standard: 1 small bell = 3 oz, 1 large bell = 5 oz. Handles
-// decimals ("1.5 small bells"), unicode fractions ("½ large bell",
-// "2 ¼ large bells"), and the 2024-style "3-oz bell"/"5-oz bell"
-// wording. Returns null when the text has no bell measurement.
-const FRACTIONS: Record<string, number> = { '½': 0.5, '¼': 0.25, '¾': 0.75 };
-const BELL_RE = /(\d+(?:\.\d+)?\s*[½¼¾]?|[½¼¾])\s*(small|large|3-oz|3 oz|5-oz|5 oz)\s+bells?/gi;
-
-function parseBellQty(raw: string): number {
-  const t = raw.trim();
-  const m = t.match(/^(\d+)?\s*([½¼¾])$/);
-  if (m) return (m[1] ? parseInt(m[1], 10) : 0) + FRACTIONS[m[2]];
-  return parseFloat(t);
-}
-
-export function bellsToOz(text: string): string | null {
-  let hit = false;
-  const out = text.replace(BELL_RE, (match, qty: string, kind: string) => {
-    const q = parseBellQty(qty);
-    if (!Number.isFinite(q)) return match;
-    hit = true;
-    const perBell = /small|3/.test(kind.toLowerCase()) ? 3 : 5;
-    const oz = Math.round(q * perBell * 100) / 100;
-    return `${oz} oz`;
-  });
-  return hit ? out : null;
-}
 
 export default function EditView() {
   const { slug } = useParams<{ slug: string }>();
@@ -258,7 +230,9 @@ export default function EditView() {
           </button>
           <button className="btn btn-secondary" onClick={handleDelete}>Delete</button>
           <button className="btn btn-secondary" onClick={handleDuplicate}>Duplicate</button>
-          <a className="btn btn-secondary" href={`/api/sops/${sop.slug}/pdf`} target="_blank" rel="noreferrer">Open PDF</a>
+          <a className="btn btn-secondary" href={`/api/sops/${sop.slug}/pdf${showOz ? '?units=oz' : ''}`} target="_blank" rel="noreferrer">
+            {showOz ? 'Open PDF (oz)' : 'Open PDF'}
+          </a>
           <button className="btn btn-secondary" disabled={saving} onClick={() => handleSave(true)}>Save & Preview</button>
           <button className="btn btn-primary" disabled={saving || !dirty} onClick={() => handleSave(false)}>
             {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
