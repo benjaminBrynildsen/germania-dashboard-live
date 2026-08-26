@@ -146,7 +146,7 @@ function SeasonEditor({ seasonId }: { seasonId: number }) {
         <button className="btn btn-secondary btn-sm" onClick={() => navigate('/menu-boards')}>← Back</button>
         <SeasonNameEditor season={season} onRenamed={reload} />
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <ImportFromSops seasonId={seasonId} onImported={reload} />
+          <ImportFromSops seasonId={seasonId} categories={season.categories} onImported={reload} />
           {season.name.toLowerCase().includes('summer') && season.name.includes('2026') && (
             <button
               className="btn btn-secondary btn-sm"
@@ -294,8 +294,26 @@ function CategorySection({ category, onUpdate }: { category: MenuCategory; onUpd
       {/* Items */}
       {!collapsed && (
         <div style={{ padding: '8px 16px 16px' }}>
-          {category.items.map((item) => (
-            <ItemRow key={item.id} item={item} onUpdate={onUpdate} />
+          {category.items.map((item, idx) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              onUpdate={onUpdate}
+              canMoveUp={idx > 0}
+              canMoveDown={idx < category.items.length - 1}
+              onMove={async (dir) => {
+                // Swap display positions with the neighbor. Write both
+                // as their new list indexes so legacy duplicate
+                // position values also get normalized.
+                const neighbor = category.items[idx + dir];
+                if (!neighbor) return;
+                await Promise.all([
+                  api.put(`/api/menu-items/${item.id}`, { position: idx + dir }),
+                  api.put(`/api/menu-items/${neighbor.id}`, { position: idx }),
+                ]);
+                onUpdate();
+              }}
+            />
           ))}
           <AddItemButton categoryId={category.id} kind={category.side === 'back' && category.name.toLowerCase().includes('bake') ? 'food' : 'drink'} position={category.items.length} onCreated={onUpdate} />
         </div>
@@ -306,9 +324,32 @@ function CategorySection({ category, onUpdate }: { category: MenuCategory; onUpd
 
 // ─── Item Row ────────────────────────────────────────────────
 
-function ItemRow({ item, onUpdate }: { item: MenuItem; onUpdate: () => void }) {
+function ItemRow({ item, onUpdate, canMoveUp, canMoveDown, onMove }: {
+  item: MenuItem;
+  onUpdate: () => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onMove?: (dir: -1 | 1) => Promise<void>;
+}) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ ...item });
+  const [moving, setMoving] = useState(false);
+
+  const arrowBtn = (dir: -1 | 1, enabled: boolean) => (
+    <button
+      onClick={async () => {
+        if (!onMove || moving) return;
+        setMoving(true);
+        try { await onMove(dir); } finally { setMoving(false); }
+      }}
+      disabled={!enabled || moving}
+      title={dir === -1 ? 'Move up' : 'Move down'}
+      style={{
+        border: 0, background: 'transparent', padding: '0 2px', cursor: enabled && !moving ? 'pointer' : 'default',
+        fontSize: 10, lineHeight: 1.2, color: enabled ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.12)',
+      }}
+    >{dir === -1 ? '▲' : '▼'}</button>
+  );
 
   function set(key: string, val: any) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -346,6 +387,12 @@ function ItemRow({ item, onUpdate }: { item: MenuItem; onUpdate: () => void }) {
   if (!editing) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(0,0,0,0.05)', fontSize: 13 }}>
+        {onMove && (
+          <span style={{ display: 'inline-flex', flexDirection: 'column', flexShrink: 0 }}>
+            {arrowBtn(-1, !!canMoveUp)}
+            {arrowBtn(1, !!canMoveDown)}
+          </span>
+        )}
         <span style={{ fontWeight: 600, flex: 1 }}>
           {item.isNew && <span style={{ color: '#e74c3c', fontSize: 10, fontWeight: 700, marginRight: 6 }}>NEW</span>}
           {item.name}
@@ -676,12 +723,15 @@ function ListEditor({ list, onUpdate }: { list: MenuList; onUpdate: () => void }
 
 // ─── Import from SOPs ────────────────────────────────────────
 
-function ImportFromSops({ seasonId, onImported }: { seasonId: number; onImported: () => void }) {
+function ImportFromSops({ seasonId, categories, onImported }: { seasonId: number; categories: Array<{ id: number; name: string; side: string }>; onImported: () => void }) {
   const [open, setOpen] = useState(false);
   const [sops, setSops] = useState<any[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [filter, setFilter] = useState('');
   const [importing, setImporting] = useState(false);
+  // '' = auto-map by each SOP's category (the historical behavior);
+  // otherwise the id of the menu category everything imports into.
+  const [targetCategory, setTargetCategory] = useState<string>('');
 
   function openModal() {
     setOpen(true);
@@ -703,7 +753,9 @@ function ImportFromSops({ seasonId, onImported }: { seasonId: number; onImported
   async function doImport() {
     setImporting(true);
     try {
-      await api.post(`/api/menu-seasons/${seasonId}/import-sops`, { sopIds: [...selected] });
+      const body: any = { sopIds: [...selected] };
+      if (targetCategory) body.targetCategoryId = Number(targetCategory);
+      await api.post(`/api/menu-seasons/${seasonId}/import-sops`, body);
       setOpen(false);
       setSelected(new Set());
       onImported();
@@ -794,9 +846,23 @@ function ImportFromSops({ seasonId, onImported }: { seasonId: number; onImported
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.6)', whiteSpace: 'nowrap' }}>Import into:</label>
+          <select
+            value={targetCategory}
+            onChange={(e) => setTargetCategory(e.target.value)}
+            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13, flex: 1, maxWidth: 320 }}
+          >
+            <option value="">Auto — match each SOP's category</option>
+            {categories.map((c) => (
+              <option key={c.id} value={String(c.id)}>{c.name} ({c.side === 'front' ? 'Front' : 'Back'})</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
           <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>
-            {selected.size} selected — will import with default prices, auto-mapped to categories
+            {selected.size} selected — imports with default prices{targetCategory ? '' : ', auto-mapped to categories'}
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-secondary" onClick={() => setOpen(false)}>Cancel</button>

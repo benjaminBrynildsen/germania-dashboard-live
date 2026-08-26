@@ -504,9 +504,17 @@ router.post('/menu-seasons/:id/import-sops', requireAuth, (req: AuthRequest, res
   const seasonId = Number(req.params.id);
   const { sopIds } = req.body || {};
   if (!Array.isArray(sopIds) || sopIds.length === 0) { res.status(400).json({ error: 'sopIds_required' }); return; }
+  // Optional: import everything into one chosen category instead of
+  // auto-mapping by each SOP's category. Must be a category of this
+  // season.
+  const targetCategoryId = typeof req.body?.targetCategoryId === 'number' ? req.body.targetCategoryId : null;
 
   const season = db.prepare('SELECT * FROM menu_seasons WHERE id = ?').get(seasonId) as SeasonRow | undefined;
   if (!season) { res.status(404).json({ error: 'not_found' }); return; }
+  if (targetCategoryId !== null) {
+    const target = db.prepare('SELECT id FROM menu_categories WHERE id = ? AND season_id = ?').get(targetCategoryId, seasonId);
+    if (!target) { res.status(400).json({ error: 'invalid_target_category' }); return; }
+  }
 
   const sops = sopIds.map((id: number) =>
     db.prepare('SELECT id, name, category, collection, dietary_tags FROM sops WHERE id = ?').get(id)
@@ -519,13 +527,17 @@ router.post('/menu-seasons/:id/import-sops', requireAuth, (req: AuthRequest, res
     const insertCat = db.prepare('INSERT INTO menu_categories (season_id, name, subtitle, position, side) VALUES (?, ?, ?, ?, ?)');
     const insertItem = db.prepare('INSERT INTO menu_items (category_id, name, description, kind, position, size_labels_json, prices_json, temps, has_spotify, frozen_note, layout, pair_position, food_price, food_subtitle, is_new) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
+    const targetCat = targetCategoryId !== null
+      ? existingCats.find((c) => c.id === targetCategoryId) ?? null
+      : null;
+
     let imported = 0;
     for (const sop of sops) {
       const catKey = sop.category || 'sweet';
       const catInfo = CATEGORY_MAP[catKey] || CATEGORY_MAP.sweet;
       const defaults = DEFAULT_PRICES[catKey] || DEFAULT_PRICES.sweet;
 
-      let cat = catByName.get(catInfo.name);
+      let cat = targetCat ?? catByName.get(catInfo.name);
       if (!cat) {
         const maxPos = existingCats.length > 0 ? Math.max(...existingCats.map((c) => c.position)) + 1 : 0;
         const result = insertCat.run(seasonId, catInfo.name, catInfo.subtitle || null, maxPos, catInfo.side);
