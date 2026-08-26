@@ -203,8 +203,14 @@ function FrozenNote({ ctx }: { ctx: ScaleCtx }) {
 
 function FoodItem({ item, ctx }: { item: any; ctx: ScaleCtx }) {
   const { s } = ctx;
+  // Baseline alignment only works when both sides are bare Text. A NEW
+  // row wraps the name in a View (badge + text), which has no text
+  // baseline — react-pdf then floats the price up a badge-height.
+  // Center-align those rows instead (name and price share a font size,
+  // so their centers coincide).
+  const rowAlign = item.isNew ? 'center' : 'baseline';
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingVertical: 0, marginBottom: 22 * s, width: '100%' }}>
+    <View style={{ flexDirection: 'row', alignItems: rowAlign, justifyContent: 'space-between', paddingVertical: 0, marginBottom: 22 * s, width: '100%' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 * s, flex: 1 }}>
         {item.isNew && (
           <View style={{ backgroundColor: '#e74c3c', borderRadius: 16 * s, width: 70 * s, height: 32 * s, alignItems: 'center', justifyContent: 'center' }}>
