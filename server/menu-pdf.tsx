@@ -262,7 +262,7 @@ function BottomLists({ lists, ctx }: { lists: any[]; ctx: ScaleCtx }) {
                 {col2.length > 0 && (
                   <View style={{ alignItems: 'center' }}>
                     {col2.map((item: any, i: number) => (
-                      <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 24 * s, lineHeight: 1.3, textAlign: 'center' }}>
+                      <Text key={i} style={{ fontFamily: 'Oswald', fontWeight: 200, fontSize: 20 * s, lineHeight: 1.2, textAlign: 'center' }}>
                         ~{item.name}~
                       </Text>
                     ))}
