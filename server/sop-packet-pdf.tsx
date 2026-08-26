@@ -536,14 +536,14 @@ export async function renderPacketPdfBuffer(sops: Sop[], collection: string | nu
     ...(byCategory.has('uncategorized') ? ['uncategorized'] : []),
   ];
 
-  const children: React.ReactElement[] = [
-    <CoverPage key="cover" sops={sops} collection={collection} transitionNote={transitionNote} coverTagline={coverTagline} />,
-  ];
-  // Launch-photo collage sits between the cover and the first
-  // category divider.
+  // Launch-photo collage OPENS the packet; the cover/TOC follows it.
+  const children: React.ReactElement[] = [];
   if (photos.length > 0) {
     children.push(<PhotoCollagePage key="photos" photos={photos} />);
   }
+  children.push(
+    <CoverPage key="cover" sops={sops} collection={collection} transitionNote={transitionNote} coverTagline={coverTagline} />,
+  );
   for (const key of orderedKeys) {
     const cat = SOP_CATEGORIES.find((c) => c.key === key);
     const label = cat ? cat.name : 'Other';
