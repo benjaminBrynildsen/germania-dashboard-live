@@ -345,12 +345,22 @@ function MenuPage({ season, side, location, pageW, pageH, padH, scale }: {
 
 // ─── Export ──────────────────────────────────────────────────
 
-export async function renderMenuPdf(season: any, location: string): Promise<Buffer> {
-  const is18x48 = location === 'G4';
-  const pageW = is18x48 ? 18 * 72 : 24 * 72;
-  const pageH = is18x48 ? 48 * 72 : 36 * 72;
-  const padH = is18x48 ? 80 : 100;
-  const scale = is18x48 ? 0.75 : 1;
+/** 'print' = the physical boards (24×36, or 18×48 for G4).
+ *  'digital' = the in-store TV at G1: a landscape 16:9 screen showing
+ *  the two pages side by side, so each page is 16in × 18in — exactly
+ *  8:9, i.e. half a 16:9 screen (960×1080 of a 1080p panel, 1920×2160
+ *  of 4K). Matches the Menu Team's existing Slides page setup. */
+export type MenuRenderSize = 'print' | 'digital';
+
+export async function renderMenuPdf(season: any, location: string, size: MenuRenderSize = 'print'): Promise<Buffer> {
+  const isDigital = size === 'digital';
+  const is18x48 = !isDigital && location === 'G4';
+  const pageW = isDigital ? 16 * 72 : is18x48 ? 18 * 72 : 24 * 72;
+  const pageH = isDigital ? 18 * 72 : is18x48 ? 48 * 72 : 36 * 72;
+  const padH = isDigital ? 60 : is18x48 ? 80 : 100;
+  // Digital pages are proportionally wider and much shorter than the
+  // 24×36 poster (8:9 vs 2:3), so content shrinks to fit the height.
+  const scale = isDigital ? 0.47 : is18x48 ? 0.75 : 1;
 
   const doc = (
     <Document>

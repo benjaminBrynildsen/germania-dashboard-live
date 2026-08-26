@@ -816,8 +816,9 @@ function ExportDropdown({ seasonId }: { seasonId: number }) {
   const [open, setOpen] = useState(false);
   const [fileFormat, setFileFormat] = useState<'pdf' | 'png'>('pdf');
 
-  function download(location: string) {
-    window.open(`/api/menu-seasons/${seasonId}/pdf?location=${location}&format=${fileFormat}&t=${Date.now()}`, '_blank');
+  function download(location: string, size?: 'digital') {
+    const sizeParam = size ? `&size=${size}` : '';
+    window.open(`/api/menu-seasons/${seasonId}/pdf?location=${location}&format=${fileFormat}${sizeParam}&t=${Date.now()}`, '_blank');
     setOpen(false);
   }
 
@@ -865,6 +866,21 @@ function ExportDropdown({ seasonId }: { seasonId: number }) {
               <strong>{loc.key}</strong> — {loc.name} <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>({loc.format})</span>
             </button>
           ))}
+          {/* In-store TV at G1: two 16x18 (8:9) panels shown side by
+              side on a landscape 16:9 screen. Use PNG for the TV. */}
+          <button
+            onClick={() => download('G1', 'digital')}
+            style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              padding: '8px 12px', background: 'none', border: 'none',
+              cursor: 'pointer', fontSize: 13, borderRadius: 6,
+              borderTop: '1px solid rgba(0,0,0,0.06)', marginTop: 4,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.04)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+          >
+            <strong>G1 Digital</strong> — Alton TV <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>(16x18 ×2, side by side)</span>
+          </button>
           {fileFormat === 'png' && (
             <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.45)', padding: '4px 12px 0', borderTop: '1px solid rgba(0,0,0,0.05)', marginTop: 4 }}>
               PNG downloads as ZIP (front + back pages)
