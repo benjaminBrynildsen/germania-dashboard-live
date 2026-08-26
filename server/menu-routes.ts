@@ -691,11 +691,14 @@ router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: R
   if (!id) { res.status(400).json({ error: 'invalid_id' }); return; }
   const location = typeof req.query.location === 'string' ? req.query.location : 'G1';
   const fileFormat = typeof req.query.format === 'string' ? req.query.format : 'pdf'; // 'pdf' | 'png'
+  // 'digital' renders the two pages as 16x18in (8:9) panels for the
+  // in-store TV — displayed side by side on a landscape 16:9 screen.
+  const size = req.query.size === 'digital' ? 'digital' as const : 'print' as const;
   const season = assembleSeason(id);
   if (!season) { res.status(404).json({ error: 'not_found' }); return; }
   try {
-    const pdfBuf = await renderMenuPdf(season, location);
-    const dim = location === 'G4' ? '18x48' : '24x36';
+    const pdfBuf = await renderMenuPdf(season, location, size);
+    const dim = size === 'digital' ? 'Digital 16x18' : location === 'G4' ? '18x48' : '24x36';
     const baseName = `${season.name} - ${location} (${dim})`;
 
     if (fileFormat === 'png') {
@@ -711,7 +714,11 @@ router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: R
       }
       const zip = new JSZip();
       pngPages.forEach((p: any, i) => {
-        const side = i === 0 ? 'Front' : i === 1 ? 'Back' : `Page ${i + 1}`;
+        // On the TV the two pages sit side by side, so name them by
+        // screen position instead of Front/Back.
+        const side = size === 'digital'
+          ? (i === 0 ? 'Left' : i === 1 ? 'Right' : `Page ${i + 1}`)
+          : (i === 0 ? 'Front' : i === 1 ? 'Back' : `Page ${i + 1}`);
         zip.file(`${baseName} - ${side}.png`, Buffer.from(p.content as Uint8Array));
       });
       const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
