@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { seedSopPresets } from './sop-presets-seed.js';
+import { seedSopHistory } from './sop-history-seed.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // In prod the SQLite file lives on a Render persistent disk (DB_PATH=/var/data/germania.db).
@@ -877,6 +878,11 @@ db.exec(`
 
 // Seed SOP presets on boot (idempotent — keyed by slug).
 seedSopPresets(db);
+
+// Seed the historical seasonal SOPs (Fall 2022/2023/2024) on boot.
+// Insert-only + keyed by slug and (name, collection), so hand edits in
+// the UI are never overwritten.
+seedSopHistory(db);
 
 // Ensure the single COGS settings row exists (idempotent).
 db.prepare('INSERT OR IGNORE INTO cog_settings (id) VALUES (1)').run();
