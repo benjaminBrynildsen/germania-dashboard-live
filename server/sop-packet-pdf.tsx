@@ -319,10 +319,13 @@ export interface PacketPhoto {
   mime: string;
 }
 
-/** Launch-photo collage — one page right after the cover. Layout
- *  adapts to the photo count (1 full-bleed, 2 stacked, 3 hero + pair,
- *  4 grid, 5-6 two-by-three). Photos beyond six are not rendered. */
-function PhotoCollagePage({ photos, collection }: { photos: PacketPhoto[]; collection: string | null }) {
+/** Launch-photo collage — one page right after the cover, photos
+ *  only (no header). Layout adapts to the photo count (1 full-bleed,
+ *  2 stacked, 3 hero + pair, 4 grid, 5-6 two-by-three). Photos beyond
+ *  six are not rendered. wrap={false} on the page so the grid can
+ *  never split — a split used to leave a near-empty page between the
+ *  cover and the photos. */
+function PhotoCollagePage({ photos }: { photos: PacketPhoto[] }) {
   const shown = photos.slice(0, 6);
   const n = shown.length;
   const img = (p: PacketPhoto, i: number, style: object) => (
@@ -333,8 +336,8 @@ function PhotoCollagePage({ photos, collection }: { photos: PacketPhoto[]; colle
     />
   );
   const GAP = 8;
-  // Content box inside the LETTER page padding, minus header/footer.
-  const gridH = 792 - 40 - 30 - 46 - 26;
+  // Full content box inside the LETTER page padding.
+  const gridH = 792 - 40 - 30;
   const full = { width: '100%', height: gridH };
   const halfH = (gridH - GAP) / 2;
   const thirdH = (gridH - GAP * 2) / 3;
@@ -386,18 +389,7 @@ function PhotoCollagePage({ photos, collection }: { photos: PacketPhoto[]; colle
   }
 
   return (
-    <Page size="LETTER" style={s.page}>
-      <View style={{
-        flexDirection: 'row', alignItems: 'baseline', gap: 8,
-        paddingBottom: 6, marginBottom: 10,
-        borderBottomWidth: 1.2, borderBottomColor: INK,
-      }}>
-        <Text style={{ fontFamily: 'Anton', fontSize: 22, textTransform: 'uppercase', letterSpacing: 0.4 }}>The Launch</Text>
-        <View style={{ flex: 1 }} />
-        <Text style={{ fontSize: 7.5, letterSpacing: 2, textTransform: 'uppercase', fontWeight: 600, opacity: 0.6 }}>
-          {shortSeason(collection)}
-        </Text>
-      </View>
+    <Page size="LETTER" style={s.page} wrap={false}>
       {grid}
     </Page>
   );
@@ -550,7 +542,7 @@ export async function renderPacketPdfBuffer(sops: Sop[], collection: string | nu
   // Launch-photo collage sits between the cover and the first
   // category divider.
   if (photos.length > 0) {
-    children.push(<PhotoCollagePage key="photos" photos={photos} collection={collection} />);
+    children.push(<PhotoCollagePage key="photos" photos={photos} />);
   }
   for (const key of orderedKeys) {
     const cat = SOP_CATEGORIES.find((c) => c.key === key);
