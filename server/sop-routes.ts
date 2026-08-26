@@ -386,9 +386,27 @@ function resolveSopsFromQuery(req: AuthRequest): { sops: Sop[]; collection: stri
   return { sops, collection };
 }
 
+/** ?units=oz on any SOP export converts bell measurements in the
+ *  recipe cells to ounces for that render only (1 small bell = 3 oz,
+ *  1 large bell = 5 oz) and notes the conversion under each drink
+ *  title. The stored SOPs stay in bells. */
+const wantsOz = (req: AuthRequest): boolean => req.query.units === 'oz';
+
+function convertSopToOz(sop: Sop): Sop {
+  for (const v of sop.variants ?? []) {
+    for (const r of v.rows ?? []) {
+      r.cells = (r.cells ?? []).map((c) => bellsToOz(c) ?? c);
+    }
+  }
+  sop.subtitle = [sop.subtitle, 'Bell measurements shown in oz (small = 3 oz, large = 5 oz)']
+    .filter(Boolean).join(' · ');
+  return sop;
+}
+
 router.get('/sops/packet.pdf', requireAuth, async (req: AuthRequest, res: Response) => {
   const { sops, collection } = resolveSopsFromQuery(req);
   if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
+  if (wantsOz(req)) sops.forEach(convertSopToOz);
   const meta = collection
     ? db.prepare('SELECT transition_note, cover_tagline FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null; cover_tagline: string | null } | undefined
     : undefined;
@@ -408,6 +426,7 @@ router.get('/sops/packet.pdf', requireAuth, async (req: AuthRequest, res: Respon
 router.get('/sops/packet.zip', requireAuth, async (req: AuthRequest, res: Response) => {
   const { sops, collection } = resolveSopsFromQuery(req);
   if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
+  if (wantsOz(req)) sops.forEach(convertSopToOz);
   const meta = collection
     ? db.prepare('SELECT transition_note, cover_tagline FROM sop_collection_meta WHERE collection = ?').get(collection) as { transition_note: string | null; cover_tagline: string | null } | undefined
     : undefined;
@@ -454,6 +473,7 @@ router.get('/sops/bundle.pdf', requireAuth, async (req: AuthRequest, res: Respon
     res.status(400).json({ error: 'ids_or_collection_required' }); return;
   }
   if (sops.length === 0) { res.status(404).json({ error: 'no_sops' }); return; }
+  if (wantsOz(req)) sops.forEach(convertSopToOz);
   try {
     const buf = await renderSopsToPdfBuffer(sops);
     const baseName = collectionParam ? `${collectionParam} Bundle` : `Bundle (${sops.length} SOPs)`;
@@ -710,19 +730,7 @@ router.delete('/sop-presets/:id', requireAuth, (req: AuthRequest, res: Response)
 router.get('/sops/:slug/pdf', requireAuth, async (req: AuthRequest, res: Response) => {
   const sop = loadSop(String(req.params.slug));
   if (!sop) { res.status(404).json({ error: 'not_found' }); return; }
-  // ?units=oz converts bell measurements in the recipe cells to ounces
-  // (1 small bell = 3 oz, 1 large bell = 5 oz) for this render only —
-  // the stored SOP stays in bells. Driven by the editor's "Show oz"
-  // toggle.
-  if (req.query.units === 'oz') {
-    for (const v of sop.variants ?? []) {
-      for (const r of v.rows ?? []) {
-        r.cells = (r.cells ?? []).map((c: string) => bellsToOz(c) ?? c);
-      }
-    }
-    sop.subtitle = [sop.subtitle, 'Bell measurements shown in oz (small = 3 oz, large = 5 oz)']
-      .filter(Boolean).join(' · ');
-  }
+  if (wantsOz(req)) convertSopToOz(sop);
   try {
     const buf = await renderSopsToPdfBuffer([sop]);
     const filename = downloadFilename(sop.name, yearFromCollection(sop.collection), 'pdf');

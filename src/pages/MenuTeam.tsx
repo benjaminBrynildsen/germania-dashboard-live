@@ -310,6 +310,11 @@ function tempColor(t: Temperature): string {
 
 function DownloadDropdown({ label, packetUrl, zipUrl, bundleUrl }: { label: string; packetUrl: string; zipUrl: string; bundleUrl: string }) {
   const [open, setOpen] = useState(false);
+  // Render bell measurements as ounces in the downloaded PDFs
+  // (1 small bell = 3 oz, 1 large bell = 5 oz). Display-only server
+  // conversion — the stored SOPs stay in bells.
+  const [oz, setOz] = useState(false);
+  const withUnits = (url: string) => (oz ? `${url}&units=oz` : url);
   return (
     <div style={{ position: 'relative' }}>
       <button type="button" className="btn btn-primary" onClick={() => setOpen((o) => !o)}>{label}</button>
@@ -317,18 +322,27 @@ function DownloadDropdown({ label, packetUrl, zipUrl, bundleUrl }: { label: stri
         <>
           <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
           <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, minWidth: 280, background: '#fff', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 10, padding: 4, zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.10)' }}>
-            <a href={zipUrl} onClick={() => setOpen(false)} style={menuItemStyle}>
+            <a href={withUnits(zipUrl)} onClick={() => setOpen(false)} style={menuItemStyle}>
               <div style={{ fontWeight: 600 }}>Packet + individuals (ZIP)</div>
               <div style={menuItemHint}>Cover + dividers + all SOPs as one PDF, plus each drink as its own PDF.</div>
             </a>
-            <a href={packetUrl} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} style={menuItemStyle}>
+            <a href={withUnits(packetUrl)} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} style={menuItemStyle}>
               <div style={{ fontWeight: 600 }}>Launch packet only (PDF)</div>
               <div style={menuItemHint}>Single PDF: cover + dividers + all SOPs.</div>
             </a>
-            <a href={bundleUrl} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} style={menuItemStyle}>
+            <a href={withUnits(bundleUrl)} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} style={menuItemStyle}>
               <div style={{ fontWeight: 600 }}>Bundle SOPs only (PDF)</div>
               <div style={menuItemHint}>SOPs concatenated, no cover or dividers.</div>
             </a>
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '9px 12px', marginTop: 2, cursor: 'pointer',
+              borderTop: '1px solid rgba(0,0,0,0.07)',
+              fontSize: 12, color: 'rgba(0,0,0,0.65)',
+            }}>
+              <input type="checkbox" checked={oz} onChange={(e) => setOz(e.target.checked)} />
+              <span>Convert bells → oz <span style={{ color: 'rgba(0,0,0,0.4)' }}>(small = 3 oz, large = 5 oz)</span></span>
+            </label>
           </div>
         </>
       )}
