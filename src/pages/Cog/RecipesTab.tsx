@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { api } from '../../lib/api';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useCanEdit, SummaryCard, InfoBox, Modal, NumInput, inputStyle, labelStyle } from './ui';
+import type { MasterIngredient } from './IngredientsTab';
 
 interface Recipe {
   id: number;
@@ -47,6 +48,37 @@ const STATUS_COLORS: Record<string, string> = {
   'SUMMER 2025': 'badge-red',
 };
 
+// The three kinds of batch recipe the kitchen actually makes. Category stays
+// free-text in the DB; this just drives the picker (existing odd values keep
+// working via the "Custom" option).
+const CATEGORY_OPTIONS = ['Syrup', 'Sauce', 'Food'];
+
+// Cost per pack unit from the master catalog (e.g. $39.98 / 50 lbs).
+function masterUnitCost(m: MasterIngredient): number | null {
+  if (!m.pack_size || m.pack_size <= 0) return null;
+  return (m.ap_pack_cost || 0) / m.pack_size;
+}
+
+// Turn a master-catalog ingredient + quantity into a full recipe line. AP comes
+// straight from the pack math (conversion 1, yield 100, usage unit = pack unit);
+// open the line afterwards to fine-tune conversions or yield.
+function lineFromMaster(m: MasterIngredient, qty: number | null) {
+  const ap = masterUnitCost(m);
+  return {
+    name: m.name,
+    ap_pack_cost: m.ap_pack_cost,
+    pack_size: m.pack_size,
+    pack_unit: m.pack_unit,
+    unit_conversion: 1,
+    ap_price: ap,
+    ap_price_unit: m.pack_unit,
+    yield_percent: 100,
+    ep_price: ap,
+    ep_price_unit: m.pack_unit,
+    quantity_used: qty,
+  };
+}
+
 export default function RecipesTab() {
   const isMobile = useIsMobile();
   const canEdit = useCanEdit();
@@ -62,8 +94,12 @@ export default function RecipesTab() {
   const [seeding, setSeeding] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState(false);
+  const [masterList, setMasterList] = useState<MasterIngredient[]>([]);
 
   useEffect(() => { loadRecipes(); }, []);
+  useEffect(() => {
+    api.get('/api/cog/ingredients/master').then(setMasterList).catch(() => {});
+  }, []);
   useEffect(() => { if (expandedRecipe) loadRecipeDetail(expandedRecipe); }, [expandedRecipe]);
 
   const loadRecipes = async () => {
@@ -171,7 +207,7 @@ export default function RecipesTab() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 12 : 0, marginBottom: 20 }}>
         <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13 }}>
-          Batch recipes (syrups, sauces) and their cost per unit. These can be used as components inside a drink.
+          Batch recipes (syrups, sauces, food) and their cost per unit. These can be used as components inside a drink.
         </p>
         {canEdit && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -250,7 +286,7 @@ export default function RecipesTab() {
                   </div>
                 </div>
 
-                <IngredientsSection detail={recipeDetail} canEdit={canEdit} isMobile={isMobile} onChanged={refresh} />
+                <IngredientsSection detail={recipeDetail} canEdit={canEdit} isMobile={isMobile} onChanged={refresh} masterList={masterList} />
 
                 {recipeDetail.labor_time_hrs && (
                   <div style={{ marginBottom: 24 }}>
@@ -318,11 +354,11 @@ export default function RecipesTab() {
       </div>
 
       {creating && (
-        <RecipeModal isMobile={isMobile} onClose={() => setCreating(false)}
+        <RecipeModal isMobile={isMobile} masterList={masterList} onClose={() => setCreating(false)}
           onSaved={(id) => { setCreating(false); loadRecipes(); setExpandedRecipe(id); }} />
       )}
       {editingRecipe && recipeDetail && (
-        <RecipeModal isMobile={isMobile} recipe={recipeDetail} onClose={() => setEditingRecipe(false)}
+        <RecipeModal isMobile={isMobile} masterList={masterList} recipe={recipeDetail} onClose={() => setEditingRecipe(false)}
           onSaved={() => { setEditingRecipe(false); refresh(); }} />
       )}
     </div>
@@ -333,11 +369,12 @@ export default function RecipesTab() {
 // so quantity_used gets its own column. AP/EP are derived here (the server stores
 // what it's sent): ap = pack cost / (pack size × conversion), ep = ap / (yield/100);
 // AP can also be typed directly for items bought by the unit (no pack info).
-function IngredientsSection({ detail, canEdit, isMobile, onChanged }: {
-  detail: RecipeDetail; canEdit: boolean; isMobile: boolean; onChanged: () => void;
+function IngredientsSection({ detail, canEdit, isMobile, onChanged, masterList }: {
+  detail: RecipeDetail; canEdit: boolean; isMobile: boolean; onChanged: () => void; masterList: MasterIngredient[];
 }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
+  const [quickAdding, setQuickAdding] = useState(false);
 
   const remove = async (ing: Ingredient) => {
     if (!confirm(`Remove "${ing.name}" from this recipe?`)) return;
@@ -397,13 +434,156 @@ function IngredientsSection({ detail, canEdit, isMobile, onChanged }: {
         ) : null;
       })()}
 
-      {canEdit && !adding && editingId == null && (
-        <button className="btn btn-secondary btn-sm" onClick={() => setAdding(true)} style={{ marginTop: 10 }}>+ Add ingredient</button>
+      {canEdit && !adding && !quickAdding && editingId == null && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button className="btn btn-primary btn-sm" onClick={() => setQuickAdding(true)}>+ From ingredient list</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => setAdding(true)}>+ Custom</button>
+        </div>
+      )}
+      {canEdit && quickAdding && (
+        <QuickAddFromList recipeId={detail.id} masterList={masterList}
+          onAdded={onChanged} onClose={() => setQuickAdding(false)} />
       )}
       {canEdit && adding && (
         <IngredientForm recipeId={detail.id} isMobile={isMobile}
           onClose={() => setAdding(false)} onSaved={() => { setAdding(false); onChanged(); }} />
       )}
+    </div>
+  );
+}
+
+// Searchable autocomplete over the master ingredient catalog. Type to filter,
+// click (or Enter for the top hit) to pick. The parent owns the picked value;
+// re-key the component to reset it after an add.
+function MasterPicker({ masterList, picked, onPick, autoFocus, placeholder }: {
+  masterList: MasterIngredient[];
+  picked: MasterIngredient | null;
+  onPick: (m: MasterIngredient | null) => void;
+  autoFocus?: boolean;
+  placeholder?: string;
+}) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return masterList.slice(0, 8);
+    return masterList.filter((m) => m.name.toLowerCase().includes(q)).slice(0, 8);
+  }, [masterList, query]);
+
+  const pick = (m: MasterIngredient) => {
+    onPick(m);
+    setQuery(m.name);
+    setOpen(false);
+  };
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        value={picked ? picked.name : query}
+        onChange={(e) => { onPick(null); setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && matches.length > 0 && !picked) { e.preventDefault(); pick(matches[0]); }
+          if (e.key === 'Escape') setOpen(false);
+        }}
+        style={inputStyle}
+        autoFocus={autoFocus}
+        placeholder={placeholder ?? 'Search ingredient list...'}
+      />
+      {open && !picked && matches.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30, marginTop: 4,
+          background: '#fff', borderRadius: 10, border: '1px solid rgba(0,0,0,0.1)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden', maxHeight: 280, overflowY: 'auto',
+        }}>
+          {matches.map((m) => {
+            const uc = masterUnitCost(m);
+            return (
+              <div key={m.id}
+                onMouseDown={(e) => { e.preventDefault(); pick(m); }}
+                style={{ padding: '9px 12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13, borderBottom: '1px solid rgba(0,0,0,0.04)' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.04)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}>
+                <span style={{ fontWeight: 600 }}>{m.name}</span>
+                <span style={{ color: 'rgba(0,0,0,0.4)', whiteSpace: 'nowrap' }}>
+                  {uc != null ? `$${uc.toFixed(3)}/${m.pack_unit || 'unit'}` : 'no price'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {open && !picked && matches.length === 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30, marginTop: 4,
+          background: '#fff', borderRadius: 10, border: '1px solid rgba(0,0,0,0.1)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: '10px 12px', fontSize: 13, color: 'rgba(0,0,0,0.4)',
+        }}>
+          Nothing matches — add it on the Ingredients tab, or use “+ Custom”.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Rapid-fire add: pick from the ingredient list, type a quantity, Add — the
+// line lands in the table with pack cost/AP/EP pre-filled from the catalog and
+// the picker resets for the next one. Enter in the qty box adds too.
+function QuickAddFromList({ recipeId, masterList, onAdded, onClose }: {
+  recipeId: number; masterList: MasterIngredient[]; onAdded: () => void; onClose: () => void;
+}) {
+  const [picked, setPicked] = useState<MasterIngredient | null>(null);
+  const [qty, setQty] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [pickerKey, setPickerKey] = useState(0);
+  const [addedCount, setAddedCount] = useState(0);
+
+  const unitCost = picked ? masterUnitCost(picked) : null;
+  const qtyNum = qty === '' ? null : parseFloat(qty);
+  const lineCost = unitCost != null && qtyNum != null ? unitCost * qtyNum : null;
+
+  const add = async () => {
+    if (!picked || saving) return;
+    setSaving(true);
+    try {
+      await api.post(`/api/cog/recipes/${recipeId}/ingredients`, lineFromMaster(picked, qtyNum));
+      setPicked(null); setQty(''); setPickerKey((k) => k + 1);
+      setAddedCount((c) => c + 1);
+      onAdded();
+    } catch (e: any) {
+      alert(`Add failed: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ padding: '14px 16px', background: 'rgba(0,0,0,0.03)', borderRadius: 10, marginTop: 12 }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ flex: '2 1 220px', minWidth: 200 }}>
+          <label style={labelStyle}>Ingredient</label>
+          <MasterPicker key={pickerKey} masterList={masterList} picked={picked} onPick={setPicked} autoFocus />
+        </div>
+        <div style={{ flex: '0 1 110px' }}>
+          <label style={labelStyle}>Qty {picked?.pack_unit ? `(${picked.pack_unit})` : ''}</label>
+          <input
+            type="number" step="any" value={qty}
+            onChange={(e) => setQty(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
+            style={inputStyle} placeholder="2"
+          />
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={add} disabled={!picked || saving} style={{ marginBottom: 2 }}>
+          {saving ? '...' : 'Add'}
+        </button>
+        <button className="btn btn-secondary btn-sm" onClick={onClose} style={{ marginBottom: 2 }}>Done</button>
+      </div>
+      <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginTop: 8 }}>
+        {picked && unitCost != null && <>${unitCost.toFixed(4)}/{picked.pack_unit || 'unit'}{lineCost != null && <> · line cost <strong>${lineCost.toFixed(3)}</strong></>} · </>}
+        {addedCount > 0 ? `${addedCount} added — keep going or press Done.` : 'Pick, type a quantity, Add — repeat for each ingredient.'}
+      </div>
     </div>
   );
 }
@@ -519,12 +699,23 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
 
 // Create/edit recipe metadata. Labor cost per unit auto-computes from
 // time × rate ÷ quantity unless typed directly (same pattern as AP price).
-function RecipeModal({ recipe, isMobile, onClose, onSaved }: {
-  recipe?: RecipeDetail; isMobile: boolean; onClose: () => void; onSaved: (id: number) => void;
+// Creating a new recipe also takes a full ingredient list right here (picked
+// from the master catalog), so a whole sauce/syrup/food recipe goes in with
+// one save.
+function RecipeModal({ recipe, isMobile, masterList, onClose, onSaved }: {
+  recipe?: RecipeDetail; isMobile: boolean; masterList: MasterIngredient[]; onClose: () => void; onSaved: (id: number) => void;
 }) {
   const [name, setName] = useState(recipe?.name ?? '');
   const [season, setSeason] = useState(recipe?.season ?? '');
   const [category, setCategory] = useState(recipe?.category ?? '');
+  const [customCategory, setCustomCategory] = useState(
+    () => !!(recipe?.category && !CATEGORY_OPTIONS.includes(recipe.category)),
+  );
+  // New-recipe ingredient lines, picked from the master catalog before saving.
+  const [lines, setLines] = useState<Array<{ m: MasterIngredient; qty: string }>>([]);
+  const [pendingPick, setPendingPick] = useState<MasterIngredient | null>(null);
+  const [pendingQty, setPendingQty] = useState('');
+  const [pickerKey, setPickerKey] = useState(0);
   const [totalYield, setTotalYield] = useState(recipe?.total_yield?.toString() ?? '');
   const [yieldUnit, setYieldUnit] = useState(recipe?.yield_unit ?? '');
   const [laborTime, setLaborTime] = useState(recipe?.labor_time_hrs?.toString() ?? '');
@@ -544,6 +735,22 @@ function RecipeModal({ recipe, isMobile, onClose, onSaved }: {
     if (!laborTouched && computedLabor != null) setLaborCost(String(computedLabor));
   }, [computedLabor, laborTouched]);
 
+  const addLine = () => {
+    if (!pendingPick) return;
+    setLines((ls) => [...ls, { m: pendingPick, qty: pendingQty }]);
+    setPendingPick(null); setPendingQty(''); setPickerKey((k) => k + 1);
+  };
+
+  const estCost = useMemo(() => {
+    let sum = 0;
+    for (const l of lines) {
+      const uc = masterUnitCost(l.m);
+      const q = parseFloat(l.qty);
+      if (uc != null && q > 0) sum += uc * q;
+    }
+    return sum;
+  }, [lines]);
+
   const save = async () => {
     if (!name.trim() || totalYield === '' || !yieldUnit.trim()) return;
     setSaving(true);
@@ -562,6 +769,15 @@ function RecipeModal({ recipe, isMobile, onClose, onSaved }: {
       const r = recipe
         ? await api.put(`/api/cog/recipes/${recipe.id}`, body)
         : await api.post('/api/cog/recipes', body);
+      // A picked-but-not-added row still counts — nobody should lose a line
+      // because they forgot to press +.
+      const allLines = pendingPick ? [...lines, { m: pendingPick, qty: pendingQty }] : lines;
+      if (!recipe) {
+        for (const l of allLines) {
+          const q = l.qty === '' ? null : parseFloat(l.qty);
+          await api.post(`/api/cog/recipes/${r.id}/ingredients`, lineFromMaster(l.m, q));
+        }
+      }
       onSaved(r.id);
     } catch (e: any) { alert(`Save failed: ${e.message}`); setSaving(false); }
   };
@@ -579,7 +795,21 @@ function RecipeModal({ recipe, isMobile, onClose, onSaved }: {
         </div>
         <div>
           <label style={labelStyle}>Category</label>
-          <input value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle} placeholder="Syrup" />
+          {customCategory ? (
+            <input value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle} placeholder="Category" autoFocus />
+          ) : (
+            <select
+              value={CATEGORY_OPTIONS.includes(category) ? category : ''}
+              onChange={(e) => {
+                if (e.target.value === '__custom') { setCategory(''); setCustomCategory(true); }
+                else setCategory(e.target.value);
+              }}
+              style={inputStyle}>
+              <option value="">— pick one —</option>
+              {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+              <option value="__custom">Custom...</option>
+            </select>
+          )}
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
@@ -613,6 +843,56 @@ function RecipeModal({ recipe, isMobile, onClose, onSaved }: {
       <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 16 }}>
         Labor is optional. Cost per unit fills itself from time × rate ÷ batches; type it directly to override.
       </div>
+
+      {!recipe && (
+        <div style={{ padding: '14px 16px', background: 'rgba(0,0,0,0.03)', borderRadius: 10, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(0,0,0,0.45)', marginBottom: 10 }}>
+            Ingredients — from the ingredient list
+          </div>
+          {lines.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              {lines.map((l, i) => {
+                const uc = masterUnitCost(l.m);
+                const q = parseFloat(l.qty);
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid rgba(0,0,0,0.05)', fontSize: 13 }}>
+                    <span style={{ flex: 1, fontWeight: 600 }}>{l.m.name}</span>
+                    <input
+                      type="number" step="any" value={l.qty}
+                      onChange={(e) => setLines((ls) => ls.map((x, j) => j === i ? { ...x, qty: e.target.value } : x))}
+                      style={{ ...inputStyle, width: 80, padding: '5px 8px' }}
+                    />
+                    <span style={{ color: 'rgba(0,0,0,0.4)', width: 34 }}>{l.m.pack_unit || ''}</span>
+                    <span style={{ color: 'rgba(0,0,0,0.5)', width: 64, textAlign: 'right' }}>
+                      {uc != null && q > 0 ? `$${(uc * q).toFixed(2)}` : '—'}
+                    </span>
+                    <button className="btn btn-danger btn-sm" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ flex: '2 1 180px', minWidth: 170 }}>
+              <MasterPicker key={pickerKey} masterList={masterList} picked={pendingPick} onPick={setPendingPick} placeholder="Search ingredient list..." />
+            </div>
+            <input
+              type="number" step="any" value={pendingQty}
+              onChange={(e) => setPendingQty(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLine(); } }}
+              style={{ ...inputStyle, width: 90 }}
+              placeholder={pendingPick?.pack_unit ? `qty (${pendingPick.pack_unit})` : 'qty'}
+            />
+            <button className="btn btn-secondary btn-sm" onClick={addLine} disabled={!pendingPick} style={{ marginBottom: 2 }}>+ Add line</button>
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: 8 }}>
+            {lines.length > 0
+              ? <>Est. ingredient cost <strong>${estCost.toFixed(2)}</strong>{parseFloat(totalYield) > 0 && <> · ~${(estCost / parseFloat(totalYield)).toFixed(3)}/{yieldUnit || 'unit'}</>}</>
+              : 'Pick from the catalog and the pack cost, AP and EP fill themselves. You can fine-tune any line after saving.'}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
         <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={save} disabled={!name.trim() || totalYield === '' || !yieldUnit.trim() || saving}>
