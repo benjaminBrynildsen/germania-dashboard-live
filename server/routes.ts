@@ -9,6 +9,7 @@ import { fetchLocationPhoto, fetchPlaceReviews, syncAllReviews } from './places.
 import { seedCogData } from './seed-cog.js';
 import { drinkVariants, drinkCogRange, recommendedPrice, defaultTargetPct } from './cog-cost.js';
 import { fetchAllProducts, COG_CATEGORIES, getDriposPrices } from './dripos.js';
+import { applyDriposPricesToDrink } from './cog-price-sync.js';
 import { fillStandardRecipes } from './cog-fill.js';
 
 const router = Router();
@@ -867,12 +868,18 @@ router.get('/cog/drinks', requireAuth, (req: AuthRequest, res: Response) => {
   `).all() as any[];
 
   const fallback = defaultTargetPct();
+  const priceRange = db.prepare(
+    'SELECT MIN(menu_price) AS min, MAX(menu_price) AS max FROM cog_drink_variants WHERE drink_id = ? AND menu_price IS NOT NULL',
+  );
   const enriched = drinks.map((d) => {
     const range = drinkCogRange(d.id, d.target_cogs_pct);
+    const stored = priceRange.get(d.id) as any;
     return {
       ...d,
       effective_target_cogs_pct: d.target_cogs_pct ?? fallback,
       ...range,
+      menu_price_min: stored?.min ?? null,
+      menu_price_max: stored?.max ?? null,
     };
   });
   res.json(enriched);
@@ -1107,12 +1114,16 @@ router.delete('/cog/components/:id', requireAuth, (req: AuthRequest, res: Respon
 // drink's components or its target_cogs_pct override. Only COG_CATEGORIES
 // products come in (the 5 drink categories + Bake Haus food); previously-synced
 // rows outside those categories are pruned unless they carry a recipe.
+// Prices come along too: each product's Size options become variants (with
+// menu_price) on drinks that have none, and existing variants get their stored
+// menu_price refreshed — so prices survive even when Dripos disconnects later.
 router.post('/cog/drinks/sync-dripos', requireAuth, async (_req: AuthRequest, res: Response) => {
   try {
     const settings = db.prepare('SELECT drink_location_id FROM cog_settings WHERE id = 1').get() as any;
     const locationId = settings?.drink_location_id ?? 131;
     const products = await fetchAllProducts(locationId); // already drops ARCHIVED
     const drinks = products.filter((p) => COG_CATEGORIES.has(p.CATEGORY_NAME));
+    const { byId: priceById, byName: priceByName } = await getDriposPrices(locationId);
 
     const findStmt = db.prepare('SELECT id FROM cog_drinks WHERE dripos_product_id = ?');
     const insertStmt = db.prepare(
@@ -1125,6 +1136,8 @@ router.post('/cog/drinks/sync-dripos', requireAuth, async (_req: AuthRequest, re
     let inserted = 0;
     let updated = 0;
     let pruned = 0;
+    const counters = { priced: 0, variantsCreated: 0 };
+
     const run = db.transaction(() => {
       for (const p of drinks) {
         const existing = findStmt.get(p.ID) as any;
@@ -1135,6 +1148,16 @@ router.post('/cog/drinks/sync-dripos', requireAuth, async (_req: AuthRequest, re
           insertStmt.run(p.ID, p.NAME, p.CATEGORY_NAME);
           inserted++;
         }
+        const drinkId = (existing ?? findStmt.get(p.ID) as any)?.id;
+        const info = priceById.get(p.ID);
+        if (drinkId != null && info) applyDriposPricesToDrink(drinkId, info, counters);
+      }
+      // Manually-created drinks that never got linked to a product still
+      // deserve prices when their name matches a Dripos product exactly.
+      const unlinked = db.prepare('SELECT id, name FROM cog_drinks WHERE dripos_product_id IS NULL').all() as Array<{ id: number; name: string }>;
+      for (const d of unlinked) {
+        const info = priceByName.get(d.name.toLowerCase());
+        if (info) applyDriposPricesToDrink(d.id, info, counters);
       }
       // Drop rows synced before the category allowlist existed — but never a
       // row someone has costed (components) — those need a human decision.
@@ -1152,7 +1175,7 @@ router.post('/cog/drinks/sync-dripos', requireAuth, async (_req: AuthRequest, re
     });
     run();
 
-    res.json({ success: true, total: drinks.length, inserted, updated, pruned, location_id: locationId });
+    res.json({ success: true, total: drinks.length, inserted, updated, pruned, priced: counters.priced, variants_created: counters.variantsCreated, location_id: locationId });
   } catch (err: any) {
     console.error('Dripos drink sync error:', err);
     res.status(500).json({ error: err.message || 'Sync failed' });

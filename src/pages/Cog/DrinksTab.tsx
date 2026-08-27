@@ -15,6 +15,8 @@ interface DrinkRow {
   max_cog: number | null;
   min_recommended: number | null;
   max_recommended: number | null;
+  menu_price_min: number | null;
+  menu_price_max: number | null;
 }
 
 interface Component {
@@ -136,7 +138,7 @@ export default function DrinksTab() {
     setSyncing(true);
     try {
       const r = await api.post('/api/cog/drinks/sync-dripos', {});
-      alert(`Synced from Dripos: ${r.inserted} new, ${r.updated} updated (${r.total} drinks).${r.pruned ? ` Removed ${r.pruned} uncosted rows outside the drink/Bake Haus categories.` : ''}`);
+      alert(`Synced from Dripos: ${r.inserted} new, ${r.updated} updated (${r.total} drinks). Pulled ${r.priced ?? 0} menu prices${r.variants_created ? ` and created ${r.variants_created} size variants` : ''}.${r.pruned ? ` Removed ${r.pruned} uncosted rows outside the drink/Bake Haus categories.` : ''}`);
       loadDrinks();
       loadDriposPrices();
     } catch (e: any) { alert(`Sync failed: ${e.message}`); }
@@ -287,9 +289,11 @@ export default function DrinksTab() {
                       <div style={{ display: 'flex', gap: isMobile ? 14 : 22, alignItems: 'center' }}>
                         <Metric label="COG" value={range(d.min_cog, d.max_cog, 3)} />
                         <Metric label={`Rec. @ ${d.effective_target_cogs_pct}%`} value={range(d.min_recommended, d.max_recommended)} accent />
-                        {driposDrinkPrices[d.id] && (
+                        {driposDrinkPrices[d.id] ? (
                           <Metric label="Dripos" value={range(driposDrinkPrices[d.id].min, driposDrinkPrices[d.id].max)} color="#2563eb" />
-                        )}
+                        ) : d.menu_price_min != null ? (
+                          <Metric label="Menu" value={range(d.menu_price_min, d.menu_price_max)} color="#2563eb" />
+                        ) : null}
                       </div>
                     </div>
                   </div>
