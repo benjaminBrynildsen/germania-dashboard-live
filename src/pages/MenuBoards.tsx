@@ -889,7 +889,24 @@ function ExportDropdown({ seasonId }: { seasonId: number }) {
 
   function download(location: string, size?: 'digital') {
     const sizeParam = size ? `&size=${size}` : '';
-    window.open(`/api/menu-seasons/${seasonId}/pdf?location=${location}&format=${fileFormat}${sizeParam}&t=${Date.now()}`, '_blank');
+    if (fileFormat === 'png') {
+      // Front and back come down as two separate PNG files (no zip), and
+      // the second is staggered so the server only rasterizes one of these
+      // huge pages at a time. Anchor clicks instead of window.open so the
+      // popup blocker doesn't eat the second download.
+      const grab = (page: number) => {
+        const a = document.createElement('a');
+        a.href = `/api/menu-seasons/${seasonId}/pdf?location=${location}&format=png${sizeParam}&page=${page}&t=${Date.now()}`;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      };
+      grab(1);
+      setTimeout(() => grab(2), 4000);
+    } else {
+      window.open(`/api/menu-seasons/${seasonId}/pdf?location=${location}&format=pdf${sizeParam}&t=${Date.now()}`, '_blank');
+    }
     setOpen(false);
   }
 
@@ -954,7 +971,7 @@ function ExportDropdown({ seasonId }: { seasonId: number }) {
           </button>
           {fileFormat === 'png' && (
             <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.45)', padding: '4px 12px 0', borderTop: '1px solid rgba(0,0,0,0.05)', marginTop: 4 }}>
-              PNG downloads as ZIP (front + back pages)
+              PNG downloads front + back as two separate files (back follows a few seconds later)
             </div>
           )}
         </div>

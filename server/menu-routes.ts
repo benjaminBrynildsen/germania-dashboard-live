@@ -3,7 +3,6 @@ import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
 import { renderMenuPdf } from './menu-pdf.js';
 import { pdfToPng } from 'pdf-to-png-converter';
-import JSZip from 'jszip';
 
 const router = Router();
 
@@ -698,6 +697,18 @@ router.post('/menu-seasons/seed-winter-2025', requireAuth, (_req: AuthRequest, r
 
 // ---- PDF export ----
 
+// PNG rasterization is memory-hungry — a 24x36 page at 2x scale is a ~70MB
+// bitmap (G4's 18x48 even bigger). Rendering both pages at once and zipping
+// them was OOM-killing the server, so renders now happen one page per request
+// and are serialized through this queue so concurrent clicks can't stack
+// bitmaps either.
+let pngQueue: Promise<unknown> = Promise.resolve();
+function queuePngRender<T>(fn: () => Promise<T>): Promise<T> {
+  const next = pngQueue.then(fn, fn);
+  pngQueue = next.then(() => undefined, () => undefined);
+  return next;
+}
+
 router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
   if (!id) { res.status(400).json({ error: 'invalid_id' }); return; }
@@ -714,30 +725,22 @@ router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: R
     const baseName = `${season.name} - ${location} (${dim})`;
 
     if (fileFormat === 'png') {
-      // Render the PDF to PNG pages at 2x scale for print-quality output,
-      // then bundle front + back into a ZIP since menus are two pages.
-      const pngPages = await pdfToPng(pdfBuf, { viewportScale: 2.0 });
-      if (pngPages.length === 1) {
-        res.setHeader('Content-Type', 'image/png');
-        res.setHeader('Content-Disposition', `attachment; filename="${baseName}.png"`);
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-        res.send(Buffer.from((pngPages[0] as any).content as Uint8Array));
-        return;
-      }
-      const zip = new JSZip();
-      pngPages.forEach((p: any, i) => {
-        // On the TV the two pages sit side by side, so name them by
-        // screen position instead of Front/Back.
-        const side = size === 'digital'
-          ? (i === 0 ? 'Left' : i === 1 ? 'Right' : `Page ${i + 1}`)
-          : (i === 0 ? 'Front' : i === 1 ? 'Back' : `Page ${i + 1}`);
-        zip.file(`${baseName} - ${side}.png`, Buffer.from(p.content as Uint8Array));
-      });
-      const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
-      res.setHeader('Content-Type', 'application/zip');
-      res.setHeader('Content-Disposition', `attachment; filename="${baseName}.zip"`);
+      // One page per request (?page=1|2) at 2x scale for print quality —
+      // the client downloads Front and Back as two separate files.
+      const pageNum = Math.max(1, Number(req.query.page) || 1);
+      const pngPages = await queuePngRender(() =>
+        pdfToPng(pdfBuf, { viewportScale: 2.0, pagesToProcess: [pageNum] }),
+      );
+      if (pngPages.length === 0) { res.status(404).json({ error: 'page_not_found' }); return; }
+      // On the TV the two pages sit side by side, so name them by
+      // screen position instead of Front/Back.
+      const side = size === 'digital'
+        ? (pageNum === 1 ? 'Left' : pageNum === 2 ? 'Right' : `Page ${pageNum}`)
+        : (pageNum === 1 ? 'Front' : pageNum === 2 ? 'Back' : `Page ${pageNum}`);
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Content-Disposition', `attachment; filename="${baseName} - ${side}.png"`);
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-      res.send(zipBuf);
+      res.send(Buffer.from((pngPages[0] as any).content as Uint8Array));
       return;
     }
 
