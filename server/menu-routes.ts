@@ -725,12 +725,19 @@ router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: R
     const baseName = `${season.name} - ${location} (${dim})`;
 
     if (fileFormat === 'png') {
-      // One page per request (?page=1|2) at 2x scale for print quality —
-      // the client downloads Front and Back as two separate files.
+      // One page per request (?page=1|2) — the client downloads Front and
+      // Back as two separate files. Scale is per size: the 16x18 digital
+      // panels stay at 2x (still far above the TV's native half-screen
+      // resolution), but the huge print boards drop to 1.5x (108 DPI —
+      // proof quality; the PDF is the print-shop format) because a 24x36
+      // or 18x48 bitmap at 2x can exhaust the server's memory on its own.
       const pageNum = Math.max(1, Number(req.query.page) || 1);
-      const pngPages = await queuePngRender(() =>
-        pdfToPng(pdfBuf, { viewportScale: 2.0, pagesToProcess: [pageNum] }),
-      );
+      const scale = size === 'digital' ? 2.0 : 1.5;
+      const pngPages = await queuePngRender(() => {
+        console.log(`[menu-png] rendering ${baseName} p${pageNum} @${scale}x, rss=${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`);
+        return pdfToPng(pdfBuf, { viewportScale: scale, pagesToProcess: [pageNum] });
+      });
+      console.log(`[menu-png] done ${baseName} p${pageNum}, rss=${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`);
       if (pngPages.length === 0) { res.status(404).json({ error: 'page_not_found' }); return; }
       // On the TV the two pages sit side by side, so name them by
       // screen position instead of Front/Back.
