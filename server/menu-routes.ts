@@ -1,8 +1,12 @@
 import { Router, Response } from 'express';
+import { spawn } from 'child_process';
+import { writeFileSync, readFileSync, rmSync } from 'fs';
+import os from 'os';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
 import { renderMenuPdf } from './menu-pdf.js';
-import { pdfToPng } from 'pdf-to-png-converter';
 
 const router = Router();
 
@@ -697,16 +701,33 @@ router.post('/menu-seasons/seed-winter-2025', requireAuth, (_req: AuthRequest, r
 
 // ---- PDF export ----
 
-// PNG rasterization is memory-hungry — a 24x36 page at 2x scale is a ~70MB
-// bitmap (G4's 18x48 even bigger). Rendering both pages at once and zipping
-// them was OOM-killing the server, so renders now happen one page per request
-// and are serialized through this queue so concurrent clicks can't stack
-// bitmaps either.
+// PNG rasterization is memory-hungry and pdfjs never fully returns its
+// buffers to the OS, so repeated in-process renders ratcheted RSS up until
+// Render's memory limit killed the instance. Each page now renders in a
+// short-lived child process (see png-worker.mjs): its memory is reclaimed on
+// exit, and a render that does hit the limit takes down the worker, not the
+// dashboard. Renders stay serialized so concurrent clicks can't stack workers.
 let pngQueue: Promise<unknown> = Promise.resolve();
 function queuePngRender<T>(fn: () => Promise<T>): Promise<T> {
   const next = pngQueue.then(fn, fn);
   pngQueue = next.then(() => undefined, () => undefined);
   return next;
+}
+
+const PNG_WORKER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'png-worker.mjs');
+
+// Renders one page of the given PDF to a PNG file via the worker.
+// Resolves with the worker's exit code (0 ok, 3 page out of range).
+function renderPngInWorker(pdfPath: string, outPath: string, page: number, scale: number): Promise<number> {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [PNG_WORKER, pdfPath, outPath, String(page), String(scale)], {
+      stdio: ['ignore', 'ignore', 'inherit'],
+    });
+    // 90s guard so a wedged worker can't hold the queue forever.
+    const timer = setTimeout(() => { child.kill('SIGKILL'); }, 90_000);
+    child.on('exit', (code, signal) => { clearTimeout(timer); resolve(code ?? (signal ? 137 : 1)); });
+    child.on('error', () => { clearTimeout(timer); resolve(1); });
+  });
 }
 
 router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: Response) => {
@@ -733,21 +754,35 @@ router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: R
       // or 18x48 bitmap at 2x can exhaust the server's memory on its own.
       const pageNum = Math.max(1, Number(req.query.page) || 1);
       const scale = size === 'digital' ? 2.0 : 1.5;
-      const pngPages = await queuePngRender(() => {
-        console.log(`[menu-png] rendering ${baseName} p${pageNum} @${scale}x, rss=${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`);
-        return pdfToPng(pdfBuf, { viewportScale: scale, pagesToProcess: [pageNum] });
-      });
-      console.log(`[menu-png] done ${baseName} p${pageNum}, rss=${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`);
-      if (pngPages.length === 0) { res.status(404).json({ error: 'page_not_found' }); return; }
-      // On the TV the two pages sit side by side, so name them by
-      // screen position instead of Front/Back.
-      const side = size === 'digital'
-        ? (pageNum === 1 ? 'Left' : pageNum === 2 ? 'Right' : `Page ${pageNum}`)
-        : (pageNum === 1 ? 'Front' : pageNum === 2 ? 'Back' : `Page ${pageNum}`);
-      res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Content-Disposition', `attachment; filename="${baseName} - ${side}.png"`);
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-      res.send(Buffer.from((pngPages[0] as any).content as Uint8Array));
+      const tmpBase = path.join(os.tmpdir(), `menu-png-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      const pdfPath = `${tmpBase}.pdf`;
+      const outPath = `${tmpBase}.png`;
+      try {
+        writeFileSync(pdfPath, pdfBuf);
+        const code = await queuePngRender(() => {
+          console.log(`[menu-png] rendering ${baseName} p${pageNum} @${scale}x in worker`);
+          return renderPngInWorker(pdfPath, outPath, pageNum, scale);
+        });
+        if (code === 3) { res.status(404).json({ error: 'page_not_found' }); return; }
+        if (code !== 0) {
+          console.error(`[menu-png] worker failed for ${baseName} p${pageNum} (exit ${code})`);
+          res.status(500).json({ error: 'png_render_failed' });
+          return;
+        }
+        const png = readFileSync(outPath);
+        // On the TV the two pages sit side by side, so name them by
+        // screen position instead of Front/Back.
+        const side = size === 'digital'
+          ? (pageNum === 1 ? 'Left' : pageNum === 2 ? 'Right' : `Page ${pageNum}`)
+          : (pageNum === 1 ? 'Front' : pageNum === 2 ? 'Back' : `Page ${pageNum}`);
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Content-Disposition', `attachment; filename="${baseName} - ${side}.png"`);
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.send(png);
+      } finally {
+        rmSync(pdfPath, { force: true });
+        rmSync(outPath, { force: true });
+      }
       return;
     }
 
