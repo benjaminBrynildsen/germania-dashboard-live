@@ -886,34 +886,52 @@ function ImportFromSops({ seasonId, categories, onImported }: { seasonId: number
 function ExportDropdown({ seasonId }: { seasonId: number }) {
   const [open, setOpen] = useState(false);
   const [fileFormat, setFileFormat] = useState<'pdf' | 'png'>('pdf');
+  // '' = idle; otherwise a progress label shown on the button while the
+  // two PNG pages download.
+  const [busy, setBusy] = useState('');
 
-  function download(location: string, size?: 'digital') {
+  async function download(location: string, size?: 'digital') {
     const sizeParam = size ? `&size=${size}` : '';
     if (fileFormat === 'png') {
-      // Front and back come down as two separate PNG files (no zip), and
-      // the second is staggered so the server only rasterizes one of these
-      // huge pages at a time. Anchor clicks instead of window.open so the
-      // popup blocker doesn't eat the second download.
-      const grab = (page: number) => {
+      // Front and back come down as two separate PNG files (no zip). Each
+      // page is fetched fully before the next starts, so the server only
+      // ever rasterizes one of these huge pages at a time — and a render
+      // failure surfaces as a real message instead of a broken download.
+      setOpen(false);
+      const grab = async (page: number, fallbackName: string) => {
+        setBusy(`Rendering ${fallbackName.toLowerCase()}...`);
+        const resp = await fetch(`/api/menu-seasons/${seasonId}/pdf?location=${location}&format=png${sizeParam}&page=${page}&t=${Date.now()}`);
+        if (!resp.ok) throw new Error(`server said ${resp.status}`);
+        const blob = await resp.blob();
+        const cd = resp.headers.get('Content-Disposition') || '';
+        const name = /filename="([^"]+)"/.exec(cd)?.[1] || `${location} - ${fallbackName}.png`;
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = `/api/menu-seasons/${seasonId}/pdf?location=${location}&format=png${sizeParam}&page=${page}&t=${Date.now()}`;
-        a.download = '';
+        a.href = url;
+        a.download = name;
         document.body.appendChild(a);
         a.click();
         a.remove();
+        URL.revokeObjectURL(url);
       };
-      grab(1);
-      setTimeout(() => grab(2), 4000);
+      try {
+        await grab(1, size === 'digital' ? 'Left' : 'Front');
+        await grab(2, size === 'digital' ? 'Right' : 'Back');
+      } catch (e: any) {
+        alert(`PNG export failed (${e.message}). Try again in a moment — if it keeps failing, use the PDF download.`);
+      } finally {
+        setBusy('');
+      }
     } else {
       window.open(`/api/menu-seasons/${seasonId}/pdf?location=${location}&format=pdf${sizeParam}&t=${Date.now()}`, '_blank');
+      setOpen(false);
     }
-    setOpen(false);
   }
 
   return (
     <div style={{ position: 'relative' }}>
-      <button className="btn btn-primary btn-sm" onClick={() => setOpen(!open)}>
-        Download ▾
+      <button className="btn btn-primary btn-sm" onClick={() => setOpen(!open)} disabled={!!busy}>
+        {busy || 'Download ▾'}
       </button>
       {open && (
         <div style={{
@@ -971,7 +989,7 @@ function ExportDropdown({ seasonId }: { seasonId: number }) {
           </button>
           {fileFormat === 'png' && (
             <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.45)', padding: '4px 12px 0', borderTop: '1px solid rgba(0,0,0,0.05)', marginTop: 4 }}>
-              PNG downloads front + back as two separate files (back follows a few seconds later)
+              PNG downloads front + back as two separate files, one after the other
             </div>
           )}
         </div>
