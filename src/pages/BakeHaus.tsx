@@ -1711,6 +1711,16 @@ function ManageSyrupsView({
                     onClick={() => {
                       setNewDripos(p);
                       if (!newName) setNewName(cleanProductName(p.name));
+                      // Infer the kind from the Dripos category so a food
+                      // product doesn't silently land under syrups when
+                      // the picker above was left on its default.
+                      if (p.categoryName.toUpperCase() === 'BAKE HAUS FOOD') {
+                        setNewCategory('food');
+                        setNewIncludeMon(true);
+                      } else if (/bottle|syrup|sauce/i.test(`${p.name} ${p.categoryName}`)) {
+                        setNewCategory('syrup-sauce');
+                        setNewIncludeMon(false);
+                      }
                     }}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left',
@@ -1816,6 +1826,14 @@ function ManageSyrupsView({
               onRename={(name) => patchSyrup(s.id, { displayName: name })}
               onTint={(color) => patchSyrup(s.id, { tintColor: color })}
               onDelete={() => removeSyrup(s.id, s.displayName)}
+              onSwitchCategory={() => {
+                const toFood = s.category !== 'food';
+                const msg = toFood
+                  ? `Move "${s.displayName}" to the Food section? It will subtract on-hand inventory from orders and split Mon 25% / Wed 30% / Fri 45%.`
+                  : `Move "${s.displayName}" to Syrups & sauces? It will stop subtracting on-hand inventory and split Wed 40% / Fri 60%.`;
+                if (!window.confirm(msg)) return;
+                patchSyrup(s.id, { category: toFood ? 'food' : 'syrup-sauce', includeMonday: toFood });
+              }}
             />
           ))
         )}
@@ -1825,7 +1843,7 @@ function ManageSyrupsView({
 }
 
 function SyrupRow({
-  syrup, busy, isMobile, onToggleActive, onToggleMonday, onRename, onTint, onDelete,
+  syrup, busy, isMobile, onToggleActive, onToggleMonday, onRename, onTint, onDelete, onSwitchCategory,
 }: {
   syrup: Syrup;
   busy: boolean;
@@ -1835,6 +1853,7 @@ function SyrupRow({
   onRename: (name: string) => void;
   onTint: (color: string | null) => void;
   onDelete: () => void;
+  onSwitchCategory: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(syrup.displayName);
@@ -1875,13 +1894,17 @@ function SyrupRow({
                 <TintDot syrup={syrup} busy={busy} onPick={onTint} />
               )}
               {syrup.displayName}
-              <span style={{
-                fontSize: 9, fontWeight: 700, letterSpacing: 0.6,
-                textTransform: 'uppercase',
-                padding: '2px 6px', borderRadius: 4,
-                background: syrup.category === 'food' ? 'rgba(202, 138, 4, 0.12)' : 'rgba(0,0,0,0.05)',
-                color: syrup.category === 'food' ? '#a16207' : 'rgba(0,0,0,0.5)',
-              }}>{syrup.category === 'food' ? 'Food' : 'Syrup/Sauce'}</span>
+              <button onClick={onSwitchCategory} disabled={busy}
+                title={syrup.category === 'food' ? 'Click to move to Syrups & sauces' : 'Click to move to Food'}
+                style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: 0.6,
+                  textTransform: 'uppercase',
+                  padding: '2px 6px', borderRadius: 4, border: 0,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  background: syrup.category === 'food' ? 'rgba(202, 138, 4, 0.12)' : 'rgba(0,0,0,0.05)',
+                  color: syrup.category === 'food' ? '#a16207' : 'rgba(0,0,0,0.5)',
+                  opacity: busy ? 0.5 : 1,
+                }}>{syrup.category === 'food' ? 'Food' : 'Syrup/Sauce'} ⇄</button>
               <button onClick={() => setEditing(true)}
                 title="Rename"
                 style={{
