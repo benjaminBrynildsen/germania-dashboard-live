@@ -919,6 +919,15 @@ export default function WeeklySales() {
           {fundraisers?.available && fundraisers.fundraisers.length > 0 && (
             <FundraiserCard report={fundraisers} isMobile={isMobile} />
           )}
+          {/* When the lookup outright failed (no Dripos endpoint answered —
+              path is null), say so quietly instead of vanishing, so a broken
+              integration is distinguishable from "no fundraiser running".
+              An endpoint that answered with zero fundraisers stays silent. */}
+          {fundraisers && !fundraisers.available && fundraisers.path == null && fundraisers.reason && (
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)', padding: '0 4px' }}>
+              Fundraiser total unavailable — {fundraisers.reason}
+            </div>
+          )}
 
           {/* Manual override notice — replaces the penny-rounding card when
               this week's headline was forced to a Dripos-side value. */}
@@ -1281,6 +1290,7 @@ export default function WeeklySales() {
 interface FundraiserReport {
   available: boolean;
   source: 'dripos' | 'tickets' | null;
+  path: string | null;
   reason: string | null;
   fundraisers: Array<{
     key: string;
