@@ -614,6 +614,18 @@ export default function WeeklySales() {
   const [showLogin, setShowLogin] = useState(false);
   // -1 = current in-progress week (default), 0 = last completed, 1+ = older.
   const [weekOffset, setWeekOffset] = useState(-1);
+  const [fundraisers, setFundraisers] = useState<FundraiserReport | null>(null);
+
+  // Fundraiser totals load independently of the sales report — a slow or
+  // failed lookup never blocks the KPIs, the card just doesn't render.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/fundraisers', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled && j) setFundraisers(j); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const fetchReport = async (refresh = false, offset = weekOffset) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -901,6 +913,12 @@ export default function WeeklySales() {
               subColor={pctColor(data.totals.avgTicketDelta)}
             />
           </div>
+
+          {/* Fundraiser totals — chain-wide (Dripos's own dashboard only
+              shows one location at a time). Hidden when there's nothing. */}
+          {fundraisers?.available && fundraisers.fundraisers.length > 0 && (
+            <FundraiserCard report={fundraisers} isMobile={isMobile} />
+          )}
 
           {/* Manual override notice — replaces the penny-rounding card when
               this week's headline was forced to a Dripos-side value. */}
@@ -1256,6 +1274,83 @@ export default function WeeklySales() {
           svg { max-width: 100% !important; }
         }
       `}</style>
+    </div>
+  );
+}
+
+interface FundraiserReport {
+  available: boolean;
+  source: 'dripos' | 'tickets' | null;
+  reason: string | null;
+  fundraisers: Array<{
+    key: string;
+    name: string;
+    active: boolean;
+    totalCents: number;
+    goalCents: number | null;
+    startMs: number | null;
+    endMs: number | null;
+    perStore: Array<{ label: string; totalCents: number | null }>;
+  }>;
+}
+
+// Chain-wide fundraiser banner. Shows every active fundraiser (usually one)
+// with the summed total and the per-store split, so any per-location oddity
+// is visible at a glance instead of hidden inside a single number.
+function FundraiserCard({ report, isMobile }: { report: FundraiserReport; isMobile: boolean }) {
+  const shown = report.fundraisers.some((f) => f.active)
+    ? report.fundraisers.filter((f) => f.active)
+    : report.fundraisers.slice(0, 1); // nothing active → most recent one, marked ended
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.06), rgba(147, 51, 234, 0.02))',
+      border: '1px solid rgba(147, 51, 234, 0.18)',
+      borderRadius: 14, padding: '16px 20px',
+    }}>
+      {shown.map((f, i) => {
+        const pct = f.goalCents && f.goalCents > 0 ? Math.min(100, (f.totalCents / f.goalCents) * 100) : null;
+        return (
+          <div key={f.key} style={{ marginTop: i > 0 ? 14 : 0, paddingTop: i > 0 ? 14 : 0, borderTop: i > 0 ? '1px solid rgba(147,51,234,0.12)' : 'none' }}>
+            <div style={{
+              display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: isMobile ? 6 : 18,
+              flexDirection: isMobile ? 'column' : 'row', flexWrap: 'wrap',
+            }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#7e22ce', marginBottom: 2 }}>
+                  Fundraiser{!f.active && ' · ended'}
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>{f.name}</div>
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: '#6b21a8', whiteSpace: 'nowrap' }}>
+                {fmtMoney(f.totalCents)}
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.45)', marginLeft: 8 }}>all locations</span>
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginLeft: isMobile ? 0 : 'auto' }}>
+                {f.perStore.map((s) => (
+                  <div key={s.label} style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>
+                    <strong>{s.label}</strong> {s.totalCents != null ? fmtMoney(s.totalCents) : '—'}
+                  </div>
+                ))}
+              </div>
+            </div>
+            {pct != null && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ height: 6, borderRadius: 3, background: 'rgba(147,51,234,0.12)', overflow: 'hidden' }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: '#9333ea' }} />
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 4 }}>
+                  {pct.toFixed(0)}% of {fmtMoney(f.goalCents)} goal
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {report.source === 'tickets' && (
+        <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)', marginTop: 10 }}>
+          Totals derived from the nightly ticket sync (Dripos fundraiser API unavailable) — covers only synced days.
+        </div>
+      )}
     </div>
   );
 }

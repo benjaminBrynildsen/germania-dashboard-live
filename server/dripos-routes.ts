@@ -29,6 +29,18 @@ import {
 
 const router = Router();
 
+// Chain-wide fundraiser totals (Dripos's own dashboard only shows one
+// location at a time). ?force=1 skips the 10-minute cache.
+router.get('/fundraisers', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { getFundraiserReport } = await import('./fundraisers.js');
+    res.json(await getFundraiserReport(req.query.force === '1'));
+  } catch (err) {
+    console.error('[fundraisers]', err);
+    res.status(500).json({ available: false, source: null, path: null, reason: 'fundraiser lookup failed', fundraisers: [], fetchedAt: Date.now() });
+  }
+});
+
 router.get('/dripos/status', requireAuth, (_req: AuthRequest, res: Response) => {
   const token = readToken();
   res.json({
