@@ -1014,9 +1014,11 @@ export function unlockDay(weekStartIso: string, day: DeliveryDay): void {
 const BUILTIN_BAKE_HAUS_UNLOCK_EMAILS = ['ben@germaniabrewhaus.com'];
 
 /** Allowlist gate for unlock + post-lock edits. Reads
- *  BAKE_HAUS_UNLOCK_EMAILS (comma-separated) and accepts admins listed
- *  in ADMIN_EMAILS as a backstop. Comparison is case-insensitive
- *  because email entry in the wild is inconsistent. */
+ *  BAKE_HAUS_UNLOCK_EMAILS (comma-separated), accepts admins listed in
+ *  ADMIN_EMAILS as a backstop, and — since whoever receives the order
+ *  emails IS the bakery — every BAKE_HAUS_ORDER_EMAILS recipient too.
+ *  Comparison is case-insensitive because email entry in the wild is
+ *  inconsistent. */
 export function isUserAllowedToUnlock(email: string | null | undefined): boolean {
   if (!email) return false;
   const target = email.trim().toLowerCase();
@@ -1025,16 +1027,14 @@ export function isUserAllowedToUnlock(email: string | null | undefined): boolean
   // BAKE_HAUS_UNLOCK_EMAILS env var isn't set or is mid-update. Ben is
   // here so he can test bakery lock/unlock without an env round-trip.
   if (BUILTIN_BAKE_HAUS_UNLOCK_EMAILS.includes(target)) return true;
-  const allowlist = (process.env.BAKE_HAUS_UNLOCK_EMAILS || '')
+  const splitEnv = (name: string) => (process.env[name] || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  if (allowlist.includes(target)) return true;
-  const adminBackstop = (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  return adminBackstop.includes(target);
+  if (splitEnv('BAKE_HAUS_UNLOCK_EMAILS').includes(target)) return true;
+  // The bakery's own address(es): the order-notification recipients.
+  if (splitEnv('BAKE_HAUS_ORDER_EMAILS').includes(target)) return true;
+  return splitEnv('ADMIN_EMAILS').includes(target);
 }
 
 /** Per-store, per-item inventory at a past timestamp, reconstructed
