@@ -1010,6 +1010,7 @@ export default function BakeHaus() {
               suggestions={report.weekLocked ? null : (suggestions?.[activeStore] ?? null)}
               saving={savingStores.has(activeStore)}
               isMobile={isMobile}
+              locked={report.weekLocked && !canUnlock}
               onSaveOrder={() => handleSaveClick(activeStore)}
               onSave={(item, qty) => saveItem(activeStore, item, qty)}
               onDelete={(item) => deleteItem(activeStore, item)}
@@ -2200,7 +2201,7 @@ function getTheme(store: string) {
 
 function StoreOrderCard({
   store, rows, catalog, inventory, inventoryFetchedAt, savedAt, autoDraftAt, suggestions,
-  saving, isMobile, onSaveOrder, onSave, onDelete,
+  saving, isMobile, locked, onSaveOrder, onSave, onDelete,
 }: {
   store: string;
   rows: OrderRow[];
@@ -2215,6 +2216,9 @@ function StoreOrderCard({
   suggestions: Record<string, OrderSuggestion> | null;
   saving: boolean;
   isMobile: boolean;
+  /** Week is locked AND this user can't unlock: qty controls disable so
+   *  editing doesn't silently bounce off the server's 403. */
+  locked: boolean;
   onSaveOrder: () => void;
   onSave: (item: string, qty: number) => void;
   onDelete: (item: string) => void;
@@ -2434,6 +2438,7 @@ function StoreOrderCard({
                 theme={theme}
                 isLast={i === renderItems.length - 1}
                 isMobile={isMobile}
+                locked={locked}
                 onSave={(qty) => onSave(it.name, qty)}
                 onDelete={() => onDelete(it.name)}
               />
@@ -2511,7 +2516,7 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, imageUrl, category, tintColor, row, onHand, suggestion, isCustom, theme, isLast, isMobile, onSave, onDelete,
+  itemName, imageUrl, category, tintColor, row, onHand, suggestion, isCustom, theme, isLast, isMobile, locked, onSave, onDelete,
 }: {
   itemName: string;
   imageUrl?: string | null;
@@ -2528,6 +2533,8 @@ function CartRowEditor({
   theme: ReturnType<typeof getTheme>;
   isLast: boolean;
   isMobile: boolean;
+  /** Week locked for this user — qty controls are read-only. */
+  locked?: boolean;
   onSave: (qty: number) => void;
   onDelete: () => void;
 }) {
@@ -2541,6 +2548,7 @@ function CartRowEditor({
   const active = currentQty > 0;
 
   const commit = (next: number) => {
+    if (locked) return;
     if (!Number.isFinite(next) || next < 0) return;
     if (next === currentQty) return;
     if (next <= 0 && currentQty > 0) onDelete();
@@ -2548,6 +2556,7 @@ function CartRowEditor({
   };
 
   const step = (delta: number) => {
+    if (locked) return;
     const cur = Number.parseInt(qtyText, 10);
     const base = Number.isFinite(cur) && cur > 0 ? cur : currentQty;
     const next = Math.max(0, base + delta);
@@ -2699,14 +2708,17 @@ function CartRowEditor({
           display: 'flex', alignItems: 'center', gap: 10,
           paddingTop: 4,
         }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'stretch',
-            border: `1px solid ${active ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.1)'}`,
-            borderRadius: 10,
-            background: '#fff',
-            overflow: 'hidden',
-            flexShrink: 0,
-          }}>
+          <div
+            style={{
+              display: 'inline-flex', alignItems: 'stretch',
+              border: `1px solid ${active ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.1)'}`,
+              borderRadius: 10,
+              background: locked ? 'rgba(0,0,0,0.04)' : '#fff',
+              overflow: 'hidden',
+              flexShrink: 0,
+              opacity: locked ? 0.6 : 1,
+              pointerEvents: locked ? 'none' : 'auto',
+            }}>
             <button onClick={() => step(-1)} aria-label="Decrease"
               style={{
                 width: 40, padding: 0, border: 0, cursor: 'pointer',
@@ -2757,14 +2769,17 @@ function CartRowEditor({
 
       {/* Desktop: order qty stepper */}
       <div style={{ display: isMobile ? 'none' : 'flex', justifyContent: 'center' }}>
-        <div style={{
-          display: 'inline-flex', alignItems: 'stretch',
-          border: `1px solid ${active ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.1)'}`,
-          borderRadius: 10,
-          background: '#fff',
-          overflow: 'hidden',
-          boxShadow: active ? '0 1px 2px rgba(0,0,0,0.04)' : 'none',
-        }}>
+        <div
+          style={{
+            display: 'inline-flex', alignItems: 'stretch',
+            border: `1px solid ${active ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.1)'}`,
+            borderRadius: 10,
+            background: locked ? 'rgba(0,0,0,0.04)' : '#fff',
+            overflow: 'hidden',
+            boxShadow: active ? '0 1px 2px rgba(0,0,0,0.04)' : 'none',
+            opacity: locked ? 0.6 : 1,
+            pointerEvents: locked ? 'none' : 'auto',
+          }}>
           <button onClick={() => step(-1)} aria-label="Decrease"
             style={{
               width: 34, padding: 0, border: 0, cursor: 'pointer',
@@ -2830,8 +2845,8 @@ function CartRowEditor({
       {/* Desktop: delivery slots — Mon / Wed / Fri */}
       <div style={{ display: isMobile ? 'none' : 'flex', gap: 10 }}>
         {dayCell('Mon', row?.delivery.mon ?? 0, row?.monLockedQty != null)}
-        {dayCell('Wed', row?.delivery.wed ?? 0)}
-        {dayCell('Fri', row?.delivery.fri ?? 0)}
+        {dayCell('Wed', row?.delivery.wed ?? 0, row?.wedLockedQty != null)}
+        {dayCell('Fri', row?.delivery.fri ?? 0, row?.friLockedQty != null)}
       </div>
 
       {/* Desktop: trailing delete for custom items */}
