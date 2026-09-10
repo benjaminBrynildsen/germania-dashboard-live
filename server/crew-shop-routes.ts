@@ -15,7 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
-import { syncCrewShop, getPublicProducts, getSyncStatus } from './crew-shop.js';
+import { syncCrewShop, getPublicProducts, getSyncStatus, kickSyncIfStale } from './crew-shop.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EMBED_PATH = path.join(__dirname, '..', 'public-site', 'crew-shop', 'embed.js');
@@ -23,6 +23,9 @@ const EMBED_PATH = path.join(__dirname, '..', 'public-site', 'crew-shop', 'embed
 const router = Router();
 
 router.get('/public/crew-shop/products', (_req, res: Response) => {
+  // If the lineup hasn't been refreshed recently, kick a background
+  // sync — visitors get the current data now, the next ones get fresh.
+  kickSyncIfStale();
   res.set({
     'Access-Control-Allow-Origin': '*',
     // Squarespace visitors don't need a fresh scrape per pageview; five
@@ -42,10 +45,14 @@ router.get('/public/crew-shop/embed.js', (_req, res: Response) => {
   });
 });
 
-router.post('/crew-shop/sync', requireAuth, async (_req: AuthRequest, res: Response) => {
+const runSync = async (_req: AuthRequest, res: Response) => {
   const result = await syncCrewShop();
   res.status(result.ok ? 200 : 502).json(result);
-});
+};
+router.post('/crew-shop/sync', requireAuth, runSync);
+// GET twin so the owner can force a refresh by visiting the URL in a
+// logged-in browser — no curl/Postman needed.
+router.get('/crew-shop/sync', requireAuth, runSync);
 
 router.get('/crew-shop/status', requireAuth, (_req: AuthRequest, res: Response) => {
   res.json(getSyncStatus());

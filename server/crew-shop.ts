@@ -266,6 +266,20 @@ export interface SyncResult {
   removed: number;
 }
 
+// Self-heal: fired from the public products endpoint so the lineup
+// refreshes even if the boot-time interval ever dies (server hibernation,
+// clock drift, crashed timer). Never blocks the request it rides on.
+let syncInFlight = false;
+export function kickSyncIfStale(maxAgeMs = 2 * 60 * 60 * 1000): void {
+  if (syncInFlight) return;
+  const last = getMeta('last_attempt');
+  if (last && Date.now() - Date.parse(last) < maxAgeMs) return;
+  syncInFlight = true;
+  syncCrewShop()
+    .catch((err) => console.warn('[CrewShopSync] stale-kick failed:', err instanceof Error ? err.message : err))
+    .finally(() => { syncInFlight = false; });
+}
+
 export async function syncCrewShop(): Promise<SyncResult> {
   setMeta('last_attempt', new Date().toISOString());
   let html: string;
