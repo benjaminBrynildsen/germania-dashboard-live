@@ -103,6 +103,8 @@ app.listen(PORT, () => {
   // Crew Shop merch sync — mirrors the vendor's OrderMyGear storefront
   // so the public site's merch page updates itself when the vendor adds
   // or retires items. A failed scrape keeps the last good lineup.
+  // Hourly: it's one small page fetch, and the owner expects new merch
+  // to show up the same morning the vendor adds it.
   const crewShopSyncOnce = async () => {
     try {
       const { syncCrewShop } = await import('./crew-shop.js');
@@ -112,7 +114,7 @@ app.listen(PORT, () => {
     }
   };
   setTimeout(crewShopSyncOnce, 20_000);
-  setInterval(crewShopSyncOnce, 6 * 60 * 60 * 1000);
+  setInterval(crewShopSyncOnce, 60 * 60 * 1000);
 
   // Pre-warm the Hours Watch cache so the cold 52-wk pull happens out of
   // band of any user request. Past weeks cache forever, so this is mostly
