@@ -889,6 +889,48 @@ db.exec(`
     name TEXT NOT NULL,
     position INTEGER NOT NULL DEFAULT 0
   );
+
+  -- ── Nutrition (sauce/syrup recipe nutrition + drink facts) ─────────
+  -- A batch recipe entered for NUTRITION (parallel to cog_recipes which
+  -- is for cost). yield_oz is the finished batch volume in fluid ounces;
+  -- per-oz nutrition = summed item nutrition / yield_oz. kind drives the
+  -- pump size in the drink calculator (syrup 1/1.25 oz, sauce 1/1.5 oz).
+  CREATE TABLE IF NOT EXISTS nutrition_recipes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'syrup' CHECK(kind IN ('syrup','sauce')),
+    yield_oz REAL,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  -- One ingredient line: qty × unit, with nutrition entered PER ONE unit
+  -- (straight off the ingredient's label, e.g. per 1 cup of sugar).
+  -- cost_per_unit ($ per one unit) gives the running batch-cost tally.
+  CREATE TABLE IF NOT EXISTS nutrition_recipe_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipe_id INTEGER NOT NULL REFERENCES nutrition_recipes(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    unit TEXT,
+    qty REAL,
+    cost_per_unit REAL,
+    calories REAL, fat_g REAL, sat_fat_g REAL,
+    carbs_g REAL, sugar_g REAL, protein_g REAL, sodium_mg REAL,
+    sort_order INTEGER DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_nutrition_items_recipe ON nutrition_recipe_items(recipe_id);
+
+  -- Drink base components (cold brew, milks) with nutrition PER FLUID OZ.
+  -- Seeded with standard label values; fully editable in the UI so the
+  -- team can match their actual suppliers.
+  CREATE TABLE IF NOT EXISTS nutrition_bases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    role TEXT NOT NULL DEFAULT 'milk' CHECK(role IN ('coffee','milk')),
+    calories REAL, fat_g REAL, sat_fat_g REAL,
+    carbs_g REAL, sugar_g REAL, protein_g REAL, sodium_mg REAL
+  );
 `);
 
 // Seed SOP presets on boot (idempotent — keyed by slug).
@@ -906,6 +948,24 @@ migrateSops2026ToOz(db);
 
 // Ensure the single COGS settings row exists (idempotent).
 db.prepare('INSERT OR IGNORE INTO cog_settings (id) VALUES (1)').run();
+
+// Seed drink nutrition bases (per fluid oz, from standard USDA/label
+// values). INSERT OR IGNORE by unique name so UI edits are never
+// overwritten on later boots.
+{
+  const seedBase = db.prepare(`
+    INSERT OR IGNORE INTO nutrition_bases
+      (name, role, calories, fat_g, sat_fat_g, carbs_g, sugar_g, protein_g, sodium_mg)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  seedBase.run('Cold Brew Coffee', 'coffee', 0.6, 0, 0, 0, 0, 0.1, 1.5);
+  seedBase.run('Whole Milk',       'milk', 18.6, 1.0, 0.56, 1.5, 1.5, 1.0, 13);
+  seedBase.run('2% Milk',          'milk', 15.3, 0.63, 0.38, 1.5, 1.5, 1.0, 14.4);
+  seedBase.run('Skim Milk',        'milk', 10.4, 0.03, 0.02, 1.5, 1.5, 1.0, 12.9);
+  seedBase.run('Oat Milk',         'milk', 17.5, 0.88, 0.06, 2.0, 0.88, 0.38, 12.5);
+  seedBase.run('Almond Milk',      'milk', 3.75, 0.31, 0, 0.13, 0, 0.13, 21.3);
+  seedBase.run('Heavy Cream',      'milk', 100, 10.8, 6.9, 0.8, 0.8, 0.8, 10);
+}
 
 // Apply additional schema (sales_daily, weather_daily, closure_decisions)
 // kept in a separate .sql file. Used by Sales Anomaly + Weather Closure tabs;

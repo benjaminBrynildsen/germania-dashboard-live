@@ -838,6 +838,122 @@ router.post('/cog/ingredients/import', requireAuth, (_req: AuthRequest, res: Res
   }
 });
 
+// --- COG: nutrition (sauce/syrup recipes + drink facts data) ---
+
+const NUTRITION_NUM_FIELDS = ['calories', 'fat_g', 'sat_fat_g', 'carbs_g', 'sugar_g', 'protein_g', 'sodium_mg'] as const;
+const numOrNull = (v: unknown): number | null => {
+  const n = typeof v === 'string' ? parseFloat(v) : v;
+  return typeof n === 'number' && Number.isFinite(n) ? n : null;
+};
+
+function nutritionRecipeOut(id: number | bigint) {
+  const recipe = db.prepare('SELECT * FROM nutrition_recipes WHERE id = ?').get(id) as any;
+  if (!recipe) return null;
+  const items = db.prepare('SELECT * FROM nutrition_recipe_items WHERE recipe_id = ? ORDER BY sort_order').all(id);
+  return { ...recipe, items };
+}
+
+// Rebuild a recipe's item lines from the request payload (full replace —
+// the client edits locally and saves the whole recipe in one call).
+function replaceNutritionItems(recipeId: number | bigint, items: unknown) {
+  if (!Array.isArray(items)) return;
+  db.prepare('DELETE FROM nutrition_recipe_items WHERE recipe_id = ?').run(recipeId);
+  const ins = db.prepare(`
+    INSERT INTO nutrition_recipe_items
+      (recipe_id, name, unit, qty, cost_per_unit, calories, fat_g, sat_fat_g, carbs_g, sugar_g, protein_g, sodium_mg, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  items.forEach((raw: any, i: number) => {
+    const name = String(raw?.name ?? '').trim();
+    if (!name) return;
+    ins.run(
+      recipeId, name,
+      raw?.unit ? String(raw.unit).trim() : null,
+      numOrNull(raw?.qty),
+      numOrNull(raw?.cost_per_unit),
+      ...NUTRITION_NUM_FIELDS.map((f) => numOrNull(raw?.[f])),
+      i,
+    );
+  });
+}
+
+router.get('/cog/nutrition', requireAuth, (_req: AuthRequest, res: Response) => {
+  const recipes = (db.prepare('SELECT id FROM nutrition_recipes ORDER BY name').all() as Array<{ id: number }>)
+    .map((r) => nutritionRecipeOut(r.id));
+  const bases = db.prepare("SELECT * FROM nutrition_bases ORDER BY role = 'milk', name").all();
+  res.json({ recipes, bases });
+});
+
+router.post('/cog/nutrition/recipes', requireAuth, (req: AuthRequest, res: Response) => {
+  const name = String(req.body?.name ?? '').trim();
+  if (!name) { res.status(400).json({ error: 'Name is required' }); return; }
+  const kind = req.body?.kind === 'sauce' ? 'sauce' : 'syrup';
+  const run = db.transaction(() => {
+    const r = db.prepare(
+      'INSERT INTO nutrition_recipes (name, kind, yield_oz, notes) VALUES (?, ?, ?, ?)',
+    ).run(name, kind, numOrNull(req.body?.yield_oz), req.body?.notes ?? null);
+    replaceNutritionItems(r.lastInsertRowid, req.body?.items);
+    return r.lastInsertRowid;
+  });
+  res.json(nutritionRecipeOut(run()));
+});
+
+router.put('/cog/nutrition/recipes/:id', requireAuth, (req: AuthRequest, res: Response) => {
+  const existing = db.prepare('SELECT id FROM nutrition_recipes WHERE id = ?').get(req.params.id) as any;
+  if (!existing) { res.status(404).json({ error: 'Recipe not found' }); return; }
+  const name = String(req.body?.name ?? '').trim();
+  if (!name) { res.status(400).json({ error: 'Name is required' }); return; }
+  const kind = req.body?.kind === 'sauce' ? 'sauce' : 'syrup';
+  const run = db.transaction(() => {
+    db.prepare(`
+      UPDATE nutrition_recipes
+      SET name = ?, kind = ?, yield_oz = ?, notes = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(name, kind, numOrNull(req.body?.yield_oz), req.body?.notes ?? null, existing.id);
+    if (req.body?.items !== undefined) replaceNutritionItems(existing.id, req.body.items);
+  });
+  run();
+  res.json(nutritionRecipeOut(existing.id));
+});
+
+router.delete('/cog/nutrition/recipes/:id', requireAuth, (req: AuthRequest, res: Response) => {
+  db.prepare('DELETE FROM nutrition_recipes WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+router.post('/cog/nutrition/bases', requireAuth, (req: AuthRequest, res: Response) => {
+  const name = String(req.body?.name ?? '').trim();
+  if (!name) { res.status(400).json({ error: 'Name is required' }); return; }
+  const role = req.body?.role === 'coffee' ? 'coffee' : 'milk';
+  try {
+    const r = db.prepare(`
+      INSERT INTO nutrition_bases (name, role, calories, fat_g, sat_fat_g, carbs_g, sugar_g, protein_g, sodium_mg)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(name, role, ...NUTRITION_NUM_FIELDS.map((f) => numOrNull(req.body?.[f])));
+    res.json(db.prepare('SELECT * FROM nutrition_bases WHERE id = ?').get(r.lastInsertRowid));
+  } catch (err: any) {
+    if (String(err.message).includes('UNIQUE')) { res.status(409).json({ error: 'A base with that name already exists' }); return; }
+    throw err;
+  }
+});
+
+router.put('/cog/nutrition/bases/:id', requireAuth, (req: AuthRequest, res: Response) => {
+  const existing = db.prepare('SELECT * FROM nutrition_bases WHERE id = ?').get(req.params.id) as any;
+  if (!existing) { res.status(404).json({ error: 'Base not found' }); return; }
+  const name = String(req.body?.name ?? existing.name).trim() || existing.name;
+  db.prepare(`
+    UPDATE nutrition_bases
+    SET name = ?, calories = ?, fat_g = ?, sat_fat_g = ?, carbs_g = ?, sugar_g = ?, protein_g = ?, sodium_mg = ?
+    WHERE id = ?
+  `).run(name, ...NUTRITION_NUM_FIELDS.map((f) => numOrNull(req.body?.[f]) ?? existing[f]), existing.id);
+  res.json(db.prepare('SELECT * FROM nutrition_bases WHERE id = ?').get(existing.id));
+});
+
+router.delete('/cog/nutrition/bases/:id', requireAuth, (req: AuthRequest, res: Response) => {
+  db.prepare('DELETE FROM nutrition_bases WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
 // --- COG: finished drinks + recommended pricing ---
 
 // Global COGS settings (single row). Default target COG % drives recommended price.
