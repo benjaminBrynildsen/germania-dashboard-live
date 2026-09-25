@@ -750,18 +750,34 @@ router.get('/cog/ingredients/master', requireAuth, (_req: AuthRequest, res: Resp
   res.json(ingredients);
 });
 
-// Update master ingredient
+// Update master ingredient. Changing the numbers invalidates any previous
+// confirmation — someone has to re-verify the new values.
 router.put('/cog/ingredients/master/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const { ap_pack_cost, pack_size, pack_unit, supplier } = req.body;
 
   db.prepare(`
     UPDATE cog_ingredient_master
-    SET ap_pack_cost = ?, pack_size = ?, pack_unit = ?, supplier = ?, last_updated = datetime('now')
+    SET ap_pack_cost = ?, pack_size = ?, pack_unit = ?, supplier = ?,
+        confirmed_at = NULL, confirmed_by = NULL,
+        last_updated = datetime('now')
     WHERE id = ?
   `).run(ap_pack_cost, pack_size, pack_unit, supplier, req.params.id);
 
   const ingredient = db.prepare('SELECT * FROM cog_ingredient_master WHERE id = ?').get(req.params.id);
   res.json(ingredient);
+});
+
+// Confirm a master ingredient's numbers — stamps who (login email) + when,
+// so the team can track what's been verified against real invoices.
+router.post('/cog/ingredients/master/:id/confirm', requireAuth, (req: AuthRequest, res: Response) => {
+  const email = req.user?.email ?? null;
+  if (!email) { res.status(400).json({ error: 'No login email on this session' }); return; }
+  db.prepare(`
+    UPDATE cog_ingredient_master
+    SET confirmed_at = datetime('now'), confirmed_by = ?
+    WHERE id = ?
+  `).run(email, req.params.id);
+  res.json(db.prepare('SELECT * FROM cog_ingredient_master WHERE id = ?').get(req.params.id));
 });
 
 // Create master ingredient
@@ -805,29 +821,42 @@ router.post('/cog/ingredients/import', requireAuth, (_req: AuthRequest, res: Res
       name: string; ap_pack_cost: number | null; pack_size: number | null; pack_unit: string | null; supplier: string | null;
     }>;
 
-    const exists = db.prepare('SELECT 1 FROM cog_ingredient_master WHERE name = ?');
-    const upsert = db.prepare(`
+    const exists = db.prepare('SELECT * FROM cog_ingredient_master WHERE name = ?');
+    const insert = db.prepare(`
       INSERT INTO cog_ingredient_master (name, ap_pack_cost, pack_size, pack_unit, supplier)
       VALUES (@name, @ap_pack_cost, @pack_size, @pack_unit, @supplier)
-      ON CONFLICT(name) DO UPDATE SET
-        ap_pack_cost = excluded.ap_pack_cost,
-        pack_size = excluded.pack_size,
-        pack_unit = excluded.pack_unit,
-        supplier = excluded.supplier,
-        last_updated = datetime('now')
+    `);
+    // A value change invalidates any confirmation; an identical row is left
+    // untouched so its confirmed-by stamp survives repeated imports.
+    const update = db.prepare(`
+      UPDATE cog_ingredient_master
+      SET ap_pack_cost = @ap_pack_cost, pack_size = @pack_size, pack_unit = @pack_unit,
+          supplier = @supplier, confirmed_at = NULL, confirmed_by = NULL,
+          last_updated = datetime('now')
+      WHERE name = @name
     `);
     let inserted = 0, updated = 0;
     const run = db.transaction(() => {
       for (const it of items) {
         if (!it.name) continue;
-        if (exists.get(it.name)) updated++; else inserted++;
-        upsert.run({
+        const row = {
           name: it.name,
           ap_pack_cost: it.ap_pack_cost ?? null,
           pack_size: it.pack_size ?? null,
           pack_unit: it.pack_unit ?? null,
           supplier: it.supplier ?? null,
-        });
+        };
+        const cur = exists.get(it.name) as any;
+        if (!cur) {
+          insert.run(row);
+          inserted++;
+        } else if (
+          cur.ap_pack_cost !== row.ap_pack_cost || cur.pack_size !== row.pack_size
+          || cur.pack_unit !== row.pack_unit || cur.supplier !== row.supplier
+        ) {
+          update.run(row);
+          updated++;
+        }
       }
     });
     run();
