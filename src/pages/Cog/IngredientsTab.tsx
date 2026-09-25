@@ -20,6 +20,8 @@ function unitCost(i: MasterIngredient): number | null {
   return (i.ap_pack_cost || 0) / i.pack_size;
 }
 
+type SortKey = 'name' | 'pack_cost' | 'pack_size' | 'unit_cost' | 'supplier' | 'confirmed';
+
 export default function IngredientsTab() {
   const isMobile = useIsMobile();
   const canEdit = useCanEdit();
@@ -29,6 +31,13 @@ export default function IngredientsTab() {
   const [editing, setEditing] = useState<MasterIngredient | null>(null);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const toggleSort = (key: SortKey) => {
+    if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir(key === 'name' || key === 'supplier' ? 'asc' : 'desc'); }
+  };
 
   const load = async () => {
     try {
@@ -41,10 +50,30 @@ export default function IngredientsTab() {
   };
   useEffect(() => { load(); }, []);
 
-  const filtered = useMemo(
-    () => items.filter((i) => !search || i.name.toLowerCase().includes(search.toLowerCase())),
-    [items, search],
-  );
+  const filtered = useMemo(() => {
+    const list = items.filter((i) => !search || i.name.toLowerCase().includes(search.toLowerCase()));
+    // Sort value per column; null sorts last in either direction.
+    const val = (i: MasterIngredient): string | number | null => {
+      switch (sortKey) {
+        case 'name': return i.name.toLowerCase();
+        case 'pack_cost': return i.ap_pack_cost;
+        case 'pack_size': return i.pack_size;
+        case 'unit_cost': return unitCost(i);
+        case 'supplier': return i.supplier ? i.supplier.toLowerCase() : null;
+        case 'confirmed': return i.confirmed_at; // ISO-ish string — lexicographic = chronological
+      }
+    };
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...list].sort((a, b) => {
+      const av = val(a), bv = val(b);
+      if (av == null && bv == null) return a.name.localeCompare(b.name);
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (av < bv) return -dir;
+      if (av > bv) return dir;
+      return a.name.localeCompare(b.name);
+    });
+  }, [items, search, sortKey, sortDir]);
 
   const remove = async (i: MasterIngredient) => {
     if (!confirm(`Delete "${i.name}"? Drinks using it will show the line as missing until you fix them.`)) return;
@@ -108,12 +137,12 @@ export default function IngredientsTab() {
         <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 640 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
-              <th style={th('left')}>Name</th>
-              <th style={th('right')}>Pack cost</th>
-              <th style={th('right')}>Pack size</th>
-              <th style={th('right')}>Cost / unit</th>
-              <th style={th('left')}>Supplier</th>
-              <th style={th('left')}>Confirmed</th>
+              <SortTh label="Name" k="name" align="left" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+              <SortTh label="Pack cost" k="pack_cost" align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+              <SortTh label="Pack size" k="pack_size" align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+              <SortTh label="Cost / unit" k="unit_cost" align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+              <SortTh label="Supplier" k="supplier" align="left" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+              <SortTh label="Confirmed" k="confirmed" align="left" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
               {canEdit && <th style={th('right')}>Actions</th>}
             </tr>
           </thead>
@@ -238,6 +267,28 @@ function IngredientModal({ editing, onClose, onSaved, isMobile }: {
         <button className="btn btn-primary" onClick={save} disabled={!canSave || saving}>{saving ? 'Saving...' : 'Save'}</button>
       </div>
     </Modal>
+  );
+}
+
+// Clickable column header: click to sort, click again to flip direction.
+function SortTh({ label, k, align, sortKey, sortDir, onSort }: {
+  label: string; k: SortKey; align: 'left' | 'right';
+  sortKey: SortKey; sortDir: 'asc' | 'desc'; onSort: (k: SortKey) => void;
+}) {
+  const active = sortKey === k;
+  return (
+    <th
+      onClick={() => onSort(k)}
+      title={`Sort by ${label.toLowerCase()}`}
+      style={{
+        ...th(align), cursor: 'pointer', userSelect: 'none',
+        color: active ? '#1a1a1a' : 'rgba(0,0,0,0.4)',
+      }}>
+      {label}
+      <span style={{ marginLeft: 4, fontSize: 9, opacity: active ? 1 : 0.25 }}>
+        {active ? (sortDir === 'asc' ? '▲' : '▼') : '▲▼'}
+      </span>
+    </th>
   );
 }
 
