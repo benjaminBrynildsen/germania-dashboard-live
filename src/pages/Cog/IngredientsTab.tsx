@@ -10,6 +10,8 @@ export interface MasterIngredient {
   pack_size: number | null;
   pack_unit: string | null;
   supplier: string | null;
+  confirmed_at: string | null;
+  confirmed_by: string | null;
   last_updated: string;
 }
 
@@ -51,6 +53,19 @@ export default function IngredientsTab() {
       load();
     } catch (e: any) {
       alert(`Delete failed: ${e.message}`);
+    }
+  };
+
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const confirmItem = async (i: MasterIngredient) => {
+    setConfirmingId(i.id);
+    try {
+      await api.post(`/api/cog/ingredients/master/${i.id}/confirm`, {});
+      await load();
+    } catch (e: any) {
+      alert(`Confirm failed: ${e.message}`);
+    } finally {
+      setConfirmingId(null);
     }
   };
 
@@ -98,12 +113,13 @@ export default function IngredientsTab() {
               <th style={th('right')}>Pack size</th>
               <th style={th('right')}>Cost / unit</th>
               <th style={th('left')}>Supplier</th>
+              <th style={th('left')}>Confirmed</th>
               {canEdit && <th style={th('right')}>Actions</th>}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={canEdit ? 6 : 5} style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.3)' }}>No ingredients</td></tr>
+              <tr><td colSpan={canEdit ? 7 : 6} style={{ padding: 40, textAlign: 'center', color: 'rgba(0,0,0,0.3)' }}>No ingredients</td></tr>
             )}
             {filtered.map((i) => (
               <tr key={i.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
@@ -114,6 +130,27 @@ export default function IngredientsTab() {
                   {unitCost(i) != null ? `${money(unitCost(i), 4)}/${i.pack_unit || 'unit'}` : '—'}
                 </td>
                 <td style={td('left')}>{i.supplier || '—'}</td>
+                <td style={{ ...td('left'), whiteSpace: 'nowrap' }}>
+                  {i.confirmed_at ? (
+                    <span
+                      title={`Confirmed by ${i.confirmed_by} — ${fmtStamp(i.confirmed_at)} (editing the numbers clears this)`}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        fontSize: 11, fontWeight: 700, color: '#166534',
+                        background: 'rgba(22,101,52,0.08)', padding: '3px 8px', borderRadius: 999,
+                      }}>
+                      ✓ {fmtDate(i.confirmed_at)} · {emailName(i.confirmed_by)}
+                    </span>
+                  ) : canEdit ? (
+                    <button className="btn btn-secondary btn-sm" disabled={confirmingId === i.id}
+                      title="Stamp these numbers as verified (your login email + date)"
+                      onClick={() => confirmItem(i)}>
+                      {confirmingId === i.id ? '...' : 'Confirm'}
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>unconfirmed</span>
+                  )}
+                </td>
                 {canEdit && (
                   <td style={{ ...td('right'), whiteSpace: 'nowrap' }}>
                     <button className="btn btn-secondary btn-sm" onClick={() => setEditing(i)}>Edit</button>{' '}
@@ -202,6 +239,21 @@ function IngredientModal({ editing, onClose, onSaved, isMobile }: {
       </div>
     </Modal>
   );
+}
+
+// SQLite datetime('now') is UTC "YYYY-MM-DD HH:MM:SS" — parse as UTC and
+// render in the viewer's local time.
+function stampToDate(s: string): Date {
+  return new Date(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`);
+}
+function fmtDate(s: string): string {
+  return stampToDate(s).toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+function fmtStamp(s: string): string {
+  return stampToDate(s).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+function emailName(email: string | null): string {
+  return (email || '').split('@')[0] || 'unknown';
 }
 
 const th = (align: 'left' | 'right'): React.CSSProperties => ({ textAlign: align, padding: '8px 12px', fontWeight: 600, color: 'rgba(0,0,0,0.4)', whiteSpace: 'nowrap' });

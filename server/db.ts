@@ -52,6 +52,17 @@ db.pragma('foreign_keys = ON');
   }
 }
 
+// Ingredient price confirmations — who verified a master ingredient's
+// numbers and when. Cleared whenever the numbers change.
+{
+  const tbl = db.prepare("PRAGMA table_info(cog_ingredient_master)").all() as Array<{ name: string }>;
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'confirmed_at')) {
+    console.log('[migration] adding confirmed_at/confirmed_by to cog_ingredient_master');
+    db.exec('ALTER TABLE cog_ingredient_master ADD COLUMN confirmed_at TEXT');
+    db.exec('ALTER TABLE cog_ingredient_master ADD COLUMN confirmed_by TEXT');
+  }
+}
+
 // Menu Team SOP packet metadata — adds the cover/category fields used
 // to render seasonal launch packets. Pre-dates only the v1 SOP schema;
 // these are no-ops on a fresh DB because CREATE TABLE IF NOT EXISTS
@@ -381,6 +392,8 @@ db.exec(`
     pack_size REAL,
     pack_unit TEXT,
     supplier TEXT,
+    confirmed_at TEXT,   -- when a human last verified these numbers
+    confirmed_by TEXT,   -- their login email; cleared when numbers change
     last_updated TEXT DEFAULT (datetime('now'))
   );
 
