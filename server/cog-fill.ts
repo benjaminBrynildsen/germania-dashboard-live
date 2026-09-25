@@ -307,7 +307,7 @@ export function fillStandardRecipes(products: Array<{ ID: number; NAME: string; 
         const vid = db.prepare("INSERT INTO cog_drink_variants (drink_id, label, sort_order) VALUES (?, 'Regular', 0)").run(d.id).lastInsertRowid;
         db.prepare(`INSERT INTO cog_drink_components (drink_id, variant_id, component_type, recipe_id, quantity, unit, sort_order)
                     VALUES (?, ?, 'recipe', ?, 1, ?, 0)`).run(d.id, vid, r.id, r.yield_unit);
-        db.prepare("UPDATE cog_drinks SET notes = ?, updated_at = datetime('now') WHERE id = ?")
+        db.prepare("UPDATE cog_drinks SET notes = ?, needs_confirm = 1, updated_at = datetime('now') WHERE id = ?")
           .run(`Auto-filled from batch recipe "${r.name}" — verify.`, d.id);
       });
       run();
@@ -335,7 +335,7 @@ export function fillStandardRecipes(products: Array<{ ID: number; NAME: string; 
       flavor,
       addDarkChocolate,
     });
-    db.prepare("UPDATE cog_drinks SET notes = ?, updated_at = datetime('now') WHERE id = ?")
+    db.prepare("UPDATE cog_drinks SET notes = ?, needs_confirm = 1, updated_at = datetime('now') WHERE id = ?")
       .run(`Auto-filled from template "${template.name}"${flavorUsed ? ` (flavor: ${flavorUsed})` : ''} — verify quantities.`, d.id);
     report.cloned.push({ drink: d.name, template: template.name, flavor: flavorUsed });
   }

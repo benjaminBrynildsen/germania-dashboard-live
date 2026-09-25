@@ -42,6 +42,16 @@ db.pragma('foreign_keys = ON');
   }
 }
 
+// COGS confirm flow — auto-filled recipes (SOP sync / fill-standard) are
+// marked needs_confirm=1 until a human reviews and confirms them.
+{
+  const tbl = db.prepare("PRAGMA table_info(cog_drinks)").all() as Array<{ name: string }>;
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'needs_confirm')) {
+    console.log('[migration] adding needs_confirm to cog_drinks');
+    db.exec('ALTER TABLE cog_drinks ADD COLUMN needs_confirm INTEGER NOT NULL DEFAULT 0');
+  }
+}
+
 // Menu Team SOP packet metadata — adds the cover/category fields used
 // to render seasonal launch packets. Pre-dates only the v1 SOP schema;
 // these are no-ops on a fresh DB because CREATE TABLE IF NOT EXISTS
@@ -388,6 +398,7 @@ db.exec(`
     target_cogs_pct REAL,            -- per-drink override of cog_settings default; null = use default
     notes TEXT,
     archived INTEGER DEFAULT 0,
+    needs_confirm INTEGER NOT NULL DEFAULT 0,  -- 1 = recipe was auto-filled; awaiting human confirm
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
   );
