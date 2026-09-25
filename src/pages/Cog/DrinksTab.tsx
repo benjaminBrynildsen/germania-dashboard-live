@@ -9,6 +9,8 @@ interface DrinkRow {
   category: string | null;
   target_cogs_pct: number | null;
   dripos_product_id: number | null;
+  needs_confirm: number;
+  notes: string | null;
   effective_target_cogs_pct: number;
   variant_count: number;
   min_cog: number | null;
@@ -173,6 +175,31 @@ export default function DrinksTab() {
     finally { setFilling(false); }
   };
 
+  const fillFromSops = async () => {
+    if (!confirm('Fill drink recipes from the SOP library?\n\nEach drink SOP (newest season wins) is converted straight into a costed recipe — bells to oz, pumps, shots, scoops, plus cups/lids. Drinks with no SOP but a matching flavor get the standard house build (3oz cold brew + 9oz milk + 1oz flavor on iced regular). Drinks that already have a recipe are never touched, and every fill needs your Confirm before it counts as verified.')) return;
+    setFilling(true);
+    try {
+      const r = await api.post('/api/cog/drinks/sync-from-sops', {});
+      const lines = [
+        `Filled ${r.filled.length} drinks from SOPs${r.filled.length ? `: ${r.filled.map((f: any) => f.drink).join(', ')}` : ''}.`,
+        r.baseline.length ? `Baseline house build applied to ${r.baseline.length}: ${r.baseline.map((b: any) => b.drink).join(', ')}.` : '',
+        r.unresolved.length ? `Ingredients not in the catalog (lines skipped): ${r.unresolved.join(', ')}.` : '',
+        r.skipped.length ? `Skipped ${r.skipped.length} (already costed / no matching drink).` : '',
+        'Everything filled is marked "needs confirm" — open each drink and hit Confirm after a sanity check.',
+      ].filter(Boolean);
+      alert(lines.join('\n\n'));
+      refresh();
+    } catch (e: any) { alert(`SOP fill failed: ${e.message}`); }
+    finally { setFilling(false); }
+  };
+
+  const confirmDrink = async (id: number) => {
+    try {
+      await api.post(`/api/cog/drinks/${id}/confirm`, {});
+      refresh();
+    } catch (e: any) { alert(`Confirm failed: ${e.message}`); }
+  };
+
   const removeDrink = async (d: DrinkRow) => {
     if (!confirm(`Delete "${d.name}" and all its variants? This cannot be undone.`)) return;
     try {
@@ -230,6 +257,7 @@ export default function DrinksTab() {
         {canEdit && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="btn btn-secondary" onClick={sync} disabled={syncing}>{syncing ? 'Syncing...' : '⟳ Sync from Dripos'}</button>
+            <button className="btn btn-secondary" onClick={fillFromSops} disabled={filling}>{filling ? 'Filling...' : '⇄ Fill from SOPs'}</button>
             <button className="btn btn-secondary" onClick={importRecipes} disabled={importing}>{importing ? 'Importing...' : '↓ Import recipes'}</button>
             <button className="btn btn-secondary" onClick={fillStandard} disabled={filling}>{filling ? 'Filling...' : '✦ Fill standard recipes'}</button>
             <button className="btn btn-primary" onClick={() => setCreating(true)}>+ Add drink</button>
@@ -283,6 +311,11 @@ export default function DrinksTab() {
                           {d.dripos_product_id != null
                             ? <span className="badge badge-blue">Dripos</span>
                             : <span className="badge badge-gold" title="Not linked to a Dripos product — no live price. Open the drink to link it.">not linked</span>}
+                          {d.needs_confirm === 1 && (
+                            <span className="badge badge-gold" title={d.notes || 'Recipe was auto-filled — open the drink and hit Confirm after a sanity check.'}>
+                              ⚠ needs confirm
+                            </span>
+                          )}
                           <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.3)' }}>• {d.variant_count} size{d.variant_count === 1 ? '' : 's'}</span>
                         </div>
                       </div>
@@ -303,6 +336,7 @@ export default function DrinksTab() {
                       detail={detail} isMobile={isMobile} canEdit={canEdit}
                       ingredients={ingredients} recipes={recipes} driposPrices={driposPrices} products={products}
                       onChanged={refresh} onDelete={() => removeDrink(d)}
+                      onConfirm={() => confirmDrink(d.id)}
                     />
                   )}
                 </div>
@@ -328,10 +362,10 @@ function Metric({ label, value, accent, color }: { label: string; value: string;
   );
 }
 
-function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPrices, products, onChanged, onDelete }: {
+function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPrices, products, onChanged, onDelete, onConfirm }: {
   detail: DrinkDetail; isMobile: boolean; canEdit: boolean;
   ingredients: PickIngredient[]; recipes: PickRecipe[]; driposPrices: Record<number, number>; products: DriposProduct[];
-  onChanged: () => void; onDelete: () => void;
+  onChanged: () => void; onDelete: () => void; onConfirm: () => void;
 }) {
   const [targetOverride, setTargetOverride] = useState(detail.target_cogs_pct?.toString() ?? '');
   const [activeVariant, setActiveVariant] = useState<number | null>(detail.variants[0]?.id ?? null);
@@ -359,6 +393,21 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPr
 
   return (
     <div className="card" style={{ marginTop: 8, background: 'rgba(255,255,255,0.97)' }}>
+      {detail.needs_confirm === 1 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          padding: '10px 14px', borderRadius: 10, marginBottom: 14,
+          background: 'rgba(202,138,4,0.10)', border: '1px solid rgba(202,138,4,0.3)',
+        }}>
+          <div style={{ flex: 1, minWidth: 220, fontSize: 12.5, color: '#854d0e', lineHeight: 1.45 }}>
+            <strong>Auto-filled recipe — needs a human check.</strong>
+            {detail.notes && <div style={{ marginTop: 2, whiteSpace: 'pre-wrap' }}>{detail.notes}</div>}
+          </div>
+          {canEdit && (
+            <button className="btn btn-primary btn-sm" onClick={onConfirm}>✓ Confirm recipe</button>
+          )}
+        </div>
+      )}
       <DriposLinkRow detail={detail} canEdit={canEdit} products={products} onChanged={onChanged} />
 
       {/* Variant selector */}

@@ -1225,6 +1225,25 @@ router.delete('/cog/components/:id', requireAuth, (req: AuthRequest, res: Respon
   res.json({ success: true });
 });
 
+// Fill drink recipes from the SOP library (newest season per drink), then
+// apply the baseline house build to still-uncosted flavored coffee drinks.
+// Idempotent — costed drinks are never touched; fills land needs_confirm=1.
+router.post('/cog/drinks/sync-from-sops', requireAuth, async (_req: AuthRequest, res: Response) => {
+  try {
+    const { syncSopsToCog } = await import('./sop-cog-sync.js');
+    res.json({ success: true, ...syncSopsToCog() });
+  } catch (err: any) {
+    console.error('SOP->COG sync error:', err);
+    res.status(500).json({ error: err.message || 'Sync failed' });
+  }
+});
+
+// Confirm an auto-filled recipe (clears the needs_confirm badge).
+router.post('/cog/drinks/:id/confirm', requireAuth, (req: AuthRequest, res: Response) => {
+  db.prepare("UPDATE cog_drinks SET needs_confirm = 0, updated_at = datetime('now') WHERE id = ?").run(req.params.id);
+  res.json(db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(req.params.id));
+});
+
 // Sync the drink catalog from Dripos. Upserts by dripos_product_id: inserts new
 // products, refreshes name/category on existing ones, and NEVER clobbers a
 // drink's components or its target_cogs_pct override. Only COG_CATEGORIES
