@@ -1030,6 +1030,33 @@ router.get('/cog/drinks', requireAuth, (req: AuthRequest, res: Response) => {
   res.json(enriched);
 });
 
+// 30-day sales per Dripos product across all four stores — powers the
+// "Selling now" filter on the Drinks tab. Dripos's /products payload has
+// no reliable platform-enabled flag, but recent sales are the ground
+// truth for what's actually available: months-dead menu items show zero.
+// Cached by fetchProductSales, so this is cheap after the first call.
+router.get('/cog/drinks/active-sales', requireAuth, async (_req: AuthRequest, res: Response) => {
+  try {
+    const { fetchProductSales } = await import('./dripos.js');
+    const end = Date.now();
+    const start = end - 30 * 86_400_000;
+    const rows = await fetchProductSales([131, 132, 133, 134], start, end);
+    const byProduct: Record<string, number> = {};
+    const byName: Record<string, number> = {};
+    for (const r of rows) {
+      const count = r.ORDER_COUNT || 0;
+      if (count <= 0) continue;
+      if (r.PRODUCT_ID != null) byProduct[String(r.PRODUCT_ID)] = (byProduct[String(r.PRODUCT_ID)] || 0) + count;
+      const n = (r.LINE_ITEM_NAME || '').trim().toLowerCase();
+      if (n) byName[n] = (byName[n] || 0) + count;
+    }
+    res.json({ available: true, days: 30, by_product: byProduct, by_name: byName });
+  } catch (err: any) {
+    const isAuth = err?.name === 'NoToken' || err?.name === 'AuthExpired';
+    res.json({ available: false, reason: isAuth ? 'Dripos not connected' : (err.message || 'failed'), by_product: {}, by_name: {} });
+  }
+});
+
 // Live current menu price per variant, straight from Dripos /products. Matches
 // drinks to Dripos products by dripos_product_id when linked (the sturdy join),
 // falling back to name for unlinked drinks; variants match by temp+size to the

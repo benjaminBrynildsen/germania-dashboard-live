@@ -183,7 +183,7 @@ export default function IngredientsTab() {
                 {canEdit && (
                   <td style={{ ...td('right'), whiteSpace: 'nowrap' }}>
                     <button className="btn btn-secondary btn-sm" onClick={() => setEditing(i)}>Edit</button>{' '}
-                    <button className="btn btn-danger btn-sm" onClick={() => remove(i)}>Del</button>
+                    <button className="btn btn-danger btn-sm" title={`Delete ${i.name}`} aria-label={`Delete ${i.name}`} onClick={() => remove(i)}>🗑</button>
                   </td>
                 )}
               </tr>
