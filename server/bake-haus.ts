@@ -227,7 +227,7 @@ export async function getBakeHausInventoryByStore(): Promise<Record<string, Reco
 
 /** Token-set fuzzy match. Used by both image and inventory lookups —
  *  same matching logic, different field on the matched product. */
-function findProductForCatalogItem(
+export function findProductForCatalogItem(
   item: BakeHausItem,
   products: Array<{ NAME: string; INVENTORY?: number | null; LOGO?: string | null; ARCHIVED?: number }>,
 ): { NAME: string; INVENTORY?: number | null; LOGO?: string | null } | null {
@@ -1973,5 +1973,84 @@ export function getMonthlyReport(month: string): MonthlyReport {
   return {
     month, weeks, estimatedWeeks, items, storeTotals,
     grandTotal: items.reduce((s, i) => s + i.total, 0),
+  };
+}
+
+// ── Monthly report pricing (Dripos menu price + COGS cost) ────────
+// Adds a per-item unit price from Dripos (retail value of what shipped)
+// and, where the item is costed in the COGS system, its unit cost.
+// Degrades to nulls when Dripos is offline or an item can't be matched.
+
+export interface PricedMonthlyReport extends MonthlyReport {
+  pricesAvailable: boolean;
+  items: Array<MonthlyReportItem & {
+    unitPrice: number | null;
+    value: number | null;
+    unitCost: number | null;
+    cost: number | null;
+  }>;
+  grandValue: number | null;
+  grandCost: number | null;
+}
+
+export async function priceMonthlyReport(report: MonthlyReport): Promise<PricedMonthlyReport> {
+  const { drinkCogRange } = await import('./cog-cost.js');
+
+  let products: Awaited<ReturnType<typeof fetchAllProducts>> = [];
+  let pricesAvailable = false;
+  try {
+    products = await fetchAllProducts(STORES[0].locationId);
+    pricesAvailable = true;
+  } catch { /* Dripos offline — value columns stay blank */ }
+  const foodProducts = products.filter((p) => p.CATEGORY_NAME === BAKE_HAUS_CATEGORY);
+
+  const syrupRows = listSyrups(true);
+  const syrupByName = new Map(syrupRows.map((s) => [s.displayName.toLowerCase(), s]));
+  const builtinByName = new Map(BAKE_HAUS_ITEMS.map((i) => [i.name.toLowerCase(), i]));
+  const cogDrink = db.prepare(`
+    SELECT d.id FROM cog_drinks d
+    WHERE LOWER(d.name) = LOWER(?) AND d.archived = 0
+      AND EXISTS (SELECT 1 FROM cog_drink_components c WHERE c.drink_id = d.id)
+  `);
+
+  const items = report.items.map((it) => {
+    let unitPrice: number | null = null;
+    if (pricesAvailable) {
+      const key = it.item.toLowerCase();
+      const syrup = syrupByName.get(key);
+      const builtin = builtinByName.get(key);
+      const product = syrup
+        ? findProductForSyrup(syrup, products)
+        : builtin
+          ? findProductForCatalogItem(builtin, foodProducts.length > 0 ? foodProducts : products)
+          : findProductForCatalogItem({ name: it.item, aliases: [], sort: 0 } as BakeHausItem, products);
+      const cents = (product as { PRICE?: number } | null)?.PRICE;
+      if (typeof cents === 'number' && cents > 0) unitPrice = cents / 100;
+    }
+
+    let unitCost: number | null = null;
+    const drink = cogDrink.get(it.item) as { id: number } | undefined;
+    if (drink) {
+      const range = drinkCogRange(drink.id, null);
+      if (range.min_cog != null && range.min_cog > 0) unitCost = range.min_cog;
+    }
+
+    return {
+      ...it,
+      unitPrice,
+      value: unitPrice != null ? Math.round(unitPrice * it.total * 100) / 100 : null,
+      unitCost,
+      cost: unitCost != null ? Math.round(unitCost * it.total * 100) / 100 : null,
+    };
+  });
+
+  const valued = items.filter((i) => i.value != null);
+  const costed = items.filter((i) => i.cost != null);
+  return {
+    ...report,
+    pricesAvailable,
+    items,
+    grandValue: valued.length > 0 ? Math.round(valued.reduce((s, i) => s + (i.value ?? 0), 0) * 100) / 100 : null,
+    grandCost: costed.length > 0 ? Math.round(costed.reduce((s, i) => s + (i.cost ?? 0), 0) * 100) / 100 : null,
   };
 }
