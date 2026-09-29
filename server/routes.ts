@@ -1287,6 +1287,12 @@ router.delete('/cog/components/:id', requireAuth, (req: AuthRequest, res: Respon
 router.post('/cog/drinks/sync-from-sops', requireAuth, async (_req: AuthRequest, res: Response) => {
   try {
     const { syncSopsToCog } = await import('./sop-cog-sync.js');
+    // Pending one-time fills (e.g. GBH) get a chance now that the catalog
+    // is populated — flag-gated, so this is free when already applied.
+    try {
+      const { applyGbhRecipe } = await import('./gbh-recipe-2026-09.js');
+      applyGbhRecipe(db);
+    } catch (e) { console.warn('[sync-from-sops] gbh fill failed:', e); }
     res.json({ success: true, ...syncSopsToCog() });
   } catch (err: any) {
     console.error('SOP->COG sync error:', err);
@@ -1365,6 +1371,13 @@ router.post('/cog/drinks/sync-dripos', requireAuth, async (_req: AuthRequest, re
       `).run(...cats).changes;
     });
     run();
+
+    // The catalog just gained/refreshed its drinks — apply any pending
+    // one-time recipe fills that were waiting for their drink to exist.
+    try {
+      const { applyGbhRecipe } = await import('./gbh-recipe-2026-09.js');
+      applyGbhRecipe(db);
+    } catch (e) { console.warn('[sync-dripos] gbh fill failed:', e); }
 
     res.json({ success: true, total: drinks.length, inserted, updated, pruned, priced: counters.priced, variants_created: counters.variantsCreated, location_id: locationId });
   } catch (err: any) {
