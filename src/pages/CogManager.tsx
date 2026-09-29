@@ -3,15 +3,17 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import DrinksTab from './Cog/DrinksTab';
 import IngredientsTab from './Cog/IngredientsTab';
 import RecipesTab from './Cog/RecipesTab';
+import BuilderTab from './Cog/BuilderTab';
 import NutritionTab from './Cog/NutritionTab';
 import SettingsTab from './Cog/SettingsTab';
 
-type Tab = 'drinks' | 'ingredients' | 'recipes' | 'nutrition' | 'settings';
+type Tab = 'drinks' | 'ingredients' | 'recipes' | 'builder' | 'nutrition' | 'settings';
 
 const TABS: Array<{ id: Tab; label: string; short: string }> = [
   { id: 'drinks', label: 'Drinks', short: 'Drinks' },
   { id: 'ingredients', label: 'Ingredients', short: 'Ingred.' },
   { id: 'recipes', label: 'Batch Recipes', short: 'Recipes' },
+  { id: 'builder', label: 'Recipe Builder', short: 'Builder' },
   { id: 'nutrition', label: 'Nutrition', short: 'Nutrition' },
   { id: 'settings', label: 'Settings', short: 'Settings' },
 ];
@@ -73,6 +75,7 @@ export default function CogManager() {
       {tab === 'drinks' && <DrinksTab key={settingsRev} />}
       {tab === 'ingredients' && <IngredientsTab />}
       {tab === 'recipes' && <RecipesTab />}
+      {tab === 'builder' && <BuilderTab />}
       {tab === 'nutrition' && <NutritionTab />}
       {tab === 'settings' && <SettingsTab onChanged={() => setSettingsRev((r) => r + 1)} />}
     </div>
