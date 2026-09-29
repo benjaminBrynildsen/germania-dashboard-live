@@ -1306,6 +1306,19 @@ router.post('/cog/drinks/:id/confirm', requireAuth, (req: AuthRequest, res: Resp
   res.json(db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(req.params.id));
 });
 
+// Copy any flavor (syrup/sauce) present on one size to every size that's
+// missing it, at the house standard pump amounts (hot sauce 1/1.5/2 oz,
+// hot syrup 0.75/1.25/1.75, iced+frozen 0.5/1/1.5). Sizes that already
+// have the flavor keep their hand-entered quantity untouched.
+router.post('/cog/drinks/:id/fill-flavor-sizes', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { fillFlavorSizes } = await import('./flavor-fill.js');
+    res.json(fillFlavorSizes(Number(req.params.id)));
+  } catch (e) {
+    res.status(400).json({ error: e instanceof Error ? e.message : 'fill failed' });
+  }
+});
+
 // Sync the drink catalog from Dripos. Upserts by dripos_product_id: inserts new
 // products, refreshes name/category on existing ones, and NEVER clobbers a
 // drink's components or its target_cogs_pct override. Only COG_CATEGORIES
