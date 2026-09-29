@@ -102,6 +102,10 @@ export default function DrinksTab() {
   // Default to Sweet (the house menu's first category), not All — the All
   // chip stays available leftmost. Falls back to All if Sweet isn't present.
   const [category, setCategory] = useState<string>('SWEET COFFEE');
+  // 30-day sales per product — filters the list to what's actually selling
+  // (months-dead drinks disappear) and sorts each category by popularity.
+  const [activeSales, setActiveSales] = useState<{ available: boolean; by_product: Record<string, number>; by_name: Record<string, number> } | null>(null);
+  const [sellingOnly, setSellingOnly] = useState(true);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [detail, setDetail] = useState<DrinkDetail | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -140,6 +144,7 @@ export default function DrinksTab() {
     api.get('/api/cog/ingredients/master').then(setIngredients).catch(() => {});
     api.get('/api/cog/recipes').then(setRecipes).catch(() => {});
     api.get('/api/cog/dripos-products').then((r) => { if (r.available) setProducts(r.products || []); }).catch(() => {});
+    api.get('/api/cog/drinks/active-sales').then(setActiveSales).catch(() => {});
   }, [loadDrinks, loadDriposPrices]);
 
   useEffect(() => {
@@ -235,8 +240,21 @@ export default function DrinksTab() {
   // The selected chip may not exist yet (fresh/empty catalog) — treat as All.
   const effectiveCategory = categories.includes(category) ? category : 'All';
 
+  // Units sold in the last 30 days for a drink: product-id join first,
+  // exact-name fallback for unlinked drinks.
+  const salesFor = (d: DrinkRow): number => {
+    if (!activeSales?.available) return 0;
+    if (d.dripos_product_id != null) {
+      const v = activeSales.by_product[String(d.dripos_product_id)];
+      if (v != null) return v;
+    }
+    return activeSales.by_name[d.name.trim().toLowerCase()] ?? 0;
+  };
+  const salesFilterOn = sellingOnly && !!activeSales?.available;
+
   const filtered = useMemo(
     () => drinks.filter((d) => {
+      if (salesFilterOn && salesFor(d) <= 0) return false;
       if (effectiveCategory !== 'All' && (d.category || 'Uncategorized') !== effectiveCategory) return false;
       return !search ||
         d.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -244,9 +262,12 @@ export default function DrinksTab() {
     }).sort((a, b) => {
       const ca = a.category || 'Uncategorized';
       const cb = b.category || 'Uncategorized';
-      return categoryRank(ca) - categoryRank(cb) || ca.localeCompare(cb) || a.name.localeCompare(b.name);
+      return categoryRank(ca) - categoryRank(cb) || ca.localeCompare(cb)
+        || salesFor(b) - salesFor(a)
+        || a.name.localeCompare(b.name);
     }),
-    [drinks, search, effectiveCategory],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [drinks, search, effectiveCategory, salesFilterOn, activeSales],
   );
 
   // Group by category for display; the server already orders by category, name.
@@ -277,7 +298,18 @@ export default function DrinksTab() {
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-        <input placeholder="Search drinks..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, maxWidth: 260 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <input placeholder="Search drinks..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, maxWidth: 260 }} />
+          <label
+            title={activeSales?.available
+              ? 'Only drinks with Dripos sales in the last 30 days — what the stores are actually selling.'
+              : 'Needs Dripos connected (log in via the Weekly Sales tab).'}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: activeSales?.available ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.3)', cursor: activeSales?.available ? 'pointer' : 'default', userSelect: 'none' }}>
+            <input type="checkbox" checked={sellingOnly && !!activeSales?.available} disabled={!activeSales?.available}
+              onChange={(e) => setSellingOnly(e.target.checked)} />
+            Selling now (30d)
+          </label>
+        </div>
         {canEdit && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="btn btn-secondary" onClick={sync} disabled={syncing}>{syncing ? 'Syncing...' : '⟳ Sync from Dripos'}</button>
@@ -341,6 +373,11 @@ export default function DrinksTab() {
                             </span>
                           )}
                           <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.3)' }}>• {d.variant_count} size{d.variant_count === 1 ? '' : 's'}</span>
+                          {activeSales?.available && salesFor(d) > 0 && (
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#166534', background: 'rgba(22,101,52,0.07)', padding: '1px 7px', borderRadius: 999 }}>
+                              {salesFor(d).toLocaleString()} sold /30d
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: isMobile ? 14 : 22, alignItems: 'center' }}>
