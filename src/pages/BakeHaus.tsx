@@ -4001,9 +4001,15 @@ interface MonthlyReportData {
   month: string;
   weeks: string[];
   estimatedWeeks: string[];
-  items: Array<{ item: string; category: string; perStore: Record<string, number>; total: number }>;
+  items: Array<{
+    item: string; category: string; perStore: Record<string, number>; total: number;
+    unitPrice: number | null; value: number | null; unitCost: number | null; cost: number | null;
+  }>;
   storeTotals: Record<string, number>;
   grandTotal: number;
+  pricesAvailable: boolean;
+  grandValue: number | null;
+  grandCost: number | null;
 }
 
 function ReportsTab({ isMobile }: { isMobile: boolean }) {
@@ -4059,19 +4065,25 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
 
   const downloadCsv = () => {
     if (!data) return;
+    const money = (v: number | null) => (v != null ? v.toFixed(2) : '');
     const lines = [
-      ['Item', 'Category', ...stores, 'Total'].join(','),
+      ['Item', 'Category', ...stores, 'Total', 'Unit price $', 'Retail value $', 'Unit cost $', 'Cost $'].join(','),
       ...data.items.map((it) => [
         `"${it.item.replace(/"/g, '""')}"`,
         it.category === 'syrup-sauce' ? 'Syrup/Sauce' : it.category === 'food' ? 'Food' : 'Custom',
         ...stores.map((s) => it.perStore[s] ?? 0),
         it.total,
+        money(it.unitPrice), money(it.value), money(it.unitCost), money(it.cost),
       ].join(',')),
-      ['TOTAL', '', ...stores.map((s) => data.storeTotals[s] ?? 0), data.grandTotal].join(','),
+      ['TOTAL', '', ...stores.map((s) => data.storeTotals[s] ?? 0), data.grandTotal, '', money(data.grandValue), '', money(data.grandCost)].join(','),
     ];
     if (data.estimatedWeeks.length > 0) {
       lines.push('');
       lines.push(`"Note: weeks of ${data.estimatedWeeks.join('; ')} were not locked — their numbers are the ordered quantities, not the frozen delivery totals."`);
+    }
+    if (!data.pricesAvailable) {
+      lines.push('');
+      lines.push('"Note: Dripos was not connected when this report was generated — price columns are blank."');
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -4163,6 +4175,9 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
                         <th style={{ textAlign: 'left', padding: '6px 8px' }}>Item</th>
                         {stores.map((s) => <th key={s} style={{ padding: '6px 8px' }}>{s}</th>)}
                         <th style={{ padding: '6px 8px' }}>Total</th>
+                        <th style={{ padding: '6px 8px' }} title="Current Dripos menu price">Unit $</th>
+                        <th style={{ padding: '6px 8px' }} title="Total × Dripos menu price">Value $</th>
+                        <th style={{ padding: '6px 8px' }} title="COGS unit cost where the item is costed">Cost $</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -4176,12 +4191,20 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
                           </td>
                           {stores.map((s) => <td key={s} style={{ padding: '7px 8px' }}>{it.perStore[s] || '—'}</td>)}
                           <td style={{ padding: '7px 8px', fontWeight: 700 }}>{it.total.toLocaleString()}</td>
+                          <td style={{ padding: '7px 8px', color: 'rgba(0,0,0,0.55)' }}>{it.unitPrice != null ? `$${it.unitPrice.toFixed(2)}` : '—'}</td>
+                          <td style={{ padding: '7px 8px', fontWeight: 700, color: '#1d4ed8' }}>{it.value != null ? `$${it.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td>
+                          <td style={{ padding: '7px 8px', color: '#14532d' }} title={it.unitCost != null ? `$${it.unitCost.toFixed(3)}/unit` : undefined}>
+                            {it.cost != null ? `$${it.cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                          </td>
                         </tr>
                       ))}
                       <tr style={{ borderTop: '2px solid rgba(0,0,0,0.15)', fontWeight: 700, textAlign: 'right' }}>
                         <td style={{ textAlign: 'left', padding: '7px 8px' }}>Total</td>
                         {stores.map((s) => <td key={s} style={{ padding: '7px 8px' }}>{(data.storeTotals[s] ?? 0).toLocaleString()}</td>)}
                         <td style={{ padding: '7px 8px' }}>{data.grandTotal.toLocaleString()}</td>
+                        <td />
+                        <td style={{ padding: '7px 8px', color: '#1d4ed8' }}>{data.grandValue != null ? `$${data.grandValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td>
+                        <td style={{ padding: '7px 8px', color: '#14532d' }}>{data.grandCost != null ? `$${data.grandCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4189,6 +4212,11 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
                 {data.estimatedWeeks.length > 0 && (
                   <div style={{ fontSize: 11, color: '#a16207', marginTop: 8 }}>
                     ⚠ Week{data.estimatedWeeks.length === 1 ? '' : 's'} of {data.estimatedWeeks.join(', ')} {data.estimatedWeeks.length === 1 ? "isn't" : "aren't"} locked yet — those numbers are ordered quantities, not final delivery totals.
+                  </div>
+                )}
+                {!data.pricesAvailable && (
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 6 }}>
+                    Dripos isn't connected right now, so the Unit $ / Value $ columns are blank — log in via the Weekly Sales tab and refresh.
                   </div>
                 )}
               </>

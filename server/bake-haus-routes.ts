@@ -30,6 +30,7 @@ import {
   lockWeekMonday,
   markOrderSaved,
   mondayOfWeek,
+  priceMonthlyReport,
   setBuiltinHidden,
   setLaborSettings,
   setWeekLabor,
@@ -593,11 +594,12 @@ router.put('/bake-haus/builtin-items', requireAuth, (req: AuthRequest, res: Resp
 });
 
 /** Monthly order report (bookkeeping): item × store quantities summed
- *  over every week whose Monday falls in ?month=YYYY-MM. */
-router.get('/bake-haus/monthly', requireAuth, (req: AuthRequest, res: Response) => {
+ *  over every week whose Monday falls in ?month=YYYY-MM, priced with
+ *  the live Dripos menu price and COGS unit cost where matchable. */
+router.get('/bake-haus/monthly', requireAuth, async (req: AuthRequest, res: Response) => {
   const month = String(req.query.month ?? '');
   if (!/^\d{4}-\d{2}$/.test(month)) { res.status(400).json({ error: 'month must be YYYY-MM' }); return; }
-  res.json(getMonthlyReport(month));
+  res.json(await priceMonthlyReport(getMonthlyReport(month)));
 });
 
 export default router;
