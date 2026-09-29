@@ -8,6 +8,7 @@ import { migrateSops2026ToOz } from './sop-oz-migration.js';
 import { applyIngredientPrices20260924 } from './ingredient-prices-2026-09.js';
 import { applyHausSyrupCogs2025 } from './haus-syrup-cogs-2025.js';
 import { applyGbhRecipe } from './gbh-recipe-2026-09.js';
+import { applyFoodCogs2026 } from './food-cogs-2026.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // In prod the SQLite file lives on a Render persistent disk (DB_PATH=/var/data/germania.db).
@@ -1021,6 +1022,12 @@ applyHausSyrupCogs2025(db);
 // from the hand-costed spreadsheet. Retries until the Dripos catalog has
 // a GBH drink to attach to; never overwrites an existing recipe.
 applyGbhRecipe(db);
+
+// One-time: load the food batch recipes (donuts, croffles, sandwiches,
+// scones, oats…) from the Food COGS Drive workbooks, and give sellable
+// food items cog_drinks entries so the Bake Haus monthly report can
+// cost them.
+applyFoodCogs2026(db);
 
 // Ensure the single COGS settings row exists (idempotent).
 db.prepare('INSERT OR IGNORE INTO cog_settings (id) VALUES (1)').run();

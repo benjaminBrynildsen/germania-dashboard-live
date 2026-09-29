@@ -452,6 +452,27 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPr
     catch (e: any) { alert(`Delete failed: ${e.message}`); }
   };
 
+  // Copy any syrup/sauce that's on one size to the sizes missing it, at
+  // house pump amounts (hot sauce 1/1.5/2 oz, hot syrup 0.75/1.25/1.75,
+  // iced+frozen 0.5/1/1.5). Hand-entered sizes are left alone.
+  const [fillingFlavor, setFillingFlavor] = useState(false);
+  const fillFlavorSizes = async () => {
+    setFillingFlavor(true);
+    try {
+      const r = await api.post(`/api/cog/drinks/${detail.id}/fill-flavor-sizes`, {});
+      if (r.added.length === 0) {
+        alert(r.flavors.length === 0
+          ? 'No syrup or sauce found on any size to copy from.'
+          : `Every size already has ${r.flavors.join(', ')} — nothing to fill.`);
+      } else {
+        alert(`Added ${r.flavors.join(', ')} to ${r.added.length} size(s) at house pump amounts:\n` +
+          r.added.map((a: any) => `  ${a.variant}: ${a.quantity} oz`).join('\n'));
+      }
+      onChanged();
+    } catch (e: any) { alert(`Fill failed: ${e.message}`); }
+    finally { setFillingFlavor(false); }
+  };
+
   return (
     <div className="card" style={{ marginTop: 8, background: 'rgba(255,255,255,0.97)' }}>
       {detail.needs_confirm === 1 && (
@@ -489,6 +510,12 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPr
           );
         })}
         {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => setAddingVariant(true)}>+ Size</button>}
+        {canEdit && detail.variants.length > 1 && (
+          <button className="btn btn-secondary btn-sm" onClick={fillFlavorSizes} disabled={fillingFlavor}
+            title="Copy any syrup/sauce on one size to the sizes missing it, at house pump amounts">
+            {fillingFlavor ? 'Filling…' : '⇶ Fill flavor to all sizes'}
+          </button>
+        )}
       </div>
 
       {addingVariant && canEdit && (

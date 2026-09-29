@@ -30,6 +30,7 @@
  * already have components are never touched.
  */
 import db from './db.js';
+import { flavorOzFor } from './flavor-fill.js';
 
 // ── house measure conventions ─────────────────────────────────────
 const SMALL_BELL_OZ = 3;
@@ -385,6 +386,9 @@ export function syncSopsToCog(): SopCogSyncReport {
         if (toks.length > flavorScore) { flavor = f; flavorScore = toks.length; }
       }
       if (!flavor) continue;
+      // Hot sauces pump bigger than hot syrups (1/1.5/2 oz vs
+      // 0.75/1.25/1.75 — house rule); cold sizes use one scale.
+      const isSauceFlavor = /sauce/i.test(flavor.name);
 
       const espresso = resolve('Espresso');
       const coldBrew = resolve('Cold Brew');
@@ -407,7 +411,8 @@ export function syncSopsToCog(): SopCogSyncReport {
             if (ice) addComponent(d.id, variantId, ice, { quantity: BASELINE.iced.iceOz[i], unit: 'oz' }, order++);
             addComponent(d.id, variantId, milk, { quantity: BASELINE.iced.milkOz[i], unit: 'oz' }, order++);
           }
-          addComponent(d.id, variantId, flavor!, { quantity: t.flavorOz[i], unit: 'oz' }, order++);
+          const flavorQty = temp === 'hot' ? flavorOzFor('hot', size, isSauceFlavor) ?? t.flavorOz[i] : t.flavorOz[i];
+          addComponent(d.id, variantId, flavor!, { quantity: flavorQty, unit: 'oz' }, order++);
           const pack = temp === 'hot' ? HOT_PACKAGING[size] : COLD_PACKAGING[size];
           for (const [packName, packQty] of pack ?? []) {
             const src = resolve(packName);
