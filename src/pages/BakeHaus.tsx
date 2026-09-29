@@ -127,7 +127,7 @@ interface SavedOrder {
   totalQty: number;
 }
 
-type Tab = 'current' | 'production' | 'schedule' | 'saved' | 'manage';
+type Tab = 'current' | 'production' | 'schedule' | 'saved' | 'reports' | 'manage';
 
 type ItemMap = Record<string, Record<string, number>>;
 
@@ -912,6 +912,7 @@ export default function BakeHaus() {
           { id: 'production', label: 'Production Schedule', short: 'Production' },
           { id: 'schedule',   label: 'Delivery Schedule',   short: 'Schedule' },
           { id: 'saved',      label: 'Saved Orders',        short: 'Saved' },
+          { id: 'reports',    label: 'Reports',             short: 'Reports' },
           { id: 'manage',   label: 'Manage Syrups, Sauces & Food', short: 'Manage' },
         ] as Array<{ id: Tab; label: string; short: string }>).map((t) => {
           const active = tab === t.id;
@@ -1056,9 +1057,6 @@ export default function BakeHaus() {
             <DeliveryCard day="Thursday"  items={productionSummary.thu} stores={stores} catalog={catalog} />
             <DeliveryCard day="Friday"    items={productionSummary.fri} stores={stores} catalog={catalog} />
           </div>
-
-          {/* Kitchen labor + delivery costing — labor ÷ units shipped */}
-          <LaborCostCard isMobile={isMobile} />
         </>
       )}
 
@@ -1287,21 +1285,20 @@ export default function BakeHaus() {
       )}
 
       {tab === 'saved' && (
-        <>
-          <MonthlyReportCard isMobile={isMobile} />
-          <SavedOrdersList
-            orders={savedOrders}
-            snapshots={snapshots}
-            isMobile={isMobile}
-            onOpen={(iso, store) => {
-              setWeekIso(iso);
-              setActiveStore(store);
-              setTab('current');
-            }}
-            onPrintSnapshot={printSnapshot}
-          />
-        </>
+        <SavedOrdersList
+          orders={savedOrders}
+          snapshots={snapshots}
+          isMobile={isMobile}
+          onOpen={(iso, store) => {
+            setWeekIso(iso);
+            setActiveStore(store);
+            setTab('current');
+          }}
+          onPrintSnapshot={printSnapshot}
+        />
       )}
+
+      {tab === 'reports' && <ReportsTab isMobile={isMobile} />}
 
       {tab === 'manage' && (
         <ManageSyrupsView
@@ -3996,9 +3993,10 @@ function LaborCostCard({ isMobile }: { isMobile: boolean }) {
   );
 }
 
-// ─── Monthly order report (bookkeeping) ───────────────────────────
-// Carolyn's accounting view: item × store quantities summed over every
-// week whose Monday falls in the chosen month, with a CSV download.
+// ─── Reports tab ──────────────────────────────────────────────────
+// One streamlined view of the kitchen's numbers: headline tiles for the
+// chosen month, an 8-week shipped-units trend, the item × store monthly
+// table with CSV export (bookkeeping), and the labor settings.
 interface MonthlyReportData {
   month: string;
   weeks: string[];
@@ -4008,26 +4006,56 @@ interface MonthlyReportData {
   grandTotal: number;
 }
 
-function MonthlyReportCard({ isMobile }: { isMobile: boolean }) {
+function ReportsTab({ isMobile }: { isMobile: boolean }) {
   const now = new Date();
   const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const [month, setMonth] = useState(defaultMonth);
   const [data, setData] = useState<MonthlyReportData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [labor, setLabor] = useState<{
+    settings: { defaultWeeklyLaborCost: number | null; deliveryFee: number };
+    weeks: LaborWeekRow[];
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/bake-haus/monthly?month=${month}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (!cancelled) setData(j); })
-      .catch(() => { if (!cancelled) setData(null); })
+    Promise.all([
+      fetch(`/api/bake-haus/monthly?month=${month}`).then((r) => (r.ok ? r.json() : null)),
+      fetch('/api/bake-haus/labor?weeks=26').then((r) => (r.ok ? r.json() : null)),
+    ])
+      .then(([m, l]) => { if (!cancelled) { setData(m); setLabor(l); } })
+      .catch(() => { if (!cancelled) { setData(null); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [month]);
 
   const stores = ['G1', 'G2', 'G3', 'G4'];
   const monthLabel = new Date(`${month}-15T12:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  // Month-level cost roll-up from the weekly labor rows.
+  const monthCosts = useMemo(() => {
+    if (!data || !labor) return null;
+    const weekSet = new Set(data.weeks);
+    const rows = labor.weeks.filter((w) => weekSet.has(w.weekStartIso) && w.units > 0);
+    if (rows.length === 0) return null;
+    const laborTotal = rows.reduce((s, w) => s + (w.laborCost ?? 0), 0);
+    const deliveryTotal = rows.reduce((s, w) => s + w.deliveryCost, 0);
+    const deliveries = rows.reduce((s, w) => s + w.deliveries, 0);
+    const laborKnown = rows.every((w) => w.laborCost != null);
+    return { laborTotal, deliveryTotal, deliveries, laborKnown };
+  }, [data, labor]);
+
+  const allInPerUnit = monthCosts && data && data.grandTotal > 0
+    ? (monthCosts.laborTotal + monthCosts.deliveryTotal) / data.grandTotal
+    : null;
+
+  // Last 8 weeks (oldest → newest) for the trend bars.
+  const trend = useMemo(() => {
+    if (!labor) return [];
+    return [...labor.weeks.slice(0, 8)].reverse();
+  }, [labor]);
+  const trendMax = Math.max(1, ...trend.map((w) => w.units));
 
   const downloadCsv = () => {
     if (!data) return;
@@ -4055,68 +4083,146 @@ function MonthlyReportCard({ isMobile }: { isMobile: boolean }) {
   };
 
   return (
-    <div style={{
-      background: '#fff', borderRadius: 14, border: '1px solid rgba(0,0,0,0.07)',
-      boxShadow: '0 1px 4px rgba(0,0,0,0.03)', padding: '16px 18px', marginBottom: 18,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 4 }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>Monthly totals</div>
-          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>
-            Items × quantities per store for bookkeeping — every week starting in {monthLabel}.
-          </div>
-        </div>
+    <div>
+      {/* Header: month picker + export */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{monthLabel}</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
           <input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
-            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13, fontFamily: 'inherit' }} />
-          <button onClick={downloadCsv} disabled={!data || data.items.length === 0} style={primaryBtn}>
-            ⬇ CSV
-          </button>
+            style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.12)', fontSize: 13, fontFamily: 'inherit', background: '#fff' }} />
+          <button onClick={downloadCsv} disabled={!data || data.items.length === 0} style={primaryBtn}>⬇ CSV</button>
         </div>
       </div>
 
-      {loading && <div style={{ padding: 20, color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>Loading…</div>}
-      {!loading && data && data.items.length === 0 && (
-        <div style={{ padding: 20, color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>No orders in {monthLabel}.</div>
-      )}
-      {!loading && data && data.items.length > 0 && (
+      {loading && <div style={{ padding: 40, color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>Loading…</div>}
+
+      {!loading && (
         <>
-          <div style={{ overflowX: 'auto', marginTop: 10 }}>
-            <table style={{ width: '100%', fontSize: 12.5, borderCollapse: 'collapse', minWidth: isMobile ? 560 : 0 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', textAlign: 'right', color: 'rgba(0,0,0,0.45)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                  <th style={{ textAlign: 'left', padding: '6px 8px' }}>Item</th>
-                  {stores.map((s) => <th key={s} style={{ padding: '6px 8px' }}>{s}</th>)}
-                  <th style={{ padding: '6px 8px' }}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((it) => (
-                  <tr key={it.item} style={{ borderBottom: '1px solid rgba(0,0,0,0.04)', textAlign: 'right' }}>
-                    <td style={{ textAlign: 'left', padding: '7px 8px', fontWeight: 600 }}>
-                      {it.item}
-                      {it.category === 'syrup-sauce' && (
-                        <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: 0.5 }}>syrup</span>
-                      )}
-                    </td>
-                    {stores.map((s) => <td key={s} style={{ padding: '7px 8px' }}>{it.perStore[s] || '—'}</td>)}
-                    <td style={{ padding: '7px 8px', fontWeight: 700 }}>{it.total.toLocaleString()}</td>
-                  </tr>
-                ))}
-                <tr style={{ borderTop: '2px solid rgba(0,0,0,0.15)', fontWeight: 700, textAlign: 'right' }}>
-                  <td style={{ textAlign: 'left', padding: '7px 8px' }}>Total ({data.weeks.length} week{data.weeks.length === 1 ? '' : 's'})</td>
-                  {stores.map((s) => <td key={s} style={{ padding: '7px 8px' }}>{(data.storeTotals[s] ?? 0).toLocaleString()}</td>)}
-                  <td style={{ padding: '7px 8px' }}>{data.grandTotal.toLocaleString()}</td>
-                </tr>
-              </tbody>
-            </table>
+          {/* Headline tiles */}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
+            <ReportTile hero label="Units shipped" value={data && data.grandTotal > 0 ? data.grandTotal.toLocaleString() : '—'}
+              sub={data ? `${data.weeks.length} weeks` : ''} />
+            <ReportTile label="Deliveries" value={monthCosts ? String(monthCosts.deliveries) : '—'}
+              sub={monthCosts ? `$${monthCosts.deliveryTotal.toFixed(0)} at $${labor?.settings.deliveryFee ?? 50}/run` : 'runs this month'} />
+            <ReportTile label="Kitchen labor" value={monthCosts && monthCosts.laborKnown ? `$${monthCosts.laborTotal.toFixed(0)}` : '—'}
+              sub={monthCosts && !monthCosts.laborKnown ? 'set weekly labor below' : 'sum of weekly labor'} />
+            <ReportTile label="All-in cost / unit" value={allInPerUnit != null ? `$${allInPerUnit.toFixed(3)}` : '—'}
+              sub="labor + delivery ÷ units" accent />
           </div>
-          {data.estimatedWeeks.length > 0 && (
-            <div style={{ fontSize: 11, color: '#a16207', marginTop: 8 }}>
-              ⚠ Week{data.estimatedWeeks.length === 1 ? '' : 's'} of {data.estimatedWeeks.join(', ')} {data.estimatedWeeks.length === 1 ? 'is' : 'are'} not locked yet — those numbers are ordered quantities, not final delivery totals.
+
+          {/* 8-week trend */}
+          {trend.some((w) => w.units > 0) && (
+            <div style={{
+              background: '#fff', borderRadius: 14, border: '1px solid rgba(0,0,0,0.07)',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.03)', padding: '16px 18px', marginBottom: 18,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(0,0,0,0.45)', marginBottom: 12 }}>
+                Units shipped — last 8 weeks
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: isMobile ? 6 : 12, height: 110 }}>
+                {trend.map((w) => {
+                  const h = Math.max(4, Math.round((w.units / trendMax) * 88));
+                  const d = new Date(`${w.weekStartIso}T12:00:00`);
+                  return (
+                    <div key={w.weekStartIso} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+                      title={`Week of ${w.weekStartIso}: ${w.units.toLocaleString()} units${w.estimated ? ' (est.)' : ''}`}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.55)' }}>
+                        {w.units > 0 ? w.units.toLocaleString() : ''}
+                      </div>
+                      <div style={{
+                        width: '100%', maxWidth: 44, height: h, borderRadius: '6px 6px 2px 2px',
+                        background: w.estimated ? 'rgba(202,138,4,0.35)' : 'rgba(202,138,4,0.85)',
+                        border: w.estimated ? '1px dashed rgba(161,98,7,0.6)' : 'none',
+                      }} />
+                      <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)', whiteSpace: 'nowrap' }}>
+                        {d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
+
+          {/* Monthly item table */}
+          <div style={{
+            background: '#fff', borderRadius: 14, border: '1px solid rgba(0,0,0,0.07)',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.03)', padding: '16px 18px', marginBottom: 18,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(0,0,0,0.45)', marginBottom: 10 }}>
+              Items shipped by store — {monthLabel}
+            </div>
+            {(!data || data.items.length === 0) ? (
+              <div style={{ padding: 24, color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>No orders in {monthLabel}.</div>
+            ) : (
+              <>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', fontSize: 12.5, borderCollapse: 'collapse', minWidth: isMobile ? 560 : 0 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', textAlign: 'right', color: 'rgba(0,0,0,0.45)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                        <th style={{ textAlign: 'left', padding: '6px 8px' }}>Item</th>
+                        {stores.map((s) => <th key={s} style={{ padding: '6px 8px' }}>{s}</th>)}
+                        <th style={{ padding: '6px 8px' }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.items.map((it) => (
+                        <tr key={it.item} style={{ borderBottom: '1px solid rgba(0,0,0,0.04)', textAlign: 'right' }}>
+                          <td style={{ textAlign: 'left', padding: '7px 8px', fontWeight: 600 }}>
+                            {it.item}
+                            {it.category === 'syrup-sauce' && (
+                              <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: 0.5 }}>syrup</span>
+                            )}
+                          </td>
+                          {stores.map((s) => <td key={s} style={{ padding: '7px 8px' }}>{it.perStore[s] || '—'}</td>)}
+                          <td style={{ padding: '7px 8px', fontWeight: 700 }}>{it.total.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ borderTop: '2px solid rgba(0,0,0,0.15)', fontWeight: 700, textAlign: 'right' }}>
+                        <td style={{ textAlign: 'left', padding: '7px 8px' }}>Total</td>
+                        {stores.map((s) => <td key={s} style={{ padding: '7px 8px' }}>{(data.storeTotals[s] ?? 0).toLocaleString()}</td>)}
+                        <td style={{ padding: '7px 8px' }}>{data.grandTotal.toLocaleString()}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                {data.estimatedWeeks.length > 0 && (
+                  <div style={{ fontSize: 11, color: '#a16207', marginTop: 8 }}>
+                    ⚠ Week{data.estimatedWeeks.length === 1 ? '' : 's'} of {data.estimatedWeeks.join(', ')} {data.estimatedWeeks.length === 1 ? "isn't" : "aren't"} locked yet — those numbers are ordered quantities, not final delivery totals.
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Labor + delivery settings and weekly cost-per-unit table */}
+          <LaborCostCard isMobile={isMobile} />
         </>
+      )}
+    </div>
+  );
+}
+
+function ReportTile({ label, value, sub, hero, accent }: {
+  label: string; value: string; sub?: string; hero?: boolean; accent?: boolean;
+}) {
+  return (
+    <div style={{
+      borderRadius: 14, padding: '16px 18px',
+      background: hero ? '#1a1a1a' : '#fff',
+      border: hero ? 'none' : '1px solid rgba(0,0,0,0.07)',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+    }}>
+      <div style={{
+        fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8,
+        color: hero ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)', marginBottom: 6,
+      }}>{label}</div>
+      <div style={{
+        fontSize: 26, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1,
+        color: hero ? '#fff' : accent ? '#14532d' : '#1a1a1a',
+      }}>{value}</div>
+      {sub && (
+        <div style={{ fontSize: 11, color: hero ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)', marginTop: 6 }}>{sub}</div>
       )}
     </div>
   );
