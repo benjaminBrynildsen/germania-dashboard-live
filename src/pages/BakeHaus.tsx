@@ -1606,7 +1606,8 @@ function ManageSyrupsView({
         accurate (food subtracts on-hand from the order; syrups don't).
         Toggle items off between seasons; they disappear from the ordering
         page without losing their Dripos link. The nine core food items
-        (BEC, biscuits, croffles…) are built in and always available.
+        (BEC, biscuits, croffles…) are built in — hide the ones you no
+        longer sell below.
       </p>
 
       {error && (
@@ -1793,6 +1794,9 @@ function ManageSyrupsView({
           </div>
         )}
       </div>
+
+      {/* Built-in food items — hardcoded, so hide/show instead of delete */}
+      <BuiltinItemsCard onChanged={onChanged} />
 
       {/* Existing syrups list */}
       <div style={{
@@ -3806,6 +3810,77 @@ function LaborCostCard({ isMobile }: { isMobile: boolean }) {
       </div>
       <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 8 }}>
         Type a week's actual labor to override the default (clear the box to go back to it). All-in = labor + deliveries.
+      </div>
+    </div>
+  );
+}
+
+// ─── Built-in food item toggles ───────────────────────────────────
+// The nine hardcoded food items can't be deleted, but they can be
+// hidden from the ordering catalog (e.g. Energy Bites off-menu).
+function BuiltinItemsCard({ onChanged }: { onChanged: () => void }) {
+  const [items, setItems] = useState<Array<{ name: string; sort: number; hidden: boolean }> | null>(null);
+  const [busyName, setBusyName] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/bake-haus/builtin-items')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j) setItems(j.items); })
+      .catch(() => {});
+  }, []);
+
+  const toggle = async (name: string, hidden: boolean) => {
+    setBusyName(name);
+    try {
+      const r = await fetch('/api/bake-haus/builtin-items', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, hidden }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.message || j.error || 'Update failed');
+      setItems(j.items);
+      onChanged();
+    } catch (err: any) {
+      alert(err.message || String(err));
+    } finally {
+      setBusyName(null);
+    }
+  };
+
+  if (!items) return null;
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14,
+      border: '1px solid rgba(0,0,0,0.07)',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+      padding: '14px 18px', marginBottom: 18,
+    }}>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Built-in food items</div>
+      <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginBottom: 10 }}>
+        These core items are built into the system. Hiding one removes it from the
+        ordering page and production schedule for new weeks — nothing is deleted, and
+        it can come back any time.
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {items.map((it) => (
+          <button
+            key={it.name}
+            onClick={() => toggle(it.name, !it.hidden)}
+            disabled={busyName === it.name}
+            title={it.hidden ? 'Hidden from ordering — click to bring back' : 'On the ordering page — click to hide'}
+            style={{
+              ...pillBtn,
+              opacity: busyName === it.name ? 0.5 : 1,
+              background: it.hidden ? 'rgba(0,0,0,0.04)' : 'rgba(20, 83, 45, 0.08)',
+              color: it.hidden ? 'rgba(0,0,0,0.45)' : '#14532d',
+              border: `1px solid ${it.hidden ? 'rgba(0,0,0,0.12)' : 'rgba(20, 83, 45, 0.25)'}`,
+              textDecoration: it.hidden ? 'line-through' : 'none',
+              fontWeight: 600,
+            }}>
+            {it.hidden ? '✕' : '✓'} {it.name}
+          </button>
+        ))}
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ import {
   getLaborSummary,
   getMergedCatalog,
   getWeekReport,
+  listBuiltinItems,
   listDeliverySnapshots,
   isUserAllowedToUnlock,
   isWeekLocked,
@@ -28,6 +29,7 @@ import {
   lockWeekMonday,
   markOrderSaved,
   mondayOfWeek,
+  setBuiltinHidden,
   setLaborSettings,
   setWeekLabor,
   snapshotMonForStoreWeek,
@@ -571,6 +573,22 @@ router.put('/bake-haus/labor-week', requireAuth, (req: AuthRequest, res: Respons
   const laborCost = raw == null || raw === '' ? null : (typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : null);
   setWeekLabor(week, laborCost);
   res.json({ ok: true });
+});
+
+/** Built-in food items (BEC, croffles, ...) with hidden state — the
+ *  Manage tab shows these with an enable/disable toggle since they're
+ *  hardcoded rather than catalog rows. */
+router.get('/bake-haus/builtin-items', requireAuth, (_req: AuthRequest, res: Response) => {
+  res.json({ items: listBuiltinItems() });
+});
+
+router.put('/bake-haus/builtin-items', requireAuth, (req: AuthRequest, res: Response) => {
+  const name = String(req.body?.name ?? '');
+  const hidden = !!req.body?.hidden;
+  const item = BAKE_HAUS_ITEMS.find((i) => i.name.toLowerCase() === name.toLowerCase());
+  if (!item) { res.status(404).json({ error: 'unknown_builtin', message: `"${name}" is not a built-in item` }); return; }
+  setBuiltinHidden(item.name, hidden);
+  res.json({ items: listBuiltinItems() });
 });
 
 export default router;

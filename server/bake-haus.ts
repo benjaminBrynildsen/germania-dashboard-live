@@ -1493,12 +1493,36 @@ export function deleteSyrup(id: number): boolean {
   return info.changes > 0;
 }
 
+/** Built-in food items the Manage tab has hidden (lowercased names). */
+export function getHiddenBuiltins(): Set<string> {
+  const rows = db.prepare('SELECT item_name FROM bake_haus_hidden_builtins').all() as Array<{ item_name: string }>;
+  return new Set(rows.map((r) => r.item_name.toLowerCase()));
+}
+
+export function setBuiltinHidden(itemName: string, hidden: boolean): void {
+  if (hidden) {
+    db.prepare('INSERT OR IGNORE INTO bake_haus_hidden_builtins (item_name, hidden_at) VALUES (?, ?)')
+      .run(itemName, Date.now());
+  } else {
+    db.prepare('DELETE FROM bake_haus_hidden_builtins WHERE LOWER(item_name) = LOWER(?)').run(itemName);
+  }
+}
+
+/** The hardcoded food items with their hidden state, for the Manage tab. */
+export function listBuiltinItems(): Array<{ name: string; sort: number; hidden: boolean }> {
+  const hidden = getHiddenBuiltins();
+  return BAKE_HAUS_ITEMS.map((i) => ({ name: i.name, sort: i.sort, hidden: hidden.has(i.name.toLowerCase()) }));
+}
+
 /** Merged catalog: hardcoded food items + active DB catalog rows
  *  (editable food AND syrups from the manage tab). Stable item
  *  identity comes from `name` (canonical food name OR display name).
  *  Order pages and getWeekReport both consume this. */
 export function getMergedCatalog(): BakeHausCatalogItem[] {
-  const food: BakeHausCatalogItem[] = BAKE_HAUS_ITEMS.map((i) => ({
+  const hiddenBuiltins = getHiddenBuiltins();
+  const food: BakeHausCatalogItem[] = BAKE_HAUS_ITEMS
+    .filter((i) => !hiddenBuiltins.has(i.name.toLowerCase()))
+    .map((i) => ({
     name: i.name,
     sort: i.sort,
     category: 'food',

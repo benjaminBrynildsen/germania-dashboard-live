@@ -614,6 +614,14 @@ db.exec(`
     updated_at INTEGER
   );
 
+  -- Built-in food items (BEC, croffles, ...) hidden from the ordering
+  -- catalog. They're hardcoded in BAKE_HAUS_ITEMS, so "removing" one on
+  -- the Manage tab records it here instead of deleting anything.
+  CREATE TABLE IF NOT EXISTS bake_haus_hidden_builtins (
+    item_name TEXT PRIMARY KEY,
+    hidden_at INTEGER NOT NULL
+  );
+
   -- Patron snapshots from Dripos's /patrons/dumb/v2 endpoint. Pulled
   -- automatically on boot + every 6h (refresh button also available in
   -- the UI). dripos_id is the upstream PK; the table is replaced
