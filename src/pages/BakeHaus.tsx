@@ -1455,20 +1455,27 @@ function ManageSyrupsView({
   // defaults to Mon/Wed/Fri and deducts on-hand inventory.
   const [newCategory, setNewCategory] = useState<'syrup-sauce' | 'food'>('syrup-sauce');
   const [productSearch, setProductSearch] = useState('');
+  // Built-in food items merged into the same catalog list (they toggle
+  // hidden/shown instead of delete). catFilter narrows the list.
+  const [builtins, setBuiltins] = useState<Array<{ name: string; sort: number; hidden: boolean }>>([]);
+  const [busyBuiltin, setBusyBuiltin] = useState<string | null>(null);
+  const [catFilter, setCatFilter] = useState<'all' | 'food' | 'syrup-sauce'>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [sRes, pRes] = await Promise.all([
+      const [sRes, pRes, bRes] = await Promise.all([
         fetch('/api/bake-haus/syrups', { cache: 'no-store' }).then((r) => r.json()),
         fetch('/api/bake-haus/dripos-products', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/bake-haus/builtin-items', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
       ]);
       if (sRes.ok) setSyrups(sRes.syrups);
       if (pRes.ok) {
         setProducts(pRes.products);
         setProductCategories(pRes.categories ?? null);
       }
+      if (bRes?.items) setBuiltins(bRes.items);
       if (!sRes.ok) throw new Error(sRes.message || sRes.error || 'Failed to load syrups');
     } catch (err: any) {
       setError(err.message || String(err));
@@ -1476,6 +1483,25 @@ function ManageSyrupsView({
       setLoading(false);
     }
   }, []);
+
+  const toggleBuiltin = async (name: string, hidden: boolean) => {
+    setBusyBuiltin(name);
+    try {
+      const r = await fetch('/api/bake-haus/builtin-items', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, hidden }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.message || j.error || 'Update failed');
+      setBuiltins(j.items);
+      onChanged();
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      setBusyBuiltin(null);
+    }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -1795,10 +1821,7 @@ function ManageSyrupsView({
         )}
       </div>
 
-      {/* Built-in food items — hardcoded, so hide/show instead of delete */}
-      <BuiltinItemsCard onChanged={onChanged} />
-
-      {/* Existing syrups list */}
+      {/* Item catalog — built-in food items + DB catalog rows in one list */}
       <div style={{
         background: '#fff', borderRadius: 14,
         border: '1px solid rgba(0,0,0,0.07)',
@@ -1807,46 +1830,138 @@ function ManageSyrupsView({
       }}>
         <div style={{
           padding: '14px 18px', borderBottom: '1px solid rgba(0,0,0,0.05)',
-          fontSize: 14, fontWeight: 700,
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
         }}>
-          Item catalog
-          <span style={{
-            marginLeft: 10, fontSize: 11, fontWeight: 600,
-            color: 'rgba(0,0,0,0.45)',
-          }}>{syrups?.length ?? 0} total · {syrups?.filter((s) => s.active).length ?? 0} active</span>
-        </div>
-        {(!syrups || syrups.length === 0) ? (
-          <div style={{ padding: 28, textAlign: 'center', color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>
-            Nothing here yet. Hit <strong>Add item</strong> above to link the first one.
+          <span style={{ fontSize: 14, fontWeight: 700 }}>Item catalog</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.45)' }}>
+            {(syrups?.length ?? 0) + builtins.length} total
+            {' · '}{(syrups?.filter((s) => s.active).length ?? 0) + builtins.filter((b) => !b.hidden).length} active
+          </span>
+          <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+            {([
+              { id: 'all', label: 'All' },
+              { id: 'food', label: 'Food' },
+              { id: 'syrup-sauce', label: 'Syrups & sauces' },
+            ] as const).map((f) => {
+              const on = catFilter === f.id;
+              return (
+                <button key={f.id} onClick={() => setCatFilter(f.id)}
+                  style={{
+                    ...pillBtn, fontSize: 11, fontWeight: 700,
+                    background: on ? '#1a1a1a' : 'transparent',
+                    color: on ? '#fff' : 'rgba(0,0,0,0.55)',
+                  }}>
+                  {f.label}
+                </button>
+              );
+            })}
           </div>
-        ) : (
-          [...syrups].sort((a, b) =>
-            (a.category === 'food' ? 0 : 1) - (b.category === 'food' ? 0 : 1)
-            || a.sort - b.sort
-            || a.displayName.localeCompare(b.displayName),
-          ).map((s) => (
-            <SyrupRow
-              key={s.id} syrup={s}
-              busy={busyId === s.id}
+        </div>
+        {(() => {
+          type Entry =
+            | { kind: 'builtin'; name: string; sort: number; category: 'food'; b: { name: string; sort: number; hidden: boolean } }
+            | { kind: 'syrup'; name: string; sort: number; category: 'food' | 'syrup-sauce'; s: Syrup };
+          const entries: Entry[] = [
+            ...builtins.map((b) => ({ kind: 'builtin' as const, name: b.name, sort: b.sort, category: 'food' as const, b })),
+            ...(syrups ?? []).map((s) => ({ kind: 'syrup' as const, name: s.displayName, sort: s.sort, category: s.category, s })),
+          ]
+            .filter((e) => catFilter === 'all' || e.category === catFilter)
+            .sort((a, b) =>
+              (a.category === 'food' ? 0 : 1) - (b.category === 'food' ? 0 : 1)
+              || a.sort - b.sort
+              || a.name.localeCompare(b.name),
+            );
+          if (entries.length === 0) {
+            return (
+              <div style={{ padding: 28, textAlign: 'center', color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>
+                {catFilter === 'all'
+                  ? <>Nothing here yet. Hit <strong>Add item</strong> above to link the first one.</>
+                  : 'Nothing in this category.'}
+              </div>
+            );
+          }
+          return entries.map((e) => e.kind === 'builtin' ? (
+            <BuiltinRow
+              key={`builtin-${e.b.name}`}
+              item={e.b}
+              busy={busyBuiltin === e.b.name}
               isMobile={isMobile}
-              onToggleActive={() => patchSyrup(s.id, { active: !s.active })}
-              onToggleMonday={() => patchSyrup(s.id, { includeMonday: !s.includeMonday })}
-              onRename={(name) => patchSyrup(s.id, { displayName: name })}
-              onTint={(color) => patchSyrup(s.id, { tintColor: color })}
-              onDelete={() => removeSyrup(s.id, s.displayName)}
+              onToggle={() => toggleBuiltin(e.b.name, !e.b.hidden)}
+            />
+          ) : (
+            <SyrupRow
+              key={e.s.id} syrup={e.s}
+              busy={busyId === e.s.id}
+              isMobile={isMobile}
+              onToggleActive={() => patchSyrup(e.s.id, { active: !e.s.active })}
+              onToggleMonday={() => patchSyrup(e.s.id, { includeMonday: !e.s.includeMonday })}
+              onRename={(name) => patchSyrup(e.s.id, { displayName: name })}
+              onTint={(color) => patchSyrup(e.s.id, { tintColor: color })}
+              onDelete={() => removeSyrup(e.s.id, e.s.displayName)}
               onSwitchCategory={() => {
-                const toFood = s.category !== 'food';
+                const toFood = e.s.category !== 'food';
                 const msg = toFood
-                  ? `Move "${s.displayName}" to the Food section? It will subtract on-hand inventory from orders and split Mon 25% / Wed 30% / Fri 45%.`
-                  : `Move "${s.displayName}" to Syrups & sauces? It will stop subtracting on-hand inventory and split Wed 40% / Fri 60%.`;
+                  ? `Move "${e.s.displayName}" to the Food section? It will subtract on-hand inventory from orders and split Mon 25% / Wed 30% / Fri 45%.`
+                  : `Move "${e.s.displayName}" to Syrups & sauces? It will stop subtracting on-hand inventory and split Wed 40% / Fri 60%.`;
                 if (!window.confirm(msg)) return;
-                patchSyrup(s.id, { category: toFood ? 'food' : 'syrup-sauce', includeMonday: toFood });
+                patchSyrup(e.s.id, { category: toFood ? 'food' : 'syrup-sauce', includeMonday: toFood });
               }}
             />
-          ))
-        )}
+          ));
+        })()}
       </div>
     </>
+  );
+}
+
+// A built-in food item inside the catalog list: same row styling as the
+// DB items, but the only action is show/hide (it can't be deleted or
+// re-linked — it's hardcoded).
+function BuiltinRow({ item, busy, isMobile, onToggle }: {
+  item: { name: string; sort: number; hidden: boolean };
+  busy: boolean;
+  isMobile: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: isMobile ? 'column' : 'row',
+      alignItems: isMobile ? 'stretch' : 'center', gap: 12,
+      padding: '14px 18px',
+      borderTop: '1px solid rgba(0,0,0,0.04)',
+      opacity: item.hidden ? 0.55 : 1,
+    }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {item.name}
+          <span style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase',
+            padding: '2px 6px', borderRadius: 4,
+            background: 'rgba(202, 138, 4, 0.12)', color: '#a16207',
+          }}>Food</span>
+          <span style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase',
+            padding: '2px 6px', borderRadius: 4,
+            background: 'rgba(0,0,0,0.05)', color: 'rgba(0,0,0,0.5)',
+          }}>built-in</span>
+          {item.hidden && (
+            <span style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase',
+              padding: '2px 6px', borderRadius: 4,
+              background: 'rgba(0,0,0,0.06)', color: 'rgba(0,0,0,0.45)',
+            }}>hidden</span>
+          )}
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', marginTop: 4 }}>
+          Core menu item — hide it to remove it from ordering &amp; production; nothing is deleted.
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
+        <button onClick={onToggle} disabled={busy} style={{ ...pillBtn, opacity: busy ? 0.5 : 1 }}>
+          {item.hidden ? 'Show' : 'Hide'}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -3810,77 +3925,6 @@ function LaborCostCard({ isMobile }: { isMobile: boolean }) {
       </div>
       <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 8 }}>
         Type a week's actual labor to override the default (clear the box to go back to it). All-in = labor + deliveries.
-      </div>
-    </div>
-  );
-}
-
-// ─── Built-in food item toggles ───────────────────────────────────
-// The nine hardcoded food items can't be deleted, but they can be
-// hidden from the ordering catalog (e.g. Energy Bites off-menu).
-function BuiltinItemsCard({ onChanged }: { onChanged: () => void }) {
-  const [items, setItems] = useState<Array<{ name: string; sort: number; hidden: boolean }> | null>(null);
-  const [busyName, setBusyName] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/api/bake-haus/builtin-items')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (j) setItems(j.items); })
-      .catch(() => {});
-  }, []);
-
-  const toggle = async (name: string, hidden: boolean) => {
-    setBusyName(name);
-    try {
-      const r = await fetch('/api/bake-haus/builtin-items', {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, hidden }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.message || j.error || 'Update failed');
-      setItems(j.items);
-      onChanged();
-    } catch (err: any) {
-      alert(err.message || String(err));
-    } finally {
-      setBusyName(null);
-    }
-  };
-
-  if (!items) return null;
-  return (
-    <div style={{
-      background: '#fff', borderRadius: 14,
-      border: '1px solid rgba(0,0,0,0.07)',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-      padding: '14px 18px', marginBottom: 18,
-    }}>
-      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Built-in food items</div>
-      <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginBottom: 10 }}>
-        These core items are built into the system. Hiding one removes it from the
-        ordering page and production schedule for new weeks — nothing is deleted, and
-        it can come back any time.
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {items.map((it) => (
-          <button
-            key={it.name}
-            onClick={() => toggle(it.name, !it.hidden)}
-            disabled={busyName === it.name}
-            title={it.hidden ? 'Hidden from ordering — click to bring back' : 'On the ordering page — click to hide'}
-            style={{
-              ...pillBtn,
-              opacity: busyName === it.name ? 0.5 : 1,
-              background: it.hidden ? 'rgba(0,0,0,0.04)' : 'rgba(20, 83, 45, 0.08)',
-              color: it.hidden ? 'rgba(0,0,0,0.45)' : '#14532d',
-              border: `1px solid ${it.hidden ? 'rgba(0,0,0,0.12)' : 'rgba(20, 83, 45, 0.25)'}`,
-              textDecoration: it.hidden ? 'line-through' : 'none',
-              fontWeight: 600,
-            }}>
-            {it.hidden ? '✕' : '✓'} {it.name}
-          </button>
-        ))}
       </div>
     </div>
   );
