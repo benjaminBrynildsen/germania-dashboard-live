@@ -1975,14 +1975,19 @@ export function getMonthlyReport(month: string): MonthlyReport {
     grandTotal: items.reduce((s, i) => s + i.total, 0),
   };
 }
-
 // ── Monthly report pricing (Dripos menu price + COGS cost) ────────
 // Adds a per-item unit price from Dripos (retail value of what shipped)
 // and, where the item is costed in the COGS system, its unit cost.
-// Degrades to nulls when Dripos is offline or an item can't be matched.
+// Prices are SNAPSHOTTED weekly on every successful Dripos contact, so
+// when Dripos is offline the report falls back to the stored numbers
+// instead of going blank.
 
 export interface PricedMonthlyReport extends MonthlyReport {
   pricesAvailable: boolean;
+  /** 'live' = fresh from Dripos, 'snapshot' = stored weekly prices. */
+  priceSource: 'live' | 'snapshot' | null;
+  /** Newest snapshot timestamp used (ms), when priceSource='snapshot'. */
+  priceAsOf: number | null;
   items: Array<MonthlyReportItem & {
     unitPrice: number | null;
     value: number | null;
@@ -1993,20 +1998,86 @@ export interface PricedMonthlyReport extends MonthlyReport {
   grandCost: number | null;
 }
 
+/** Current Dripos menu price for every catalog item (dollars), using the
+ *  same product matching as inventory: catalog link for syrups, token
+ *  fuzzy match for food. */
+function resolveCatalogUnitPrices(
+  products: Array<{ ID: number; NAME: string; CATEGORY_NAME: string; PRICE?: number; INVENTORY?: number | null; ARCHIVED?: number }>,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  const foodProducts = products.filter((p) => p.CATEGORY_NAME === BAKE_HAUS_CATEGORY);
+  for (const item of BAKE_HAUS_ITEMS) {
+    const found = findProductForCatalogItem(item, foodProducts.length > 0 ? foodProducts : products) as { PRICE?: number } | null;
+    if (found && typeof found.PRICE === 'number' && found.PRICE > 0) out.set(item.name, found.PRICE / 100);
+  }
+  for (const s of listSyrups(true)) {
+    const found = findProductForSyrup(s, products) as { PRICE?: number } | null;
+    if (found && typeof found.PRICE === 'number' && found.PRICE > 0) out.set(s.displayName, found.PRICE / 100);
+  }
+  return out;
+}
+
+/** Store this week's menu prices. Called from the 6h Dripos sync and
+ *  whenever the monthly report gets a live price pull. Idempotent —
+ *  re-captures just refresh the same (week, item) rows. */
+export async function snapshotBakeHausPrices(): Promise<{ week: string; captured: number } | null> {
+  let products: Awaited<ReturnType<typeof fetchAllProducts>>;
+  try {
+    products = await fetchAllProducts(STORES[0].locationId);
+  } catch {
+    return null; // Dripos offline — nothing to capture
+  }
+  const prices = resolveCatalogUnitPrices(products as never);
+  persistPriceSnapshot(prices);
+  return { week: mondayOfWeek(), captured: prices.size };
+}
+
+function persistPriceSnapshot(prices: Map<string, number>): void {
+  if (prices.size === 0) return;
+  const week = mondayOfWeek();
+  const upsert = db.prepare(`
+    INSERT INTO bake_haus_price_history (week_start_iso, item_name, unit_price, captured_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(week_start_iso, item_name) DO UPDATE SET unit_price = excluded.unit_price, captured_at = excluded.captured_at
+  `);
+  const now = Date.now();
+  const run = db.transaction(() => {
+    for (const [item, price] of prices) upsert.run(week, item, price, now);
+  });
+  run();
+}
+
+/** Best stored price for an item as of the report month: the newest
+ *  snapshot at or before the month's end, else the oldest one after it
+ *  (better than nothing for months predating the snapshots). */
+function snapshotPriceFor(item: string, monthEndBound: string): { price: number; capturedAt: number } | null {
+  const atOrBefore = db.prepare(`
+    SELECT unit_price, captured_at FROM bake_haus_price_history
+    WHERE item_name = ? AND week_start_iso <= ?
+    ORDER BY week_start_iso DESC LIMIT 1
+  `).get(item, monthEndBound) as { unit_price: number; captured_at: number } | undefined;
+  if (atOrBefore) return { price: atOrBefore.unit_price, capturedAt: atOrBefore.captured_at };
+  const after = db.prepare(`
+    SELECT unit_price, captured_at FROM bake_haus_price_history
+    WHERE item_name = ? ORDER BY week_start_iso ASC LIMIT 1
+  `).get(item) as { unit_price: number; captured_at: number } | undefined;
+  return after ? { price: after.unit_price, capturedAt: after.captured_at } : null;
+}
+
 export async function priceMonthlyReport(report: MonthlyReport): Promise<PricedMonthlyReport> {
   const { drinkCogRange } = await import('./cog-cost.js');
 
-  let products: Awaited<ReturnType<typeof fetchAllProducts>> = [];
-  let pricesAvailable = false;
+  let livePrices: Map<string, number> | null = null;
   try {
-    products = await fetchAllProducts(STORES[0].locationId);
-    pricesAvailable = true;
-  } catch { /* Dripos offline — value columns stay blank */ }
-  const foodProducts = products.filter((p) => p.CATEGORY_NAME === BAKE_HAUS_CATEGORY);
+    const products = await fetchAllProducts(STORES[0].locationId);
+    livePrices = resolveCatalogUnitPrices(products as never);
+    persistPriceSnapshot(livePrices); // free weekly capture while we're here
+  } catch { /* fall back to stored snapshots below */ }
 
-  const syrupRows = listSyrups(true);
-  const syrupByName = new Map(syrupRows.map((s) => [s.displayName.toLowerCase(), s]));
-  const builtinByName = new Map(BAKE_HAUS_ITEMS.map((i) => [i.name.toLowerCase(), i]));
+  const monthEndBound = `${report.month}-32`; // ISO compare: past any Monday in the month
+  let usedSnapshot = false;
+  let priceAsOf: number | null = null;
+
   const cogDrink = db.prepare(`
     SELECT d.id FROM cog_drinks d
     WHERE LOWER(d.name) = LOWER(?) AND d.archived = 0
@@ -2015,17 +2086,15 @@ export async function priceMonthlyReport(report: MonthlyReport): Promise<PricedM
 
   const items = report.items.map((it) => {
     let unitPrice: number | null = null;
-    if (pricesAvailable) {
-      const key = it.item.toLowerCase();
-      const syrup = syrupByName.get(key);
-      const builtin = builtinByName.get(key);
-      const product = syrup
-        ? findProductForSyrup(syrup, products)
-        : builtin
-          ? findProductForCatalogItem(builtin, foodProducts.length > 0 ? foodProducts : products)
-          : findProductForCatalogItem({ name: it.item, aliases: [], sort: 0 } as BakeHausItem, products);
-      const cents = (product as { PRICE?: number } | null)?.PRICE;
-      if (typeof cents === 'number' && cents > 0) unitPrice = cents / 100;
+    if (livePrices) {
+      unitPrice = livePrices.get(it.item) ?? null;
+    } else {
+      const snap = snapshotPriceFor(it.item, monthEndBound);
+      if (snap) {
+        unitPrice = snap.price;
+        usedSnapshot = true;
+        priceAsOf = Math.max(priceAsOf ?? 0, snap.capturedAt);
+      }
     }
 
     let unitCost: number | null = null;
@@ -2046,9 +2115,12 @@ export async function priceMonthlyReport(report: MonthlyReport): Promise<PricedM
 
   const valued = items.filter((i) => i.value != null);
   const costed = items.filter((i) => i.cost != null);
+  const priceSource: 'live' | 'snapshot' | null = livePrices ? 'live' : usedSnapshot ? 'snapshot' : null;
   return {
     ...report,
-    pricesAvailable,
+    pricesAvailable: priceSource !== null,
+    priceSource,
+    priceAsOf: priceSource === 'snapshot' ? priceAsOf : null,
     items,
     grandValue: valued.length > 0 ? Math.round(valued.reduce((s, i) => s + (i.value ?? 0), 0) * 100) / 100 : null,
     grandCost: costed.length > 0 ? Math.round(costed.reduce((s, i) => s + (i.cost ?? 0), 0) * 100) / 100 : null,
