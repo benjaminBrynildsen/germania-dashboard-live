@@ -7,6 +7,7 @@ import { seedSopHistory } from './sop-history-seed.js';
 import { migrateSops2026ToOz } from './sop-oz-migration.js';
 import { applyIngredientPrices20260924 } from './ingredient-prices-2026-09.js';
 import { applyHausSyrupCogs2025 } from './haus-syrup-cogs-2025.js';
+import { applyGbhRecipe } from './gbh-recipe-2026-09.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // In prod the SQLite file lives on a Render persistent disk (DB_PATH=/var/data/germania.db).
@@ -1004,6 +1005,11 @@ applyIngredientPrices20260924(db);
 // One-time: load the Haus syrup/sauce batch recipes (with full AP/EP
 // pricing, quantities, and labor) from the 2025 seasonal COGS workbooks.
 applyHausSyrupCogs2025(db);
+
+// One-time: fill GBH with its real build (white mocha + caramel drizzle)
+// from the hand-costed spreadsheet. Retries until the Dripos catalog has
+// a GBH drink to attach to; never overwrites an existing recipe.
+applyGbhRecipe(db);
 
 // Ensure the single COGS settings row exists (idempotent).
 db.prepare('INSERT OR IGNORE INTO cog_settings (id) VALUES (1)').run();
