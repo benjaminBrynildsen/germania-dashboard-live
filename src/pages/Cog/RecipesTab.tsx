@@ -54,7 +54,8 @@ const STATUS_COLORS: Record<string, string> = {
 const CATEGORY_OPTIONS = ['Syrup', 'Sauce', 'Food'];
 
 // Cost per pack unit from the master catalog (e.g. $39.98 / 50 lbs).
-function masterUnitCost(m: MasterIngredient): number | null {
+// (Also used by the Builder tab.)
+export function masterUnitCost(m: MasterIngredient): number | null {
   if (!m.pack_size || m.pack_size <= 0) return null;
   return (m.ap_pack_cost || 0) / m.pack_size;
 }
@@ -455,7 +456,7 @@ function IngredientsSection({ detail, canEdit, isMobile, onChanged, masterList }
 // Searchable autocomplete over the master ingredient catalog. Type to filter,
 // click (or Enter for the top hit) to pick. The parent owns the picked value;
 // re-key the component to reset it after an add.
-function MasterPicker({ masterList, picked, onPick, autoFocus, placeholder }: {
+export function MasterPicker({ masterList, picked, onPick, autoFocus, placeholder }: {
   masterList: MasterIngredient[];
   picked: MasterIngredient | null;
   onPick: (m: MasterIngredient | null) => void;
