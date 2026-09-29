@@ -4024,6 +4024,15 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
     weeks: LaborWeekRow[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [prevTotal, setPrevTotal] = useState<number | null>(null);
+
+  // Previous month, for the month-over-month delta on the hero tile.
+  const prevMonthIso = useMemo(() => {
+    const [py, pm] = month.split('-').map(Number);
+    const d = new Date(py, pm - 2, 15);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, [month]);
+  const prevMonthShort = new Date(`${prevMonthIso}-15T12:00:00`).toLocaleDateString('en-US', { month: 'short' });
 
   useEffect(() => {
     let cancelled = false;
@@ -4031,15 +4040,39 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
     Promise.all([
       fetch(`/api/bake-haus/monthly?month=${month}`).then((r) => (r.ok ? r.json() : null)),
       fetch('/api/bake-haus/labor?weeks=26').then((r) => (r.ok ? r.json() : null)),
+      fetch(`/api/bake-haus/monthly?month=${prevMonthIso}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ])
-      .then(([m, l]) => { if (!cancelled) { setData(m); setLabor(l); } })
+      .then(([m, l, p]) => {
+        if (cancelled) return;
+        setData(m);
+        setLabor(l);
+        setPrevTotal(p && p.grandTotal > 0 ? p.grandTotal : null);
+      })
       .catch(() => { if (!cancelled) { setData(null); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [month]);
+  }, [month, prevMonthIso]);
 
   const stores = ['G1', 'G2', 'G3', 'G4'];
   const monthLabel = new Date(`${month}-15T12:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  // Category subtotals (Food vs Syrups & sauces) for the table + CSV.
+  const subtotalFor = (pred: (category: string) => boolean) => {
+    if (!data) return null;
+    const rows = data.items.filter((i) => pred(i.category));
+    if (rows.length === 0) return null;
+    const valued = rows.filter((i) => i.value != null);
+    const costed = rows.filter((i) => i.cost != null);
+    return {
+      perStore: Object.fromEntries(stores.map((s) => [s, rows.reduce((sum, i) => sum + (i.perStore[s] ?? 0), 0)])) as Record<string, number>,
+      total: rows.reduce((s, i) => s + i.total, 0),
+      value: valued.length ? Math.round(valued.reduce((s, i) => s + (i.value ?? 0), 0) * 100) / 100 : null,
+      cost: costed.length ? Math.round(costed.reduce((s, i) => s + (i.cost ?? 0), 0) * 100) / 100 : null,
+    };
+  };
+  const foodSub = subtotalFor((c) => c === 'food');
+  const otherSub = subtotalFor((c) => c !== 'food');
+  const showSubtotals = !!(foodSub && otherSub);
 
   // Month-level cost roll-up from the weekly labor rows.
   const monthCosts = useMemo(() => {
@@ -4068,15 +4101,24 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
   const downloadCsv = () => {
     if (!data) return;
     const money = (v: number | null) => (v != null ? v.toFixed(2) : '');
+    const itemLine = (it: MonthlyReportData['items'][number]) => [
+      `"${it.item.replace(/"/g, '""')}"`,
+      it.category === 'syrup-sauce' ? 'Syrup/Sauce' : it.category === 'food' ? 'Food' : 'Custom',
+      ...stores.map((s) => it.perStore[s] ?? 0),
+      it.total,
+      money(it.unitPrice), money(it.value), money(it.unitCost), money(it.cost),
+    ].join(',');
+    const subLine = (label: string, sub: NonNullable<typeof foodSub>) => [
+      label, '', ...stores.map((s) => sub.perStore[s] ?? 0), sub.total, '', money(sub.value), '', money(sub.cost),
+    ].join(',');
+    const food = data.items.filter((i) => i.category === 'food');
+    const rest = data.items.filter((i) => i.category !== 'food');
     const lines = [
       ['Item', 'Category', ...stores, 'Total', 'Unit price $', 'Retail value $', 'Unit cost $', 'Cost $'].join(','),
-      ...data.items.map((it) => [
-        `"${it.item.replace(/"/g, '""')}"`,
-        it.category === 'syrup-sauce' ? 'Syrup/Sauce' : it.category === 'food' ? 'Food' : 'Custom',
-        ...stores.map((s) => it.perStore[s] ?? 0),
-        it.total,
-        money(it.unitPrice), money(it.value), money(it.unitCost), money(it.cost),
-      ].join(',')),
+      ...food.map(itemLine),
+      ...(showSubtotals && foodSub ? [subLine('FOOD SUBTOTAL', foodSub)] : []),
+      ...rest.map(itemLine),
+      ...(showSubtotals && otherSub ? [subLine('SYRUPS & SAUCES SUBTOTAL', otherSub)] : []),
       ['TOTAL', '', ...stores.map((s) => data.storeTotals[s] ?? 0), data.grandTotal, '', money(data.grandValue), '', money(data.grandCost)].join(','),
     ];
     if (data.estimatedWeeks.length > 0) {
@@ -4113,7 +4155,9 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
           {/* Headline tiles */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
             <ReportTile hero label="Units shipped" value={data && data.grandTotal > 0 ? data.grandTotal.toLocaleString() : '—'}
-              sub={data ? `${data.weeks.length} weeks` : ''} />
+              sub={data ? `${data.weeks.length} weeks` : ''}
+              delta={data && data.grandTotal > 0 && prevTotal != null ? ((data.grandTotal - prevTotal) / prevTotal) * 100 : null}
+              deltaLabel={`vs ${prevMonthShort}`} />
             <ReportTile label="Deliveries" value={monthCosts ? String(monthCosts.deliveries) : '—'}
               sub={monthCosts ? `$${monthCosts.deliveryTotal.toFixed(0)} at $${labor?.settings.deliveryFee ?? 50}/run` : 'runs this month'} />
             <ReportTile label="Kitchen labor" value={monthCosts && monthCosts.laborKnown ? `$${monthCosts.laborTotal.toFixed(0)}` : '—'}
@@ -4178,7 +4222,15 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
                     <thead>
                       <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', textAlign: 'right', color: 'rgba(0,0,0,0.45)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 }}>
                         <th style={{ textAlign: 'left', padding: '6px 8px' }}>Item</th>
-                        {stores.map((s) => <th key={s} style={{ padding: '6px 8px' }}>{s}</th>)}
+                        {stores.map((s) => (
+                          <th key={s} style={{ padding: '6px 8px', color: STORE_THEMES[s]?.headerBg ?? 'rgba(0,0,0,0.45)', fontWeight: 800 }}>
+                            <span style={{
+                              display: 'inline-block', width: 7, height: 7, borderRadius: 999,
+                              background: STORE_THEMES[s]?.headerBg ?? '#999', marginRight: 5, verticalAlign: 'middle',
+                            }} />
+                            {s}
+                          </th>
+                        ))}
                         <th style={{ padding: '6px 8px' }}>Total</th>
                         <th style={{ padding: '6px 8px' }} title="Current Dripos menu price">Unit $</th>
                         <th style={{ padding: '6px 8px' }} title="Total × Dripos menu price">Value $</th>
@@ -4186,26 +4238,48 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.items.map((it, ri) => (
-                        <tr key={it.item}
-                          style={{ borderBottom: '1px solid rgba(0,0,0,0.04)', textAlign: 'right', background: ri % 2 ? 'rgba(0,0,0,0.015)' : 'transparent' }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(202,138,4,0.05)'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = ri % 2 ? 'rgba(0,0,0,0.015)' : 'transparent'; }}>
-                          <td style={{ textAlign: 'left', padding: '7px 8px', fontWeight: 600 }}>
-                            {it.item}
-                            {it.category === 'syrup-sauce' && (
-                              <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: 0.5 }}>syrup</span>
-                            )}
-                          </td>
-                          {stores.map((s) => <td key={s} style={{ padding: '7px 8px' }}>{it.perStore[s] || '—'}</td>)}
-                          <td style={{ padding: '7px 8px', fontWeight: 700 }}>{it.total.toLocaleString()}</td>
-                          <td style={{ padding: '7px 8px', color: 'rgba(0,0,0,0.55)' }}>{it.unitPrice != null ? `$${it.unitPrice.toFixed(2)}` : '—'}</td>
-                          <td style={{ padding: '7px 8px', fontWeight: 700, color: '#1d4ed8' }}>{it.value != null ? `$${it.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td>
-                          <td style={{ padding: '7px 8px', color: '#14532d' }} title={it.unitCost != null ? `$${it.unitCost.toFixed(3)}/unit` : undefined}>
-                            {it.cost != null ? `$${it.cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                          </td>
-                        </tr>
-                      ))}
+                      {(() => {
+                        const money2 = (v: number | null) => (v != null ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—');
+                        const itemRow = (it: MonthlyReportData['items'][number], ri: number) => (
+                          <tr key={it.item}
+                            style={{ borderBottom: '1px solid rgba(0,0,0,0.04)', textAlign: 'right', background: ri % 2 ? 'rgba(0,0,0,0.015)' : 'transparent' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(202,138,4,0.05)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = ri % 2 ? 'rgba(0,0,0,0.015)' : 'transparent'; }}>
+                            <td style={{ textAlign: 'left', padding: '7px 8px', fontWeight: 600 }}>
+                              {it.item}
+                              {it.category === 'syrup-sauce' && (
+                                <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: 0.5 }}>syrup</span>
+                              )}
+                            </td>
+                            {stores.map((s) => <td key={s} style={{ padding: '7px 8px' }}>{it.perStore[s] || '—'}</td>)}
+                            <td style={{ padding: '7px 8px', fontWeight: 700 }}>{it.total.toLocaleString()}</td>
+                            <td style={{ padding: '7px 8px', color: 'rgba(0,0,0,0.55)' }}>{it.unitPrice != null ? `$${it.unitPrice.toFixed(2)}` : '—'}</td>
+                            <td style={{ padding: '7px 8px', fontWeight: 700, color: '#1d4ed8' }}>{money2(it.value)}</td>
+                            <td style={{ padding: '7px 8px', color: '#14532d' }} title={it.unitCost != null ? `$${it.unitCost.toFixed(3)}/unit` : undefined}>
+                              {money2(it.cost)}
+                            </td>
+                          </tr>
+                        );
+                        const subtotalRow = (label: string, sub: NonNullable<typeof foodSub>, key: string) => (
+                          <tr key={key} style={{ textAlign: 'right', background: 'rgba(0,0,0,0.045)', fontWeight: 700, fontSize: 12 }}>
+                            <td style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.6, color: 'rgba(0,0,0,0.5)' }}>{label}</td>
+                            {stores.map((s) => <td key={s} style={{ padding: '6px 8px' }}>{(sub.perStore[s] ?? 0).toLocaleString()}</td>)}
+                            <td style={{ padding: '6px 8px' }}>{sub.total.toLocaleString()}</td>
+                            <td />
+                            <td style={{ padding: '6px 8px', color: '#1d4ed8' }}>{money2(sub.value)}</td>
+                            <td style={{ padding: '6px 8px', color: '#14532d' }}>{money2(sub.cost)}</td>
+                          </tr>
+                        );
+                        const food = data.items.filter((i) => i.category === 'food');
+                        const rest = data.items.filter((i) => i.category !== 'food');
+                        let ri = 0;
+                        const out: React.ReactNode[] = [];
+                        for (const it of food) out.push(itemRow(it, ri++));
+                        if (showSubtotals && foodSub) out.push(subtotalRow('Food subtotal', foodSub, 'sub-food'));
+                        for (const it of rest) out.push(itemRow(it, ri++));
+                        if (showSubtotals && otherSub) out.push(subtotalRow('Syrups & sauces subtotal', otherSub, 'sub-syrups'));
+                        return out;
+                      })()}
                       <tr style={{ borderTop: '2px solid rgba(0,0,0,0.15)', fontWeight: 700, textAlign: 'right' }}>
                         <td style={{ textAlign: 'left', padding: '7px 8px' }}>Total</td>
                         {stores.map((s) => <td key={s} style={{ padding: '7px 8px' }}>{(data.storeTotals[s] ?? 0).toLocaleString()}</td>)}
@@ -4245,9 +4319,20 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
   );
 }
 
-function ReportTile({ label, value, sub, hero, accent }: {
+function ReportTile({ label, value, sub, hero, accent, delta, deltaLabel }: {
   label: string; value: string; sub?: string; hero?: boolean; accent?: boolean;
+  /** Month-over-month % change; renders a colored ▲/▼ chip next to sub. */
+  delta?: number | null; deltaLabel?: string;
 }) {
+  const deltaChip = delta != null && Number.isFinite(delta) ? (
+    <span style={{
+      fontSize: 10.5, fontWeight: 800, padding: '2px 7px', borderRadius: 999,
+      background: delta >= 0 ? 'rgba(34,197,94,0.18)' : 'rgba(239,68,68,0.18)',
+      color: delta >= 0 ? '#4ade80' : '#f87171',
+    }}>
+      {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(0)}%{deltaLabel ? ` ${deltaLabel}` : ''}
+    </span>
+  ) : null;
   return (
     <div style={{
       borderRadius: 14, padding: '16px 18px',
@@ -4263,8 +4348,13 @@ function ReportTile({ label, value, sub, hero, accent }: {
         fontSize: 26, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1,
         color: hero ? '#fff' : accent ? '#14532d' : '#1a1a1a',
       }}>{value}</div>
-      {sub && (
-        <div style={{ fontSize: 11, color: hero ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)', marginTop: 6 }}>{sub}</div>
+      {(sub || deltaChip) && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginTop: 6,
+          fontSize: 11, color: hero ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)',
+        }}>
+          {sub}{deltaChip}
+        </div>
       )}
     </div>
   );
