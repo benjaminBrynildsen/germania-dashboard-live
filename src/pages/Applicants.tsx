@@ -591,42 +591,10 @@ function ApplicantDrawer({
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // HEAD-probe the resume so we can render an inline error if Drive returns
-  // 4xx/5xx instead of letting the iframe show raw JSON.
-  const [resumeStatus, setResumeStatus] = useState<'loading' | 'ok' | 'fail'>('loading');
-  const [resumeErr, setResumeErr] = useState<string | null>(null);
-  useEffect(() => {
-    if (!a.resumeFileId) return;
-    let cancelled = false;
-    setResumeStatus('loading');
-    setResumeErr(null);
-    // GET with Range: bytes=0-0 — tiny probe that won't actually download
-    // the file, but Drive returns the real status code.
-    fetch(`/api/applicants/resume/${a.resumeFileId}`, {
-      headers: { Range: 'bytes=0-0' },
-      cache: 'no-store',
-    })
-      .then(async (r) => {
-        if (cancelled) return;
-        if (r.ok || r.status === 206) {
-          setResumeStatus('ok');
-          return;
-        }
-        let msg = `HTTP ${r.status}`;
-        try {
-          const j = await r.json();
-          msg = j.message || j.error || msg;
-        } catch { /* leave default */ }
-        setResumeErr(msg);
-        setResumeStatus('fail');
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setResumeErr(String(e));
-        setResumeStatus('fail');
-      });
-    return () => { cancelled = true; };
-  }, [a.resumeFileId]);
+  // Resumes embed via Drive's own /preview URL, which authenticates with
+  // the VIEWER's Google session (no app Drive scope needed). If the
+  // viewer's account can't see the file, Drive shows its request-access
+  // screen inside the frame.
 
   return (
     <div
@@ -749,7 +717,7 @@ function ApplicantDrawer({
           </div>
         </div>
 
-        {/* Resume embed */}
+        {/* Resume embed — Drive's own preview, viewer's Google session */}
         {a.resumeFileId && (
           <div style={{ marginBottom: 20 }}>
             <div style={{
@@ -760,61 +728,26 @@ function ApplicantDrawer({
                 fontSize: 11, textTransform: 'uppercase', letterSpacing: 1,
                 color: '#888', fontWeight: 600,
               }}>Resume</div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                {a.resumeUrl && (
-                  <a
-                    href={a.resumeUrl}
-                    target="_blank" rel="noreferrer"
-                    style={{ fontSize: 12, color: '#2563eb' }}
-                  >Open in Drive ↗</a>
-                )}
-                {resumeStatus === 'ok' && (
-                  <a
-                    href={`/api/applicants/resume/${a.resumeFileId}`}
-                    target="_blank" rel="noreferrer"
-                    style={{ fontSize: 12, color: '#2563eb' }}
-                  >Open in new tab ↗</a>
-                )}
-              </div>
+              <a
+                href={a.resumeUrl ?? `https://drive.google.com/file/d/${a.resumeFileId}/view`}
+                target="_blank" rel="noreferrer"
+                style={{ fontSize: 12, color: '#2563eb' }}
+              >Open in Drive ↗</a>
             </div>
-            {resumeStatus === 'loading' && (
-              <div style={{
-                padding: '24px', textAlign: 'center',
-                background: '#fafafa', borderRadius: 8,
-                border: '1px solid #eee', color: '#888', fontSize: 13,
-              }}>Loading resume…</div>
-            )}
-            {resumeStatus === 'fail' && (
-              <div style={{
-                padding: '16px 20px', background: '#fffbe6',
-                border: '1px solid #f0d97b', borderRadius: 8,
-                color: '#6b5500', fontSize: 13, lineHeight: 1.5,
-              }}>
-                <strong>Couldn't load this resume.</strong>{' '}
-                {/^File not found|insufficient.*scope/i.test(resumeErr ?? '')
-                  ? "Sign out and back in — Google needs to grant the dashboard a broader Drive read permission so it can fetch applicant uploads."
-                  : (resumeErr ?? 'Unknown error.')}
-                {' '}
-                {a.resumeUrl && (
-                  <a
-                    href={a.resumeUrl}
-                    target="_blank" rel="noreferrer"
-                    style={{ color: '#2563eb', marginLeft: 4 }}
-                  >Open in Drive instead ↗</a>
-                )}
-              </div>
-            )}
-            {resumeStatus === 'ok' && (
-              <iframe
-                src={`/api/applicants/resume/${a.resumeFileId}`}
-                style={{
-                  width: '100%', height: 'calc(100vh - 320px)',
-                  minHeight: 600,
-                  border: '1px solid #eee', borderRadius: 8,
-                }}
-                title="Resume"
-              />
-            )}
+            <iframe
+              src={`https://drive.google.com/file/d/${a.resumeFileId}/preview`}
+              allow="autoplay"
+              style={{
+                width: '100%', height: 'calc(100vh - 320px)',
+                minHeight: 600,
+                border: '1px solid #eee', borderRadius: 8,
+              }}
+              title="Resume"
+            />
+            <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
+              Shown through Google Drive with your own Google login — if it asks for access,
+              the file hasn't been shared with your account; use "Open in Drive" to request it.
+            </div>
           </div>
         )}
 

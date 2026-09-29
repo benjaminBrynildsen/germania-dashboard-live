@@ -222,45 +222,9 @@ export async function fetchApplicants(userId: number): Promise<ApplicantsRespons
   return { sheetId: SHEET_ID, sheetTitle, headers, applicants };
 }
 
-/**
- * Stream a resume file's content from Drive back through the dashboard.
- * Drive's webContentLink requires a Google session; piping it through here
- * means the user only needs to be authenticated to OUR app to view it.
- */
-export async function streamResume(
-  userId: number,
-  fileId: string,
-): Promise<{ stream: NodeJS.ReadableStream; mimeType: string; name: string }> {
-  const auth = getAuthClient(userId);
-  const drive = google.drive({ version: 'v3', auth });
-
-  // supportsAllDrives covers Workspace shared drives — Google Forms attached
-  // to a Workspace form sometimes land in a team drive rather than the
-  // personal "My Drive", and the bare drive.files.get returns 404 on those.
-  const meta = await drive.files.get({
-    fileId,
-    fields: 'name,mimeType',
-    supportsAllDrives: true,
-  });
-  const mimeType = meta.data.mimeType ?? 'application/octet-stream';
-  const name = meta.data.name ?? 'resume';
-
-  // Google Docs need to be exported; raw files can be downloaded directly.
-  if (mimeType.startsWith('application/vnd.google-apps.')) {
-    const exportMime = 'application/pdf';
-    const res = await drive.files.export(
-      { fileId, mimeType: exportMime },
-      { responseType: 'stream' },
-    );
-    return { stream: res.data as NodeJS.ReadableStream, mimeType: exportMime, name: `${name}.pdf` };
-  }
-
-  const res = await drive.files.get(
-    { fileId, alt: 'media', supportsAllDrives: true },
-    { responseType: 'stream' },
-  );
-  return { stream: res.data as NodeJS.ReadableStream, mimeType, name };
-}
+// NOTE: streamResume (Drive file streaming) was removed 2026-09 with the
+// drive.readonly scope — resumes now embed via Drive's /preview URL using
+// the viewer's own Google session.
 
 /**
  * Returns the live scopes on the user's stored OAuth token. Used by the
