@@ -1722,3 +1722,130 @@ export function mondayOfWeek(d: Date = new Date()): string {
   const dd = String(local.getDate()).padStart(2, '0');
   return `${y}-${m}-${dd}`;
 }
+
+// ─── Kitchen labor + delivery costing ─────────────────────────────
+// Cost per unit shipped: (weekly labor + deliveries × $50) ÷ units the
+// kitchen sent that week. Units come from the frozen per-day lock
+// snapshots (authoritative once a week locks Monday night); an unlocked
+// week falls back to the raw ordered quantities and is flagged as an
+// estimate. Labor is a default weekly figure with per-week overrides.
+
+export interface LaborSettings {
+  defaultWeeklyLaborCost: number | null;
+  deliveryFee: number;
+}
+
+export interface WeekLaborRow {
+  weekStartIso: string;
+  units: number;
+  /** True when the week wasn't locked — units are the raw ordered
+   *  quantities, not the frozen delivery snapshot. */
+  estimated: boolean;
+  deliveries: number;
+  deliveryCost: number;
+  laborOverride: number | null;
+  laborCost: number | null;      // override ?? default
+  laborPerUnit: number | null;
+  allInPerUnit: number | null;   // (labor + delivery) / units
+}
+
+export function getLaborSettings(): LaborSettings {
+  const row = db.prepare('SELECT * FROM bake_haus_labor_settings WHERE id = 1').get() as any;
+  return {
+    defaultWeeklyLaborCost: row?.default_weekly_labor_cost ?? null,
+    deliveryFee: row?.delivery_fee ?? 50,
+  };
+}
+
+export function setLaborSettings(args: { defaultWeeklyLaborCost?: number | null; deliveryFee?: number }): LaborSettings {
+  const cur = getLaborSettings();
+  const next = {
+    defaultWeeklyLaborCost: args.defaultWeeklyLaborCost !== undefined ? args.defaultWeeklyLaborCost : cur.defaultWeeklyLaborCost,
+    deliveryFee: args.deliveryFee !== undefined && args.deliveryFee !== null ? args.deliveryFee : cur.deliveryFee,
+  };
+  db.prepare(`
+    INSERT INTO bake_haus_labor_settings (id, default_weekly_labor_cost, delivery_fee, updated_at)
+    VALUES (1, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET default_weekly_labor_cost = excluded.default_weekly_labor_cost,
+      delivery_fee = excluded.delivery_fee, updated_at = excluded.updated_at
+  `).run(next.defaultWeeklyLaborCost, next.deliveryFee, Date.now());
+  return getLaborSettings();
+}
+
+export function setWeekLabor(weekStartIso: string, laborCost: number | null): void {
+  if (laborCost == null) {
+    db.prepare('DELETE FROM bake_haus_week_labor WHERE week_start_iso = ?').run(weekStartIso);
+    return;
+  }
+  db.prepare(`
+    INSERT INTO bake_haus_week_labor (week_start_iso, labor_cost, updated_at) VALUES (?, ?, ?)
+    ON CONFLICT(week_start_iso) DO UPDATE SET labor_cost = excluded.labor_cost, updated_at = excluded.updated_at
+  `).run(weekStartIso, laborCost, Date.now());
+}
+
+export function getLaborSummary(weeks = 8): { settings: LaborSettings; weeks: WeekLaborRow[] } {
+  const settings = getLaborSettings();
+  const catalog = getMergedCatalog();
+  const includeMondayByName = new Map(catalog.map((c) => [c.name, c.includeMonday]));
+
+  const rowsStmt = db.prepare(`
+    SELECT item_name, weekly_qty, mon_locked_qty, wed_locked_qty, fri_locked_qty
+    FROM bake_haus_orders WHERE week_start_iso = ?
+  `);
+  const overrideStmt = db.prepare('SELECT labor_cost FROM bake_haus_week_labor WHERE week_start_iso = ?');
+
+  const out: WeekLaborRow[] = [];
+  const currentMonday = mondayOfWeek();
+  for (let i = 0; i < weeks; i++) {
+    const d = new Date(`${currentMonday}T12:00:00`);
+    d.setDate(d.getDate() - 7 * i);
+    const weekIso = mondayOfWeek(d);
+    const rows = rowsStmt.all(weekIso) as Array<{
+      item_name: string; weekly_qty: number;
+      mon_locked_qty: number | null; wed_locked_qty: number | null; fri_locked_qty: number | null;
+    }>;
+
+    const anyLock = rows.some((r) => r.mon_locked_qty != null || r.wed_locked_qty != null || r.fri_locked_qty != null);
+    let mon = 0, wed = 0, fri = 0;
+    if (anyLock) {
+      for (const r of rows) {
+        mon += r.mon_locked_qty ?? 0;
+        wed += r.wed_locked_qty ?? 0;
+        fri += r.fri_locked_qty ?? 0;
+      }
+    } else {
+      // Unlocked week: approximate with ordered quantities, Monday only
+      // counts when at least one Monday-delivered item has quantity.
+      const total = rows.reduce((s, r) => s + (r.weekly_qty || 0), 0);
+      const hasMonday = rows.some((r) => (r.weekly_qty || 0) > 0 && (includeMondayByName.get(r.item_name) ?? true));
+      if (total > 0) {
+        mon = hasMonday ? 1 : 0; // presence only — day totals aren't shown for estimates
+        wed = 1; fri = 1;
+      }
+      const deliveries = [mon, wed, fri].filter((q) => q > 0).length;
+      const override = (overrideStmt.get(weekIso) as any)?.labor_cost ?? null;
+      const laborCost = override ?? settings.defaultWeeklyLaborCost;
+      const deliveryCost = deliveries * settings.deliveryFee;
+      out.push({
+        weekStartIso: weekIso, units: total, estimated: true, deliveries, deliveryCost,
+        laborOverride: override, laborCost,
+        laborPerUnit: laborCost != null && total > 0 ? laborCost / total : null,
+        allInPerUnit: total > 0 ? ((laborCost ?? 0) + deliveryCost) / total : null,
+      });
+      continue;
+    }
+
+    const units = mon + wed + fri;
+    const deliveries = [mon, wed, fri].filter((q) => q > 0).length;
+    const override = (overrideStmt.get(weekIso) as any)?.labor_cost ?? null;
+    const laborCost = override ?? settings.defaultWeeklyLaborCost;
+    const deliveryCost = deliveries * settings.deliveryFee;
+    out.push({
+      weekStartIso: weekIso, units, estimated: false, deliveries, deliveryCost,
+      laborOverride: override, laborCost,
+      laborPerUnit: laborCost != null && units > 0 ? laborCost / units : null,
+      allInPerUnit: units > 0 ? ((laborCost ?? 0) + deliveryCost) / units : null,
+    });
+  }
+  return { settings, weeks: out };
+}

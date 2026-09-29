@@ -14,6 +14,7 @@ import {
   getCatalogImageMap,
   getDeliverySnapshot,
   getItemLockInfo,
+  getLaborSummary,
   getMergedCatalog,
   getWeekReport,
   listDeliverySnapshots,
@@ -27,6 +28,8 @@ import {
   lockWeekMonday,
   markOrderSaved,
   mondayOfWeek,
+  setLaborSettings,
+  setWeekLabor,
   snapshotMonForStoreWeek,
   unlockDay,
   unlockWeek,
@@ -535,6 +538,38 @@ router.delete('/bake-haus/item', requireAuth, (req: AuthRequest, res: Response) 
     }
   }
   deleteOrderItem(week, store, item);
+  res.json({ ok: true });
+});
+
+/** Kitchen labor + delivery cost summary: last N weeks of units shipped,
+ *  deliveries × fee, weekly labor (default or per-week override), and the
+ *  resulting cost per unit. */
+router.get('/bake-haus/labor', requireAuth, (req: AuthRequest, res: Response) => {
+  const weeks = Math.min(26, Math.max(1, Number(req.query.weeks) || 8));
+  res.json(getLaborSummary(weeks));
+});
+
+router.put('/bake-haus/labor-settings', requireAuth, (req: AuthRequest, res: Response) => {
+  const body = req.body ?? {};
+  const num = (v: unknown): number | null => {
+    const n = typeof v === 'string' ? parseFloat(v) : v;
+    return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const settings = setLaborSettings({
+    defaultWeeklyLaborCost: 'defaultWeeklyLaborCost' in body ? num(body.defaultWeeklyLaborCost) : undefined,
+    deliveryFee: 'deliveryFee' in body ? (num(body.deliveryFee) ?? undefined) : undefined,
+  });
+  res.json(settings);
+});
+
+/** Per-week labor override; laborCost null clears back to the default. */
+router.put('/bake-haus/labor-week', requireAuth, (req: AuthRequest, res: Response) => {
+  const week = String(req.body?.week ?? '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) { res.status(400).json({ error: 'week must be YYYY-MM-DD' }); return; }
+  const raw = req.body?.laborCost;
+  const n = typeof raw === 'string' ? parseFloat(raw) : raw;
+  const laborCost = raw == null || raw === '' ? null : (typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : null);
+  setWeekLabor(week, laborCost);
   res.json({ ok: true });
 });
 

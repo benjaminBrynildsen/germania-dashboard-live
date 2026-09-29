@@ -1053,6 +1053,9 @@ export default function BakeHaus() {
             <DeliveryCard day="Thursday"  items={productionSummary.thu} stores={stores} catalog={catalog} />
             <DeliveryCard day="Friday"    items={productionSummary.fri} stores={stores} catalog={catalog} />
           </div>
+
+          {/* Kitchen labor + delivery costing — labor ÷ units shipped */}
+          <LaborCostCard isMobile={isMobile} />
         </>
       )}
 
@@ -3650,5 +3653,160 @@ function Td({
       padding: '8px 14px', whiteSpace: 'nowrap',
       ...style,
     }}>{children}</td>
+  );
+}
+
+// ─── Kitchen labor + delivery costing ─────────────────────────────
+// Weekly labor cost (default + per-week overrides) spread across the
+// units the kitchen shipped, plus $50 per delivery run. Units come from
+// the frozen weekly lock snapshots; the in-progress week is an estimate.
+interface LaborWeekRow {
+  weekStartIso: string;
+  units: number;
+  estimated: boolean;
+  deliveries: number;
+  deliveryCost: number;
+  laborOverride: number | null;
+  laborCost: number | null;
+  laborPerUnit: number | null;
+  allInPerUnit: number | null;
+}
+
+function LaborCostCard({ isMobile }: { isMobile: boolean }) {
+  const [data, setData] = useState<{
+    settings: { defaultWeeklyLaborCost: number | null; deliveryFee: number };
+    weeks: LaborWeekRow[];
+  } | null>(null);
+  const [defaultLabor, setDefaultLabor] = useState('');
+  const [fee, setFee] = useState('');
+  const [weekDrafts, setWeekDrafts] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      const r = await fetch('/api/bake-haus/labor?weeks=8');
+      if (!r.ok) return;
+      const j = await r.json();
+      setData(j);
+      setDefaultLabor(j.settings.defaultWeeklyLaborCost != null ? String(j.settings.defaultWeeklyLaborCost) : '');
+      setFee(String(j.settings.deliveryFee));
+      setWeekDrafts({});
+    } catch { /* card just stays hidden */ }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const saveSettings = async () => {
+    setBusy(true);
+    try {
+      await fetch('/api/bake-haus/labor-settings', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          defaultWeeklyLaborCost: defaultLabor === '' ? null : parseFloat(defaultLabor),
+          deliveryFee: fee === '' ? 50 : parseFloat(fee),
+        }),
+      });
+      await load();
+    } finally { setBusy(false); }
+  };
+
+  const saveWeek = async (week: string) => {
+    const draft = weekDrafts[week];
+    if (draft === undefined) return;
+    setBusy(true);
+    try {
+      await fetch('/api/bake-haus/labor-week', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ week, laborCost: draft === '' ? null : parseFloat(draft) }),
+      });
+      await load();
+    } finally { setBusy(false); }
+  };
+
+  if (!data) return null;
+  const money = (v: number | null | undefined, digits = 2) => (v == null ? '—' : `$${v.toFixed(digits)}`);
+
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14, border: '1px solid rgba(0,0,0,0.07)',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.03)', padding: '16px 18px', marginTop: 20,
+    }}>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Kitchen labor &amp; delivery cost per unit</div>
+      <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginBottom: 12 }}>
+        Weekly labor ÷ units shipped, plus ${data.settings.deliveryFee}/delivery run (Mon/Wed/Fri).
+        Units come from the locked delivery schedule; the current week is an estimate until it locks.
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.5)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
+            Default weekly labor ($)
+          </div>
+          <input type="number" step="any" value={defaultLabor} onChange={(e) => setDefaultLabor(e.target.value)}
+            placeholder="e.g. 1200"
+            style={{ width: 130, padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,0,0,0.5)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
+            Delivery fee ($/run)
+          </div>
+          <input type="number" step="any" value={fee} onChange={(e) => setFee(e.target.value)}
+            style={{ width: 90, padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13 }} />
+        </div>
+        <button onClick={() => void saveSettings()} disabled={busy} style={primaryBtn}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', fontSize: 12.5, borderCollapse: 'collapse', minWidth: isMobile ? 640 : 0 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', textAlign: 'right', color: 'rgba(0,0,0,0.45)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+              <th style={{ textAlign: 'left', padding: '6px 8px' }}>Week</th>
+              <th style={{ padding: '6px 8px' }}>Units shipped</th>
+              <th style={{ padding: '6px 8px' }}>Deliveries</th>
+              <th style={{ padding: '6px 8px' }}>Delivery $</th>
+              <th style={{ padding: '6px 8px' }}>Labor $ (this week)</th>
+              <th style={{ padding: '6px 8px' }}>Labor / unit</th>
+              <th style={{ padding: '6px 8px' }}>All-in / unit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.weeks.map((w) => {
+              const draft = weekDrafts[w.weekStartIso];
+              const showEst = w.estimated && w.units > 0;
+              return (
+                <tr key={w.weekStartIso} style={{ borderBottom: '1px solid rgba(0,0,0,0.04)', textAlign: 'right' }}>
+                  <td style={{ textAlign: 'left', padding: '7px 8px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    {fmtDateRange(w.weekStartIso)}
+                    {showEst && <span title="Week not locked yet — units are the ordered totals" style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: '#a16207', background: 'rgba(202,138,4,0.12)', padding: '1px 6px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: 0.5 }}>est.</span>}
+                  </td>
+                  <td style={{ padding: '7px 8px', fontWeight: 600 }}>{w.units > 0 ? w.units.toLocaleString() : '—'}</td>
+                  <td style={{ padding: '7px 8px' }}>{w.units > 0 ? w.deliveries : '—'}</td>
+                  <td style={{ padding: '7px 8px' }}>{w.units > 0 ? money(w.deliveryCost) : '—'}</td>
+                  <td style={{ padding: '7px 8px', whiteSpace: 'nowrap' }}>
+                    <input
+                      type="number" step="any"
+                      value={draft !== undefined ? draft : (w.laborOverride != null ? String(w.laborOverride) : '')}
+                      placeholder={w.laborCost != null && w.laborOverride == null ? `${w.laborCost} (default)` : 'labor $'}
+                      onChange={(e) => setWeekDrafts((d) => ({ ...d, [w.weekStartIso]: e.target.value }))}
+                      onBlur={() => void saveWeek(w.weekStartIso)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                      style={{ width: 110, padding: '5px 8px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.12)', fontSize: 12, textAlign: 'right' }}
+                    />
+                  </td>
+                  <td style={{ padding: '7px 8px', fontWeight: 700 }}>{w.units > 0 ? money(w.laborPerUnit, 3) : '—'}</td>
+                  <td style={{ padding: '7px 8px', fontWeight: 700, color: '#14532d' }}>{w.units > 0 ? money(w.allInPerUnit, 3) : '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 8 }}>
+        Type a week's actual labor to override the default (clear the box to go back to it). All-in = labor + deliveries.
+      </div>
+    </div>
   );
 }

@@ -597,6 +597,23 @@ db.exec(`
     PRIMARY KEY (week_start_iso, store_label)
   );
 
+  -- Kitchen labor + delivery costing. The single settings row carries the
+  -- default weekly labor cost and the per-delivery fee ($50); per-week
+  -- labor overrides live in bake_haus_week_labor. Cost per unit divides
+  -- (labor + deliveries x fee) by units shipped that week.
+  CREATE TABLE IF NOT EXISTS bake_haus_labor_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    default_weekly_labor_cost REAL,
+    delivery_fee REAL NOT NULL DEFAULT 50,
+    updated_at INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS bake_haus_week_labor (
+    week_start_iso TEXT PRIMARY KEY,
+    labor_cost REAL,
+    updated_at INTEGER
+  );
+
   -- Patron snapshots from Dripos's /patrons/dumb/v2 endpoint. Pulled
   -- automatically on boot + every 6h (refresh button also available in
   -- the UI). dripos_id is the upstream PK; the table is replaced
@@ -982,6 +999,9 @@ applyHausSyrupCogs2025(db);
 
 // Ensure the single COGS settings row exists (idempotent).
 db.prepare('INSERT OR IGNORE INTO cog_settings (id) VALUES (1)').run();
+
+// Ensure the Bake Haus labor settings row exists ($50/delivery default).
+db.prepare('INSERT OR IGNORE INTO bake_haus_labor_settings (id, delivery_fee) VALUES (1, 50)').run();
 
 // Seed drink nutrition bases (per fluid oz, from standard USDA/label
 // values). INSERT OR IGNORE by unique name so UI edits are never
