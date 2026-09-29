@@ -521,6 +521,10 @@ export interface BakeHausWeekReport {
    *  the order card can show it inline ("on hand: 8") even when the
    *  store has no order row yet. */
   inventoryByStore: Record<string, Record<string, number>>;
+  /** Per-store, per-item ordered quantity from the PREVIOUS week — shown
+   *  on the order card as the "last week" chip (Chef Maggie prefers this
+   *  over the computed suggestions). */
+  prevWeekByStore: Record<string, Record<string, number>>;
   /** When the inventory snapshot was fetched (ms epoch). */
   inventoryFetchedAt: number;
   /** Set when the week's Monday delivery has been locked. Preserved
@@ -602,6 +606,21 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
 
   const byStore: Record<string, BakeHausOrderRow[]> = {};
   for (const store of STORES) byStore[store.label] = [];
+
+  // Previous week's ordered quantities — the "last week" reference on
+  // the order card.
+  const prevMonday = new Date(`${weekStartIso}T12:00:00`);
+  prevMonday.setDate(prevMonday.getDate() - 7);
+  const prevIso = mondayOfWeek(prevMonday);
+  const prevWeekByStore: Record<string, Record<string, number>> = {};
+  for (const store of STORES) prevWeekByStore[store.label] = {};
+  const prevRows = db.prepare(
+    'SELECT store_label, item_name, weekly_qty FROM bake_haus_orders WHERE week_start_iso = ? AND weekly_qty > 0',
+  ).all(prevIso) as Array<{ store_label: string; item_name: string; weekly_qty: number }>;
+  for (const r of prevRows) {
+    if (!prevWeekByStore[r.store_label]) prevWeekByStore[r.store_label] = {};
+    prevWeekByStore[r.store_label][r.item_name] = r.weekly_qty;
+  }
 
   const deliverySummary = {
     mon: {} as Record<string, Record<string, number>>,
@@ -711,6 +730,7 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
     byStore,
     deliverySummary,
     inventoryByStore,
+    prevWeekByStore,
     inventoryFetchedAt: inventoryMapCache?.fetchedAt ?? Date.now(),
     monLock,
     weekLocked,
@@ -1872,4 +1892,86 @@ export function getLaborSummary(weeks = 8): { settings: LaborSettings; weeks: We
     });
   }
   return { settings, weeks: out };
+}
+
+// ─── Monthly order report (bookkeeping) ───────────────────────────
+// Carolyn's accounting view: for every week whose Monday falls in the
+// given month, sum what the kitchen sent per item per store. Locked
+// weeks use the frozen per-day delivery snapshots (what actually
+// shipped); unlocked weeks fall back to the ordered quantities and are
+// listed as estimates.
+
+export interface MonthlyReportItem {
+  item: string;
+  category: 'food' | 'syrup-sauce' | 'custom';
+  perStore: Record<string, number>;
+  total: number;
+}
+
+export interface MonthlyReport {
+  month: string;                 // YYYY-MM
+  weeks: string[];               // Mondays included
+  estimatedWeeks: string[];      // subset that wasn't locked (ordered qty, not shipped)
+  items: MonthlyReportItem[];
+  storeTotals: Record<string, number>;
+  grandTotal: number;
+}
+
+export function getMonthlyReport(month: string): MonthlyReport {
+  const [y, m] = month.split('-').map(Number);
+  const catalog = getMergedCatalog();
+  const catalogByName = new Map(catalog.map((c) => [c.name, c]));
+
+  // Mondays in the month.
+  const weeks: string[] = [];
+  const d = new Date(y, m - 1, 1, 12);
+  while (d.getMonth() === m - 1) {
+    if (d.getDay() === 1) weeks.push(mondayOfWeek(d));
+    d.setDate(d.getDate() + 1);
+  }
+
+  const rowsStmt = db.prepare(`
+    SELECT store_label, item_name, weekly_qty, mon_locked_qty, wed_locked_qty, fri_locked_qty
+    FROM bake_haus_orders WHERE week_start_iso = ?
+  `);
+
+  const acc = new Map<string, MonthlyReportItem>();
+  const storeTotals: Record<string, number> = {};
+  for (const s of STORES) storeTotals[s.label] = 0;
+  const estimatedWeeks: string[] = [];
+
+  for (const week of weeks) {
+    const rows = rowsStmt.all(week) as Array<{
+      store_label: string; item_name: string; weekly_qty: number;
+      mon_locked_qty: number | null; wed_locked_qty: number | null; fri_locked_qty: number | null;
+    }>;
+    const locked = rows.some((r) => r.mon_locked_qty != null || r.wed_locked_qty != null || r.fri_locked_qty != null);
+    if (!locked && rows.some((r) => r.weekly_qty > 0)) estimatedWeeks.push(week);
+    for (const r of rows) {
+      const qty = locked
+        ? (r.mon_locked_qty ?? 0) + (r.wed_locked_qty ?? 0) + (r.fri_locked_qty ?? 0)
+        : (r.weekly_qty || 0);
+      if (qty <= 0) continue;
+      let slot = acc.get(r.item_name);
+      if (!slot) {
+        slot = {
+          item: r.item_name,
+          category: catalogByName.get(r.item_name)?.category ?? 'custom',
+          perStore: Object.fromEntries(STORES.map((s) => [s.label, 0])),
+          total: 0,
+        };
+        acc.set(r.item_name, slot);
+      }
+      slot.perStore[r.store_label] = (slot.perStore[r.store_label] ?? 0) + qty;
+      slot.total += qty;
+      storeTotals[r.store_label] = (storeTotals[r.store_label] ?? 0) + qty;
+    }
+  }
+
+  const items = [...acc.values()].sort((a, b) =>
+    (a.category === 'food' ? 0 : 1) - (b.category === 'food' ? 0 : 1) || a.item.localeCompare(b.item));
+  return {
+    month, weeks, estimatedWeeks, items, storeTotals,
+    grandTotal: items.reduce((s, i) => s + i.total, 0),
+  };
 }

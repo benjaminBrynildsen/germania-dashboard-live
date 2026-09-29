@@ -66,6 +66,8 @@ interface WeekReport {
     fri: Record<string, Record<string, number>>;
   };
   inventoryByStore: Record<string, Record<string, number>>;
+  /** Previous week's ordered qty per store/item — the "last week" chip. */
+  prevWeekByStore?: Record<string, Record<string, number>>;
   inventoryFetchedAt: number;
   monLock: { lockedAt: number; lockedBy: string | null } | null;
   weekLocked: boolean;
@@ -1004,6 +1006,7 @@ export default function BakeHaus() {
               rows={report.byStore[activeStore] ?? []}
               catalog={catalog}
               inventory={report.inventoryByStore[activeStore] ?? {}}
+              prevWeek={report.prevWeekByStore?.[activeStore] ?? {}}
               inventoryFetchedAt={report.inventoryFetchedAt}
               savedAt={report.savedAtByStore[activeStore] ?? null}
               autoDraftAt={report.autoDraftByStore?.[activeStore] ?? null}
@@ -1284,17 +1287,20 @@ export default function BakeHaus() {
       )}
 
       {tab === 'saved' && (
-        <SavedOrdersList
-          orders={savedOrders}
-          snapshots={snapshots}
-          isMobile={isMobile}
-          onOpen={(iso, store) => {
-            setWeekIso(iso);
-            setActiveStore(store);
-            setTab('current');
-          }}
-          onPrintSnapshot={printSnapshot}
-        />
+        <>
+          <MonthlyReportCard isMobile={isMobile} />
+          <SavedOrdersList
+            orders={savedOrders}
+            snapshots={snapshots}
+            isMobile={isMobile}
+            onOpen={(iso, store) => {
+              setWeekIso(iso);
+              setActiveStore(store);
+              setTab('current');
+            }}
+            onPrintSnapshot={printSnapshot}
+          />
+        </>
       )}
 
       {tab === 'manage' && (
@@ -2322,7 +2328,7 @@ function getTheme(store: string) {
 }
 
 function StoreOrderCard({
-  store, rows, catalog, inventory, inventoryFetchedAt, savedAt, autoDraftAt, suggestions,
+  store, rows, catalog, inventory, inventoryFetchedAt, savedAt, autoDraftAt, suggestions, prevWeek,
   saving, isMobile, locked, onSaveOrder, onSave, onDelete,
 }: {
   store: string;
@@ -2336,6 +2342,9 @@ function StoreOrderCard({
   autoDraftAt: number | null;
   /** Per-item suggested weekly qtys (null while loading / week locked). */
   suggestions: Record<string, OrderSuggestion> | null;
+  /** Previous week's ordered qty per item — Chef Maggie's preferred
+   *  reference; the card defaults to it over the computed suggestions. */
+  prevWeek: Record<string, number>;
   saving: boolean;
   isMobile: boolean;
   /** Week is locked AND this user can't unlock: qty controls disable so
@@ -2346,6 +2355,17 @@ function StoreOrderCard({
   onDelete: (item: string) => void;
 }) {
   const theme = getTheme(store);
+  // Which reference chip the rows show: last week's actual order
+  // (default, per Chef Maggie) or the computed suggestion. Remembered
+  // per browser.
+  const [hintMode, setHintMode] = useState<'last-week' | 'suggested'>(() => {
+    try { return localStorage.getItem('bakeHausHintMode') === 'suggested' ? 'suggested' : 'last-week'; }
+    catch { return 'last-week'; }
+  });
+  const pickHintMode = (m: 'last-week' | 'suggested') => {
+    setHintMode(m);
+    try { localStorage.setItem('bakeHausHintMode', m); } catch { /* private mode */ }
+  };
   // Cart-style: render every catalog item by default, with the qty pre-
   // filled from an existing order row if there is one. Items the user
   // typed in ad-hoc that aren't in the catalog get appended at the end.
@@ -2441,16 +2461,35 @@ function StoreOrderCard({
           )}
         </span>
         <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
           fontSize: isMobile ? 11 : 12,
           color: theme.accent,
         }}>
-          {orderedRows.length} items · {total} ordered{!isMobile && (
-            <> · Inventory @ {new Date(inventoryFetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</>
-          )}
+          <span>
+            {orderedRows.length} items · {total} ordered{!isMobile && (
+              <> · Inventory @ {new Date(inventoryFetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</>
+            )}
+          </span>
+          {/* Reference toggle — last week's numbers (default) vs suggestions */}
+          <span style={{ display: 'inline-flex', borderRadius: 999, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.35)' }}>
+            {([['last-week', 'Last week'], ['suggested', 'Suggested']] as const).map(([m, label]) => (
+              <button key={m} onClick={() => pickHintMode(m)}
+                title={m === 'last-week' ? "Show each item's quantity from last week's order" : 'Show the sales-based suggested quantities'}
+                style={{
+                  padding: '3px 10px', border: 0, cursor: 'pointer',
+                  fontSize: 10, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase',
+                  background: hintMode === m ? 'rgba(255,255,255,0.85)' : 'transparent',
+                  color: hintMode === m ? '#1a1a1a' : 'rgba(255,255,255,0.85)',
+                  fontFamily: 'inherit',
+                }}>
+                {label}
+              </button>
+            ))}
+          </span>
         </span>
       </div>
       {/* Suggestions strip — one-tap fill for items still at zero. */}
-      {suggestions && emptyWithSuggestion.length > 0 && (
+      {hintMode === 'suggested' && suggestions && emptyWithSuggestion.length > 0 && (
         <div style={{
           display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10,
           padding: isMobile ? '8px 16px' : '8px 24px',
@@ -2561,6 +2600,8 @@ function StoreOrderCard({
                 isLast={i === renderItems.length - 1}
                 isMobile={isMobile}
                 locked={locked}
+                hintMode={hintMode}
+                lastWeekQty={prevWeek[it.name] ?? null}
                 onSave={(qty) => onSave(it.name, qty)}
                 onDelete={() => onDelete(it.name)}
               />
@@ -2638,7 +2679,7 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, imageUrl, category, tintColor, row, onHand, suggestion, isCustom, theme, isLast, isMobile, locked, onSave, onDelete,
+  itemName, imageUrl, category, tintColor, row, onHand, suggestion, isCustom, theme, isLast, isMobile, locked, hintMode, lastWeekQty, onSave, onDelete,
 }: {
   itemName: string;
   imageUrl?: string | null;
@@ -2657,6 +2698,11 @@ function CartRowEditor({
   isMobile: boolean;
   /** Week locked for this user — qty controls are read-only. */
   locked?: boolean;
+  /** Which reference chip to show: last week's order (default) or the
+   *  computed suggestion. */
+  hintMode?: 'last-week' | 'suggested';
+  /** This item's ordered qty from last week (null = wasn't ordered). */
+  lastWeekQty?: number | null;
   onSave: (qty: number) => void;
   onDelete: () => void;
 }) {
@@ -2792,7 +2838,27 @@ function CartRowEditor({
                 Net {row.netQty}
               </span>
             )}
-            {suggestion && (
+            {hintMode !== 'suggested' && lastWeekQty != null && !locked && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <button
+                  onClick={() => onSave(lastWeekQty)}
+                  disabled={currentQty === lastWeekQty}
+                  title={currentQty === lastWeekQty ? "Order matches last week's" : `Set order to last week's ${lastWeekQty}`}
+                  style={{
+                    padding: '2px 8px', borderRadius: 999,
+                    border: '1px solid rgba(37, 99, 235, 0.35)',
+                    background: currentQty === lastWeekQty ? 'transparent' : 'rgba(37, 99, 235, 0.07)',
+                    color: currentQty === lastWeekQty ? 'rgba(0,0,0,0.35)' : '#1d4ed8',
+                    fontSize: 'inherit', fontWeight: 700,
+                    letterSpacing: 'inherit', textTransform: 'inherit',
+                    cursor: currentQty === lastWeekQty ? 'default' : 'pointer',
+                    fontFamily: 'var(--font-body)',
+                  }}>
+                  {currentQty === lastWeekQty ? `✓ Last wk ${lastWeekQty}` : `↺ Last wk ${lastWeekQty}`}
+                </button>
+              </span>
+            )}
+            {hintMode === 'suggested' && suggestion && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                 <button
                   onClick={() => onSave(suggestion.qty)}
@@ -3926,6 +3992,132 @@ function LaborCostCard({ isMobile }: { isMobile: boolean }) {
       <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 8 }}>
         Type a week's actual labor to override the default (clear the box to go back to it). All-in = labor + deliveries.
       </div>
+    </div>
+  );
+}
+
+// ─── Monthly order report (bookkeeping) ───────────────────────────
+// Carolyn's accounting view: item × store quantities summed over every
+// week whose Monday falls in the chosen month, with a CSV download.
+interface MonthlyReportData {
+  month: string;
+  weeks: string[];
+  estimatedWeeks: string[];
+  items: Array<{ item: string; category: string; perStore: Record<string, number>; total: number }>;
+  storeTotals: Record<string, number>;
+  grandTotal: number;
+}
+
+function MonthlyReportCard({ isMobile }: { isMobile: boolean }) {
+  const now = new Date();
+  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [month, setMonth] = useState(defaultMonth);
+  const [data, setData] = useState<MonthlyReportData | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/bake-haus/monthly?month=${month}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled) setData(j); })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [month]);
+
+  const stores = ['G1', 'G2', 'G3', 'G4'];
+  const monthLabel = new Date(`${month}-15T12:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const downloadCsv = () => {
+    if (!data) return;
+    const lines = [
+      ['Item', 'Category', ...stores, 'Total'].join(','),
+      ...data.items.map((it) => [
+        `"${it.item.replace(/"/g, '""')}"`,
+        it.category === 'syrup-sauce' ? 'Syrup/Sauce' : it.category === 'food' ? 'Food' : 'Custom',
+        ...stores.map((s) => it.perStore[s] ?? 0),
+        it.total,
+      ].join(',')),
+      ['TOTAL', '', ...stores.map((s) => data.storeTotals[s] ?? 0), data.grandTotal].join(','),
+    ];
+    if (data.estimatedWeeks.length > 0) {
+      lines.push('');
+      lines.push(`"Note: weeks of ${data.estimatedWeeks.join('; ')} were not locked — their numbers are the ordered quantities, not the frozen delivery totals."`);
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bake-haus-orders-${month}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14, border: '1px solid rgba(0,0,0,0.07)',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.03)', padding: '16px 18px', marginBottom: 18,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 4 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>Monthly totals</div>
+          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>
+            Items × quantities per store for bookkeeping — every week starting in {monthLabel}.
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
+            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13, fontFamily: 'inherit' }} />
+          <button onClick={downloadCsv} disabled={!data || data.items.length === 0} style={primaryBtn}>
+            ⬇ CSV
+          </button>
+        </div>
+      </div>
+
+      {loading && <div style={{ padding: 20, color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>Loading…</div>}
+      {!loading && data && data.items.length === 0 && (
+        <div style={{ padding: 20, color: 'rgba(0,0,0,0.4)', fontSize: 13 }}>No orders in {monthLabel}.</div>
+      )}
+      {!loading && data && data.items.length > 0 && (
+        <>
+          <div style={{ overflowX: 'auto', marginTop: 10 }}>
+            <table style={{ width: '100%', fontSize: 12.5, borderCollapse: 'collapse', minWidth: isMobile ? 560 : 0 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', textAlign: 'right', color: 'rgba(0,0,0,0.45)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                  <th style={{ textAlign: 'left', padding: '6px 8px' }}>Item</th>
+                  {stores.map((s) => <th key={s} style={{ padding: '6px 8px' }}>{s}</th>)}
+                  <th style={{ padding: '6px 8px' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((it) => (
+                  <tr key={it.item} style={{ borderBottom: '1px solid rgba(0,0,0,0.04)', textAlign: 'right' }}>
+                    <td style={{ textAlign: 'left', padding: '7px 8px', fontWeight: 600 }}>
+                      {it.item}
+                      {it.category === 'syrup-sauce' && (
+                        <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: 0.5 }}>syrup</span>
+                      )}
+                    </td>
+                    {stores.map((s) => <td key={s} style={{ padding: '7px 8px' }}>{it.perStore[s] || '—'}</td>)}
+                    <td style={{ padding: '7px 8px', fontWeight: 700 }}>{it.total.toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: '2px solid rgba(0,0,0,0.15)', fontWeight: 700, textAlign: 'right' }}>
+                  <td style={{ textAlign: 'left', padding: '7px 8px' }}>Total ({data.weeks.length} week{data.weeks.length === 1 ? '' : 's'})</td>
+                  {stores.map((s) => <td key={s} style={{ padding: '7px 8px' }}>{(data.storeTotals[s] ?? 0).toLocaleString()}</td>)}
+                  <td style={{ padding: '7px 8px' }}>{data.grandTotal.toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {data.estimatedWeeks.length > 0 && (
+            <div style={{ fontSize: 11, color: '#a16207', marginTop: 8 }}>
+              ⚠ Week{data.estimatedWeeks.length === 1 ? '' : 's'} of {data.estimatedWeeks.join(', ')} {data.estimatedWeeks.length === 1 ? 'is' : 'are'} not locked yet — those numbers are ordered quantities, not final delivery totals.
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

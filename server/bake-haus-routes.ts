@@ -16,6 +16,7 @@ import {
   getItemLockInfo,
   getLaborSummary,
   getMergedCatalog,
+  getMonthlyReport,
   getWeekReport,
   listBuiltinItems,
   listDeliverySnapshots,
@@ -589,6 +590,14 @@ router.put('/bake-haus/builtin-items', requireAuth, (req: AuthRequest, res: Resp
   if (!item) { res.status(404).json({ error: 'unknown_builtin', message: `"${name}" is not a built-in item` }); return; }
   setBuiltinHidden(item.name, hidden);
   res.json({ items: listBuiltinItems() });
+});
+
+/** Monthly order report (bookkeeping): item × store quantities summed
+ *  over every week whose Monday falls in ?month=YYYY-MM. */
+router.get('/bake-haus/monthly', requireAuth, (req: AuthRequest, res: Response) => {
+  const month = String(req.query.month ?? '');
+  if (!/^\d{4}-\d{2}$/.test(month)) { res.status(400).json({ error: 'month must be YYYY-MM' }); return; }
+  res.json(getMonthlyReport(month));
 });
 
 export default router;
