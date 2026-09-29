@@ -6,6 +6,7 @@ import { seedSopPresets } from './sop-presets-seed.js';
 import { seedSopHistory } from './sop-history-seed.js';
 import { migrateSops2026ToOz } from './sop-oz-migration.js';
 import { applyIngredientPrices20260924 } from './ingredient-prices-2026-09.js';
+import { applyHausSyrupCogs2025 } from './haus-syrup-cogs-2025.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // In prod the SQLite file lives on a Render persistent disk (DB_PATH=/var/data/germania.db).
@@ -974,6 +975,10 @@ migrateSops2026ToOz(db);
 // One-time: refresh ingredient prices from the Sep 24 2026 Sysco sheet.
 // Changed rows lose their confirmation so the team re-verifies them.
 applyIngredientPrices20260924(db);
+
+// One-time: load the Haus syrup/sauce batch recipes (with full AP/EP
+// pricing, quantities, and labor) from the 2025 seasonal COGS workbooks.
+applyHausSyrupCogs2025(db);
 
 // Ensure the single COGS settings row exists (idempotent).
 db.prepare('INSERT OR IGNORE INTO cog_settings (id) VALUES (1)').run();
