@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useAuth } from '../hooks/useAuth';
 
@@ -4098,12 +4098,10 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
 
   return (
     <div>
-      {/* Header: month picker + export */}
+      {/* Header: the month itself is the picker — ‹ › steps, click opens the grid */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{monthLabel}</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.12)', fontSize: 13, fontFamily: 'inherit', background: '#fff' }} />
+        <MonthPicker value={month} onChange={setMonth} />
+        <div style={{ marginLeft: 'auto' }}>
           <button onClick={downloadCsv} disabled={!data || data.items.length === 0} style={primaryBtn}>⬇ CSV</button>
         </div>
       </div>
@@ -4144,10 +4142,15 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
                         {w.units > 0 ? w.units.toLocaleString() : ''}
                       </div>
                       <div style={{
-                        width: '100%', maxWidth: 44, height: h, borderRadius: '6px 6px 2px 2px',
-                        background: w.estimated ? 'rgba(202,138,4,0.35)' : 'rgba(202,138,4,0.85)',
-                        border: w.estimated ? '1px dashed rgba(161,98,7,0.6)' : 'none',
-                      }} />
+                        width: '100%', maxWidth: 44, height: 88, borderRadius: 6,
+                        background: 'rgba(0,0,0,0.035)', display: 'flex', alignItems: 'flex-end', overflow: 'hidden',
+                      }}>
+                        <div style={{
+                          width: '100%', height: h, borderRadius: '6px 6px 0 0',
+                          background: w.estimated ? 'rgba(202,138,4,0.35)' : 'rgba(202,138,4,0.85)',
+                          borderTop: w.estimated ? '2px dashed rgba(161,98,7,0.6)' : 'none',
+                        }} />
+                      </div>
                       <div style={{ fontSize: 10, color: 'rgba(0,0,0,0.4)', whiteSpace: 'nowrap' }}>
                         {d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
                       </div>
@@ -4183,8 +4186,11 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.items.map((it) => (
-                        <tr key={it.item} style={{ borderBottom: '1px solid rgba(0,0,0,0.04)', textAlign: 'right' }}>
+                      {data.items.map((it, ri) => (
+                        <tr key={it.item}
+                          style={{ borderBottom: '1px solid rgba(0,0,0,0.04)', textAlign: 'right', background: ri % 2 ? 'rgba(0,0,0,0.015)' : 'transparent' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(202,138,4,0.05)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = ri % 2 ? 'rgba(0,0,0,0.015)' : 'transparent'; }}>
                           <td style={{ textAlign: 'left', padding: '7px 8px', fontWeight: 600 }}>
                             {it.item}
                             {it.category === 'syrup-sauce' && (
@@ -4259,6 +4265,111 @@ function ReportTile({ label, value, sub, hero, accent }: {
       }}>{value}</div>
       {sub && (
         <div style={{ fontSize: 11, color: hero ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)', marginTop: 6 }}>{sub}</div>
+      )}
+    </div>
+  );
+}
+
+// ─── Month picker ─────────────────────────────────────────────────
+// Replaces the native <input type="month"> (browser-chrome ugliness):
+// ‹ › step months, the label opens a styled year/month grid.
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function MonthPicker({ value, onChange }: { value: string; onChange: (m: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [y, m] = value.split('-').map(Number);
+  const [panelYear, setPanelYear] = useState(y);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  useEffect(() => { setPanelYear(y); }, [y, open]);
+
+  // Close on outside click / Escape.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const step = (delta: number) => {
+    const d = new Date(y, m - 1 + delta, 15);
+    onChange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const label = new Date(y, m - 1, 15).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const arrowStyle: React.CSSProperties = {
+    width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(0,0,0,0.1)',
+    background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1,
+    color: 'rgba(0,0,0,0.6)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontFamily: 'inherit',
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button onClick={() => step(-1)} title="Previous month" style={arrowStyle}>‹</button>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title="Pick a month"
+        style={{
+          border: 0, background: 'transparent', cursor: 'pointer', padding: '2px 4px',
+          fontSize: 20, fontWeight: 700, letterSpacing: -0.3, color: '#1a1a1a',
+          fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6,
+        }}>
+        {label}
+        <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>▾</span>
+      </button>
+      <button onClick={() => step(1)} title="Next month" style={arrowStyle}>›</button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 200,
+          background: '#fff', borderRadius: 14, border: '1px solid rgba(0,0,0,0.08)',
+          boxShadow: '0 12px 32px rgba(0,0,0,0.14)', padding: 14, width: 252,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <button onClick={() => setPanelYear((py) => py - 1)} style={arrowStyle}>‹</button>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>{panelYear}</span>
+            <button onClick={() => setPanelYear((py) => py + 1)} style={arrowStyle}>›</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+            {MONTH_NAMES.map((name, i) => {
+              const iso = `${panelYear}-${String(i + 1).padStart(2, '0')}`;
+              const selected = iso === value;
+              const isCurrent = iso === currentMonth;
+              return (
+                <button key={name}
+                  onClick={() => { onChange(iso); setOpen(false); }}
+                  style={{
+                    padding: '9px 0', borderRadius: 9, fontSize: 12.5, fontWeight: 600,
+                    border: isCurrent && !selected ? '1px solid rgba(202,138,4,0.5)' : '1px solid transparent',
+                    background: selected ? '#1a1a1a' : 'transparent',
+                    color: selected ? '#fff' : 'rgba(0,0,0,0.65)',
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                  onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = 'rgba(0,0,0,0.05)'; }}
+                  onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = 'transparent'; }}>
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            onClick={() => { onChange(currentMonth); setOpen(false); }}
+            style={{
+              marginTop: 10, width: '100%', padding: '8px 0', borderRadius: 9,
+              border: '1px solid rgba(0,0,0,0.1)', background: '#fff', cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, color: 'rgba(0,0,0,0.6)', fontFamily: 'inherit',
+            }}>
+            This month
+          </button>
+        </div>
       )}
     </div>
   );
