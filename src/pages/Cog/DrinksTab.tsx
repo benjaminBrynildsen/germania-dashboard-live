@@ -59,6 +59,20 @@ interface PickIngredient { id: number; name: string; pack_unit: string | null }
 interface PickRecipe { id: number; name: string; yield_unit: string; cog_per_unit: number }
 interface DriposProduct { id: number; name: string; category: string | null }
 
+// House menu order for the category chips + drink groups; anything not
+// listed (Bake Haus food, uncategorized, ...) follows alphabetically.
+const CATEGORY_ORDER = [
+  'SWEET COFFEE',
+  'BRIDGE COFFEE',
+  'ARTISANAL COFFEE',
+  'TRADITIONAL COFFEE',
+  'TEAS, SMOOTHIES, & MORE',
+];
+function categoryRank(c: string): number {
+  const i = CATEGORY_ORDER.indexOf(c.toUpperCase());
+  return i === -1 ? CATEGORY_ORDER.length : i;
+}
+
 const TEMP_OPTIONS = [
   { value: '', label: '—' },
   { value: 'hot', label: 'Hot' },
@@ -85,7 +99,9 @@ export default function DrinksTab() {
   const [drinks, setDrinks] = useState<DrinkRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState<string>('All');
+  // Default to Sweet (the house menu's first category), not All — the All
+  // chip stays available leftmost. Falls back to All if Sweet isn't present.
+  const [category, setCategory] = useState<string>('SWEET COFFEE');
   const [expanded, setExpanded] = useState<number | null>(null);
   const [detail, setDetail] = useState<DrinkDetail | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -209,20 +225,28 @@ export default function DrinksTab() {
     } catch (e: any) { alert(`Delete failed: ${e.message}`); }
   };
 
-  // Dripos menu categories present in the catalog (null -> "Uncategorized").
+  // Dripos menu categories present in the catalog (null -> "Uncategorized"),
+  // in house menu order: Sweet, Bridge, Artisanal, Traditional, Teas, rest.
   const categories = useMemo(() => {
     const unique = new Set(drinks.map((d) => d.category || 'Uncategorized'));
-    return ['All', ...Array.from(unique).sort()];
+    return ['All', ...Array.from(unique).sort((a, b) => categoryRank(a) - categoryRank(b) || a.localeCompare(b))];
   }, [drinks]);
+
+  // The selected chip may not exist yet (fresh/empty catalog) — treat as All.
+  const effectiveCategory = categories.includes(category) ? category : 'All';
 
   const filtered = useMemo(
     () => drinks.filter((d) => {
-      if (category !== 'All' && (d.category || 'Uncategorized') !== category) return false;
+      if (effectiveCategory !== 'All' && (d.category || 'Uncategorized') !== effectiveCategory) return false;
       return !search ||
         d.name.toLowerCase().includes(search.toLowerCase()) ||
         (d.category || '').toLowerCase().includes(search.toLowerCase());
+    }).sort((a, b) => {
+      const ca = a.category || 'Uncategorized';
+      const cb = b.category || 'Uncategorized';
+      return categoryRank(ca) - categoryRank(cb) || ca.localeCompare(cb) || a.name.localeCompare(b.name);
     }),
-    [drinks, search, category],
+    [drinks, search, effectiveCategory],
   );
 
   // Group by category for display; the server already orders by category, name.
@@ -271,7 +295,7 @@ export default function DrinksTab() {
           <button key={c} onClick={() => setCategory(c)}
             style={{
               padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: 'none',
-              background: category === c ? '#1a1a1a' : 'rgba(0,0,0,0.06)', color: category === c ? '#fff' : 'rgba(0,0,0,0.5)',
+              background: effectiveCategory === c ? '#1a1a1a' : 'rgba(0,0,0,0.06)', color: effectiveCategory === c ? '#fff' : 'rgba(0,0,0,0.5)',
               cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit',
             }}>{c}</button>
         ))}
@@ -286,8 +310,8 @@ export default function DrinksTab() {
         {grouped.map((g) => (
           <div key={g.category}>
             <div
-              onClick={() => setCategory(category === g.category ? 'All' : g.category)}
-              title={category === g.category ? 'Show all categories' : `Show only ${g.category}`}
+              onClick={() => setCategory(effectiveCategory === g.category ? 'All' : g.category)}
+              title={effectiveCategory === g.category ? 'Show all categories' : `Show only ${g.category}`}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none',
                 margin: '14px 2px 8px', fontSize: 12, fontWeight: 700, textTransform: 'uppercase',
