@@ -623,6 +623,17 @@ db.exec(`
     hidden_at INTEGER NOT NULL
   );
 
+  -- Weekly Dripos menu-price snapshots per catalog item. Captured every
+  -- time we successfully talk to Dripos (6h sync + report loads), so the
+  -- monthly report's price columns keep working when Dripos is offline.
+  CREATE TABLE IF NOT EXISTS bake_haus_price_history (
+    week_start_iso TEXT NOT NULL,
+    item_name TEXT NOT NULL,
+    unit_price REAL NOT NULL,
+    captured_at INTEGER NOT NULL,
+    PRIMARY KEY (week_start_iso, item_name)
+  );
+
   -- Patron snapshots from Dripos's /patrons/dumb/v2 endpoint. Pulled
   -- automatically on boot + every 6h (refresh button also available in
   -- the UI). dripos_id is the upstream PK; the table is replaced

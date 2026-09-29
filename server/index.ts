@@ -86,6 +86,15 @@ app.listen(PORT, () => {
       const { syncDailySales, NoToken, AuthExpired } = await import('./dripos.js');
       const summary = await syncDailySales(30);
       console.log(`[DriposSync] synced ${summary.rowsWritten} rows for ${summary.startDate}..${summary.endDate}, errors=${summary.errors.length}`);
+      // Piggyback the weekly Bake Haus price snapshot on the same
+      // healthy-connection window, so reports keep pricing offline.
+      try {
+        const { snapshotBakeHausPrices } = await import('./bake-haus.js');
+        const snap = await snapshotBakeHausPrices();
+        if (snap) console.log(`[DriposSync] price snapshot: ${snap.captured} items for week ${snap.week}`);
+      } catch (err) {
+        console.warn('[DriposSync] price snapshot failed:', err instanceof Error ? err.message : err);
+      }
     } catch (err: unknown) {
       const isAuthIssue =
         err instanceof Error &&

@@ -4008,6 +4008,8 @@ interface MonthlyReportData {
   storeTotals: Record<string, number>;
   grandTotal: number;
   pricesAvailable: boolean;
+  priceSource: 'live' | 'snapshot' | null;
+  priceAsOf: number | null;
   grandValue: number | null;
   grandCost: number | null;
 }
@@ -4214,9 +4216,15 @@ function ReportsTab({ isMobile }: { isMobile: boolean }) {
                     ⚠ Week{data.estimatedWeeks.length === 1 ? '' : 's'} of {data.estimatedWeeks.join(', ')} {data.estimatedWeeks.length === 1 ? "isn't" : "aren't"} locked yet — those numbers are ordered quantities, not final delivery totals.
                   </div>
                 )}
+                {data.priceSource === 'snapshot' && (
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 6 }}>
+                    Dripos is offline — prices are from the stored weekly snapshot
+                    {data.priceAsOf ? ` (captured ${new Date(data.priceAsOf).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})` : ''}.
+                  </div>
+                )}
                 {!data.pricesAvailable && (
                   <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginTop: 6 }}>
-                    Dripos isn't connected right now, so the Unit $ / Value $ columns are blank — log in via the Weekly Sales tab and refresh.
+                    No prices yet — Dripos isn't connected and no snapshot has been captured. Log in via the Weekly Sales tab once and prices will be stored from then on.
                   </div>
                 )}
               </>
