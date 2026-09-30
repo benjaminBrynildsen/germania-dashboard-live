@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 
 // COGS editing is open to any authenticated employee (login is already
@@ -123,5 +124,40 @@ export function Modal({ title, onClose, children, width = 560 }: { title: string
         {children}
       </div>
     </div>
+  );
+}
+
+// Dropdown that prefers canonical options but keeps an "Other…" escape
+// hatch for the odd case. Keeps categories consistent — a misspelled
+// season or unit typed freehand would silently split the filters.
+export function SelectWithOther({ value, onChange, options, noneLabel }: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  noneLabel?: string; // when set, '' is a valid choice shown with this label
+}) {
+  const [other, setOther] = useState(() => value !== '' && !options.includes(value));
+  if (other) {
+    return (
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle} autoFocus placeholder="type it…" />
+        <button type="button" className="btn btn-secondary btn-sm" title="Back to the list"
+          onClick={() => { setOther(false); onChange(''); }}>↺</button>
+      </div>
+    );
+  }
+  return (
+    <select
+      value={options.includes(value) ? value : ''}
+      onChange={(e) => {
+        if (e.target.value === '__other') { setOther(true); onChange(''); }
+        else onChange(e.target.value);
+      }}
+      style={inputStyle}
+    >
+      {(noneLabel != null || !options.includes(value)) && <option value="">{noneLabel ?? '— pick one —'}</option>}
+      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      <option value="__other">Other…</option>
+    </select>
   );
 }

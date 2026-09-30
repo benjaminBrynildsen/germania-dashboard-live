@@ -57,3 +57,31 @@ export function unitsPerPackUnit(packUnit: string | null | undefined, useUnit: s
 /** Measuring units offered in the builder's dropdown (the ingredient's own
  *  pack unit is always offered too). */
 export const MEASURE_UNITS = ['tsp', 'tbsp', 'oz', 'c', 'pt', 'qt', 'gal', 'ml', 'l', 'g', 'kg', 'lb', 'each', 'slices', 'scoops'];
+
+/** Canonical batch yield units — matches what the existing recipes use. */
+export const YIELD_UNITS = ['each', 'oz', 'lbs', 'packs', 'dozen', 'slices', 'gallon', 'qt', 'liter'];
+
+/** Canonical pack units for custom/one-off ingredient lines. */
+export const PACK_UNITS = ['oz', 'lbs', 'gal', 'qt', 'pt', 'c', 'each', 'dozen', 'g', 'kg', 'ml', 'l', 'slices', 'packs', 'stalks'];
+
+/** Season choices: every season already used on a recipe plus the generated
+ *  set around today, newest first — same spelling the workbooks use
+ *  (SPRING 2026, WINTER 2025-26, …) so filters never split. */
+export function seasonOptions(existing: Array<string | null | undefined> = []): string[] {
+  const y = new Date().getFullYear();
+  const set = new Set<string>();
+  for (const s of existing) if (s && s.trim()) set.add(s.trim().toUpperCase());
+  for (const yr of [y - 1, y, y + 1]) {
+    set.add(`SPRING ${yr}`);
+    set.add(`SUMMER ${yr}`);
+    set.add(`FALL ${yr}`);
+    set.add(`WINTER ${yr}-${String((yr + 1) % 100).padStart(2, '0')}`);
+  }
+  const order: Record<string, number> = { WINTER: 3, FALL: 2, SUMMER: 1, SPRING: 0 };
+  return [...set].sort((a, b) => {
+    const ya = parseInt(a.match(/\d{4}/)?.[0] ?? '0', 10);
+    const yb = parseInt(b.match(/\d{4}/)?.[0] ?? '0', 10);
+    if (ya !== yb) return yb - ya;
+    return (order[b.split(' ')[0]] ?? -1) - (order[a.split(' ')[0]] ?? -1);
+  });
+}
