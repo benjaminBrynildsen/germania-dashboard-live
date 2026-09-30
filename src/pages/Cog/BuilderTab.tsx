@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { useCanEdit, inputStyle, labelStyle, NumInput } from './ui';
+import { useCanEdit, inputStyle, labelStyle, NumInput, SelectWithOther } from './ui';
 import { MasterPicker, masterUnitCost } from './RecipesTab';
 import type { MasterIngredient } from './IngredientsTab';
-import { unitsPerPackUnit, normalizeUnit, MEASURE_UNITS } from '../../lib/units';
+import { unitsPerPackUnit, normalizeUnit, MEASURE_UNITS, YIELD_UNITS, PACK_UNITS, seasonOptions } from '../../lib/units';
 
 // Recipe Builder — a full-page workbench where the chef assembles a
 // syrup / sauce / food batch recipe straight from the ingredient
@@ -76,8 +76,14 @@ export default function BuilderTab({ onSaved }: { onSaved?: (recipeId: number) =
   const isMobile = useIsMobile();
   const canEdit = useCanEdit();
   const [masterList, setMasterList] = useState<MasterIngredient[]>([]);
+  const [seasonChoices, setSeasonChoices] = useState<string[]>(() => seasonOptions());
   useEffect(() => {
     api.get('/api/cog/ingredients/master').then(setMasterList).catch(() => {});
+    // Seasons already on recipes join the generated list, so the picker
+    // always matches what the Batch Recipes filters know about.
+    api.get('/api/cog/recipes')
+      .then((rs: Array<{ season: string | null }>) => setSeasonChoices(seasonOptions(rs.map((r) => r.season))))
+      .catch(() => {});
   }, []);
 
   const [name, setName] = useState('');
@@ -280,7 +286,7 @@ export default function BuilderTab({ onSaved }: { onSaved?: (recipeId: number) =
               </div>
               <div>
                 <label style={labelStyle}>Season (optional)</label>
-                <input value={season} onChange={(e) => setSeason(e.target.value)} style={inputStyle} placeholder="FALL 2026" />
+                <SelectWithOther value={season} onChange={setSeason} options={seasonChoices} noneLabel="— year-round —" />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -300,12 +306,9 @@ export default function BuilderTab({ onSaved }: { onSaved?: (recipeId: number) =
                 <label style={labelStyle}>Batch yield</label>
                 <NumInput value={totalYield} onChange={setTotalYield} step={1} placeholder="12" />
               </div>
-              <div style={{ width: 110 }}>
+              <div style={{ width: 130 }}>
                 <label style={labelStyle}>Yield unit</label>
-                <input value={yieldUnit} onChange={(e) => setYieldUnit(e.target.value)} style={inputStyle} placeholder="each" list="builder-yield-units" />
-                <datalist id="builder-yield-units">
-                  {['each', 'oz', 'packs', 'gallon', 'qt'].map((u) => <option key={u} value={u} />)}
-                </datalist>
+                <SelectWithOther value={yieldUnit} onChange={setYieldUnit} options={YIELD_UNITS} />
               </div>
             </div>
           </div>
@@ -354,9 +357,11 @@ export default function BuilderTab({ onSaved }: { onSaved?: (recipeId: number) =
                           <label style={labelStyle}>Pack size</label>
                           <NumInput value={r.customPackSize} onChange={(v) => patchRow(r.key, { customPackSize: v })} step={1} placeholder="96" />
                         </div>
-                        <div style={{ width: 70 }}>
+                        <div style={{ width: 92 }}>
                           <label style={labelStyle}>Unit</label>
-                          <input value={r.customPackUnit} onChange={(e) => patchRow(r.key, { customPackUnit: e.target.value })} style={inputStyle} placeholder="oz" />
+                          <SelectWithOther value={r.customPackUnit}
+                            onChange={(v) => patchRow(r.key, { customPackUnit: v, manualConv: '' })}
+                            options={PACK_UNITS} />
                         </div>
                       </>
                     )}

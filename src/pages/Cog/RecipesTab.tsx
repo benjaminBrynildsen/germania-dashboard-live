@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '../../lib/api';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { useCanEdit, SummaryCard, InfoBox, Modal, NumInput, inputStyle, labelStyle } from './ui';
+import { useCanEdit, SummaryCard, InfoBox, Modal, NumInput, inputStyle, labelStyle, SelectWithOther } from './ui';
 import type { MasterIngredient } from './IngredientsTab';
+import { YIELD_UNITS, PACK_UNITS, MEASURE_UNITS, seasonOptions } from '../../lib/units';
 
 interface Recipe {
   id: number;
@@ -171,6 +172,9 @@ export default function RecipesTab() {
     const unique = new Set(recipes.map(r => r.season).filter(Boolean));
     return ['All', ...Array.from(unique).sort().reverse()];
   }, [recipes]);
+
+  // Canonical season choices for the create/edit modal (existing + generated).
+  const seasonChoices = useMemo(() => seasonOptions(recipes.map((r) => r.season)), [recipes]);
 
   const categories = useMemo(() => {
     const unique = new Set(recipes.map(r => r.category).filter(Boolean));
@@ -355,11 +359,11 @@ export default function RecipesTab() {
       </div>
 
       {creating && (
-        <RecipeModal isMobile={isMobile} masterList={masterList} onClose={() => setCreating(false)}
+        <RecipeModal isMobile={isMobile} masterList={masterList} seasonChoices={seasonChoices} onClose={() => setCreating(false)}
           onSaved={(id) => { setCreating(false); loadRecipes(); setExpandedRecipe(id); }} />
       )}
       {editingRecipe && recipeDetail && (
-        <RecipeModal isMobile={isMobile} masterList={masterList} recipe={recipeDetail} onClose={() => setEditingRecipe(false)}
+        <RecipeModal isMobile={isMobile} masterList={masterList} seasonChoices={seasonChoices} recipe={recipeDetail} onClose={() => setEditingRecipe(false)}
           onSaved={() => { setEditingRecipe(false); refresh(); }} />
       )}
     </div>
@@ -661,7 +665,7 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
         </div>
         <div>
           <label style={labelStyle}>Pack unit</label>
-          <input value={packUnit} onChange={(e) => setPackUnit(e.target.value)} style={inputStyle} placeholder="lbs" />
+          <SelectWithOther value={packUnit} onChange={setPackUnit} options={PACK_UNITS} />
         </div>
         <div>
           <label style={labelStyle}>Units per pack unit</label>
@@ -669,7 +673,7 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
         </div>
         <div>
           <label style={labelStyle}>Usage unit</label>
-          <input value={priceUnit} onChange={(e) => setPriceUnit(e.target.value)} style={inputStyle} placeholder="g" />
+          <SelectWithOther value={priceUnit} onChange={setPriceUnit} options={MEASURE_UNITS} />
         </div>
         <div>
           <label style={labelStyle}>AP price / unit</label>
@@ -703,8 +707,8 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
 // Creating a new recipe also takes a full ingredient list right here (picked
 // from the master catalog), so a whole sauce/syrup/food recipe goes in with
 // one save.
-function RecipeModal({ recipe, isMobile, masterList, onClose, onSaved }: {
-  recipe?: RecipeDetail; isMobile: boolean; masterList: MasterIngredient[]; onClose: () => void; onSaved: (id: number) => void;
+function RecipeModal({ recipe, isMobile, masterList, seasonChoices, onClose, onSaved }: {
+  recipe?: RecipeDetail; isMobile: boolean; masterList: MasterIngredient[]; seasonChoices: string[]; onClose: () => void; onSaved: (id: number) => void;
 }) {
   const [name, setName] = useState(recipe?.name ?? '');
   const [season, setSeason] = useState(recipe?.season ?? '');
@@ -792,7 +796,7 @@ function RecipeModal({ recipe, isMobile, masterList, onClose, onSaved }: {
         </div>
         <div>
           <label style={labelStyle}>Season</label>
-          <input value={season} onChange={(e) => setSeason(e.target.value)} style={inputStyle} placeholder="SPRING 2026" />
+          <SelectWithOther value={season} onChange={setSeason} options={seasonChoices} noneLabel="— year-round —" />
         </div>
         <div>
           <label style={labelStyle}>Category</label>
@@ -820,7 +824,7 @@ function RecipeModal({ recipe, isMobile, masterList, onClose, onSaved }: {
         </div>
         <div>
           <label style={labelStyle}>Yield unit</label>
-          <input value={yieldUnit} onChange={(e) => setYieldUnit(e.target.value)} style={inputStyle} placeholder="ml" />
+          <SelectWithOther value={yieldUnit} onChange={setYieldUnit} options={YIELD_UNITS} />
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12, marginBottom: 6 }}>
