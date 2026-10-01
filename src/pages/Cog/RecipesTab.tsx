@@ -3,7 +3,7 @@ import { api } from '../../lib/api';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useCanEdit, SummaryCard, InfoBox, Modal, NumInput, inputStyle, labelStyle, SelectWithOther } from './ui';
 import type { MasterIngredient } from './IngredientsTab';
-import { YIELD_UNITS, PACK_UNITS, MEASURE_UNITS, seasonOptions } from '../../lib/units';
+import { YIELD_UNITS, PACK_UNITS, MEASURE_UNITS, seasonOptions, unitsPerPackUnit, normalizeUnit } from '../../lib/units';
 
 interface Recipe {
   id: number;
@@ -62,25 +62,70 @@ export function masterUnitCost(m: MasterIngredient): number | null {
   return (m.ap_pack_cost || 0) / m.pack_size;
 }
 
-// Turn a master-catalog ingredient + quantity into a full recipe line. AP comes
-// straight from the pack math (conversion 1, yield 100, usage unit = pack unit);
-// open the line afterwards to fine-tune conversions or yield.
-function lineFromMaster(m: MasterIngredient, qty: number | null) {
-  const ap = masterUnitCost(m);
+// Turn a master-catalog ingredient + quantity (in any measuring unit) into a
+// full recipe line. The conversion between the pack unit and the chosen unit
+// comes from the standard tables (cups per gallon…) or the caller's manual
+// factor for cross-kind pairs (cups of flour from a 50 lb bag); omitted unit
+// means "measure in the pack unit" (conversion 1). Yield stays 100 — open the
+// line afterwards to fine-tune.
+function lineFromMaster(m: MasterIngredient, qty: number | null, useUnit?: string, manualConv?: number | null) {
+  const packUnit = m.pack_unit || '';
+  const unit = useUnit || normalizeUnit(packUnit) || packUnit || 'each';
+  const conv = unitsPerPackUnit(packUnit, unit) ?? (manualConv && manualConv > 0 ? manualConv : 1);
+  const ap = m.pack_size && m.pack_size > 0 ? (m.ap_pack_cost || 0) / (m.pack_size * conv) : null;
   return {
     master_id: m.id,
     name: m.name,
     ap_pack_cost: m.ap_pack_cost,
     pack_size: m.pack_size,
     pack_unit: m.pack_unit,
-    unit_conversion: 1,
+    unit_conversion: conv,
     ap_price: ap,
-    ap_price_unit: m.pack_unit,
+    ap_price_unit: unit,
     yield_percent: 100,
     ep_price: ap,
-    ep_price_unit: m.pack_unit,
+    ep_price_unit: unit,
     quantity_used: qty,
   };
+}
+
+// Cost of one measuring unit of a master ingredient, with conversion.
+// Returns null while a cross-kind pair is missing its manual factor.
+function unitCostFor(m: MasterIngredient, unit: string, manualConv: string): { cost: number | null; conv: number | null; needsConv: boolean } {
+  const base = masterUnitCost(m);
+  if (base == null) return { cost: null, conv: null, needsConv: false };
+  const auto = unitsPerPackUnit(m.pack_unit, unit);
+  const manual = manualConv === '' ? null : parseFloat(manualConv);
+  const conv = auto ?? (manual != null && manual > 0 ? manual : null);
+  if (conv == null) return { cost: null, conv: null, needsConv: auto == null };
+  return { cost: base / conv, conv, needsConv: false };
+}
+
+// Shared "amount + unit (+ conversion when needed)" cluster for the add flows.
+function UnitPicker({ m, unit, onUnit, manualConv, onManualConv }: {
+  m: MasterIngredient; unit: string; onUnit: (u: string) => void;
+  manualConv: string; onManualConv: (v: string) => void;
+}) {
+  const { needsConv } = unitCostFor(m, unit, manualConv);
+  return (
+    <>
+      <div style={{ flex: '0 1 90px' }}>
+        <label style={labelStyle}>Unit</label>
+        <select value={unit} onChange={(e) => { onUnit(e.target.value); onManualConv(''); }} style={inputStyle}>
+          {[...new Set([normalizeUnit(m.pack_unit), ...MEASURE_UNITS].filter(Boolean))].map((u) => (
+            <option key={u} value={u}>{u}</option>
+          ))}
+        </select>
+      </div>
+      {needsConv && (
+        <div style={{ flex: '0 1 150px' }}>
+          <label style={labelStyle}>{unit} per {m.pack_unit || 'pack unit'}?</label>
+          <input type="number" step="any" value={manualConv} onChange={(e) => onManualConv(e.target.value)}
+            style={inputStyle} placeholder="e.g. 4" title={`Can't auto-convert — how many ${unit} come out of one ${m.pack_unit || 'pack unit'}? (e.g. flour ≈ 4 c per lb)`} />
+        </div>
+      )}
+    </>
+  );
 }
 
 export default function RecipesTab() {
@@ -578,21 +623,32 @@ export function MasterPicker({ masterList, picked, onPick, autoFocus, placeholde
 function QuickAddFromList({ recipeId, masterList, onAdded, onClose }: {
   recipeId: number; masterList: MasterIngredient[]; onAdded: () => void; onClose: () => void;
 }) {
-  const [picked, setPicked] = useState<MasterIngredient | null>(null);
+  const [picked, setPickedRaw] = useState<MasterIngredient | null>(null);
   const [qty, setQty] = useState('');
+  const [unit, setUnit] = useState('each');
+  const [manualConv, setManualConv] = useState('');
   const [saving, setSaving] = useState(false);
   const [pickerKey, setPickerKey] = useState(0);
   const [addedCount, setAddedCount] = useState(0);
 
-  const unitCost = picked ? masterUnitCost(picked) : null;
+  // Picking an ingredient resets the measuring unit to its pack unit —
+  // from there the chef can switch to cups/TBSP/etc.
+  const setPicked = (m: MasterIngredient | null) => {
+    setPickedRaw(m);
+    setUnit(m ? (normalizeUnit(m.pack_unit) || m.pack_unit || 'each') : 'each');
+    setManualConv('');
+  };
+
+  const uc = picked ? unitCostFor(picked, unit, manualConv) : null;
   const qtyNum = qty === '' ? null : parseFloat(qty);
-  const lineCost = unitCost != null && qtyNum != null ? unitCost * qtyNum : null;
+  const lineCost = uc?.cost != null && qtyNum != null ? uc.cost * qtyNum : null;
 
   const add = async () => {
-    if (!picked || saving) return;
+    if (!picked || saving || uc?.cost == null) return;
     setSaving(true);
     try {
-      await api.post(`/api/cog/recipes/${recipeId}/ingredients`, lineFromMaster(picked, qtyNum));
+      const mc = manualConv === '' ? null : parseFloat(manualConv);
+      await api.post(`/api/cog/recipes/${recipeId}/ingredients`, lineFromMaster(picked, qtyNum, unit, mc));
       setPicked(null); setQty(''); setPickerKey((k) => k + 1);
       setAddedCount((c) => c + 1);
       onAdded();
@@ -610,8 +666,8 @@ function QuickAddFromList({ recipeId, masterList, onAdded, onClose }: {
           <label style={labelStyle}>Ingredient</label>
           <MasterPicker key={pickerKey} masterList={masterList} picked={picked} onPick={setPicked} autoFocus />
         </div>
-        <div style={{ flex: '0 1 110px' }}>
-          <label style={labelStyle}>Qty {picked?.pack_unit ? `(${picked.pack_unit})` : ''}</label>
+        <div style={{ flex: '0 1 90px' }}>
+          <label style={labelStyle}>Amount</label>
           <input
             type="number" step="any" value={qty}
             onChange={(e) => setQty(e.target.value)}
@@ -619,14 +675,18 @@ function QuickAddFromList({ recipeId, masterList, onAdded, onClose }: {
             style={inputStyle} placeholder="2"
           />
         </div>
-        <button className="btn btn-primary btn-sm" onClick={add} disabled={!picked || saving} style={{ marginBottom: 2 }}>
+        {picked && (
+          <UnitPicker m={picked} unit={unit} onUnit={setUnit} manualConv={manualConv} onManualConv={setManualConv} />
+        )}
+        <button className="btn btn-primary btn-sm" onClick={add} disabled={!picked || saving || uc?.cost == null} style={{ marginBottom: 2 }}>
           {saving ? '...' : 'Add'}
         </button>
         <button className="btn btn-secondary btn-sm" onClick={onClose} style={{ marginBottom: 2 }}>Done</button>
       </div>
       <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginTop: 8 }}>
-        {picked && unitCost != null && <>${unitCost.toFixed(4)}/{picked.pack_unit || 'unit'}{lineCost != null && <> · line cost <strong>${lineCost.toFixed(3)}</strong></>} · </>}
-        {addedCount > 0 ? `${addedCount} added — keep going or press Done.` : 'Pick, type a quantity, Add — repeat for each ingredient.'}
+        {picked && uc?.cost != null && <>${uc.cost.toFixed(4)}/{unit}{lineCost != null && <> · line cost <strong>${lineCost.toFixed(3)}</strong></>} · </>}
+        {picked && uc?.needsConv && <>needs the {unit}-per-{picked.pack_unit || 'pack unit'} count to price · </>}
+        {addedCount > 0 ? `${addedCount} added — keep going or press Done.` : 'Pick, type an amount in the unit you measure with, Add — repeat.'}
       </div>
     </div>
   );
@@ -776,7 +836,7 @@ function RecipeModal({ recipe, isMobile, masterList, seasonChoices, onClose, onS
     () => !!(recipe?.category && !CATEGORY_OPTIONS.includes(recipe.category)),
   );
   // New-recipe ingredient lines, picked from the master catalog before saving.
-  const [lines, setLines] = useState<Array<{ m: MasterIngredient; qty: string }>>([]);
+  const [lines, setLines] = useState<Array<{ m: MasterIngredient; qty: string; unit: string; manualConv: string }>>([]);
   const [pendingPick, setPendingPick] = useState<MasterIngredient | null>(null);
   const [pendingQty, setPendingQty] = useState('');
   const [pickerKey, setPickerKey] = useState(0);
@@ -801,22 +861,33 @@ function RecipeModal({ recipe, isMobile, masterList, seasonChoices, onClose, onS
 
   const addLine = () => {
     if (!pendingPick) return;
-    setLines((ls) => [...ls, { m: pendingPick, qty: pendingQty }]);
+    setLines((ls) => [...ls, {
+      m: pendingPick, qty: pendingQty,
+      unit: normalizeUnit(pendingPick.pack_unit) || pendingPick.pack_unit || 'each',
+      manualConv: '',
+    }]);
     setPendingPick(null); setPendingQty(''); setPickerKey((k) => k + 1);
   };
 
   const estCost = useMemo(() => {
     let sum = 0;
     for (const l of lines) {
-      const uc = masterUnitCost(l.m);
+      const uc = unitCostFor(l.m, l.unit, l.manualConv);
       const q = parseFloat(l.qty);
-      if (uc != null && q > 0) sum += uc * q;
+      if (uc.cost != null && q > 0) sum += uc.cost * q;
     }
     return sum;
   }, [lines]);
 
   const save = async () => {
     if (!name.trim() || totalYield === '' || !yieldUnit.trim()) return;
+    // A line waiting on its units-per-pack factor would save with a wrong
+    // price — stop and point at it instead.
+    const incomplete = lines.find((l) => unitCostFor(l.m, l.unit, l.manualConv).cost == null && l.qty !== '');
+    if (incomplete) {
+      alert(`"${incomplete.m.name}" needs the ${incomplete.unit}-per-${incomplete.m.pack_unit || 'pack unit'} count before it can be priced.`);
+      return;
+    }
     setSaving(true);
     const body = {
       name: name.trim(),
@@ -835,11 +906,14 @@ function RecipeModal({ recipe, isMobile, masterList, seasonChoices, onClose, onS
         : await api.post('/api/cog/recipes', body);
       // A picked-but-not-added row still counts — nobody should lose a line
       // because they forgot to press +.
-      const allLines = pendingPick ? [...lines, { m: pendingPick, qty: pendingQty }] : lines;
+      const allLines = pendingPick
+        ? [...lines, { m: pendingPick, qty: pendingQty, unit: normalizeUnit(pendingPick.pack_unit) || pendingPick.pack_unit || 'each', manualConv: '' }]
+        : lines;
       if (!recipe) {
         for (const l of allLines) {
           const q = l.qty === '' ? null : parseFloat(l.qty);
-          await api.post(`/api/cog/recipes/${r.id}/ingredients`, lineFromMaster(l.m, q));
+          const mc = l.manualConv === '' ? null : parseFloat(l.manualConv);
+          await api.post(`/api/cog/recipes/${r.id}/ingredients`, lineFromMaster(l.m, q, l.unit, mc));
         }
       }
       onSaved(r.id);
@@ -917,19 +991,32 @@ function RecipeModal({ recipe, isMobile, masterList, seasonChoices, onClose, onS
           {lines.length > 0 && (
             <div style={{ marginBottom: 10 }}>
               {lines.map((l, i) => {
-                const uc = masterUnitCost(l.m);
+                const patch = (p: Partial<typeof l>) => setLines((ls) => ls.map((x, j) => j === i ? { ...x, ...p } : x));
+                const uc = unitCostFor(l.m, l.unit, l.manualConv);
                 const q = parseFloat(l.qty);
                 return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid rgba(0,0,0,0.05)', fontSize: 13 }}>
-                    <span style={{ flex: 1, fontWeight: 600 }}>{l.m.name}</span>
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(0,0,0,0.05)', fontSize: 13, flexWrap: 'wrap' }}>
+                    <span style={{ flex: '1 1 120px', fontWeight: 600 }}>{l.m.name}</span>
                     <input
                       type="number" step="any" value={l.qty}
-                      onChange={(e) => setLines((ls) => ls.map((x, j) => j === i ? { ...x, qty: e.target.value } : x))}
-                      style={{ ...inputStyle, width: 80, padding: '5px 8px' }}
+                      onChange={(e) => patch({ qty: e.target.value })}
+                      style={{ ...inputStyle, width: 70, padding: '5px 8px' }}
                     />
-                    <span style={{ color: 'rgba(0,0,0,0.4)', width: 34 }}>{l.m.pack_unit || ''}</span>
-                    <span style={{ color: 'rgba(0,0,0,0.5)', width: 64, textAlign: 'right' }}>
-                      {uc != null && q > 0 ? `$${(uc * q).toFixed(2)}` : '—'}
+                    <select value={l.unit} onChange={(e) => patch({ unit: e.target.value, manualConv: '' })}
+                      style={{ ...inputStyle, width: 76, padding: '5px 6px' }}>
+                      {[...new Set([normalizeUnit(l.m.pack_unit), ...MEASURE_UNITS].filter(Boolean))].map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+                    {uc.needsConv && (
+                      <input type="number" step="any" value={l.manualConv}
+                        onChange={(e) => patch({ manualConv: e.target.value })}
+                        style={{ ...inputStyle, width: 92, padding: '5px 8px' }}
+                        placeholder={`${l.unit}/${l.m.pack_unit}?`}
+                        title={`How many ${l.unit} per ${l.m.pack_unit}? (e.g. flour ≈ 4 c per lb)`} />
+                    )}
+                    <span style={{ color: 'rgba(0,0,0,0.5)', width: 60, textAlign: 'right' }}>
+                      {uc.cost != null && q > 0 ? `$${(uc.cost * q).toFixed(2)}` : '—'}
                     </span>
                     <button className="btn btn-danger btn-sm" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}>✕</button>
                   </div>
