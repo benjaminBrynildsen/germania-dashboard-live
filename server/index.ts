@@ -242,4 +242,32 @@ app.listen(PORT, () => {
     }
   };
   setInterval(ticketSyncTick, 60_000);
+
+  // Price Watch sweep — refreshes retail price quotes (Schnucks/Walmart/
+  // Costco) for every watched staple daily at 5:10 AM America/Chicago,
+  // so the morning order decisions see fresh numbers. Needs
+  // ANTHROPIC_API_KEY; silently skips when it isn't configured.
+  let lastPriceWatchDay: string | null = null;
+  const priceWatchTick = async () => {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Chicago',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      }).formatToParts(new Date());
+      const get = (t: string) => parts.find((p) => p.type === t)?.value || '';
+      if (parseInt(get('hour'), 10) !== 5 || parseInt(get('minute'), 10) !== 10) return;
+      const today = `${get('year')}-${get('month')}-${get('day')}`;
+      if (lastPriceWatchDay === today) return;
+      lastPriceWatchDay = today;
+      const { runPriceWatchSweep, agentAvailable } = await import('./price-watch.js');
+      if (!agentAvailable()) return;
+      console.log('[PriceWatch] 5:10am sweep starting');
+      const r = await runPriceWatchSweep();
+      console.log(`[PriceWatch] sweep done: ${r.checked} checked, ${r.failed} failed`);
+    } catch (err) {
+      console.warn('[PriceWatch] sweep failed:', err instanceof Error ? err.message : err);
+    }
+  };
+  setInterval(priceWatchTick, 60_000);
 });

@@ -996,7 +996,49 @@ db.exec(`
     calories REAL, fat_g REAL, sat_fat_g REAL,
     carbs_g REAL, sugar_g REAL, protein_g REAL, sodium_mg REAL
   );
+
+  -- Price Watch: retail staples (milks, cream, eggs...) whose price gets
+  -- compared across local stores (Schnucks / Walmart / Costco) so whoever
+  -- is ordering buys from whoever is cheapest right now. Quotes come from
+  -- the AI price-check agent (web search) or manual entry; history is
+  -- append-only, the UI shows the latest per store.
+  CREATE TABLE IF NOT EXISTS price_watch_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,              -- display name, e.g. 'Whole Milk (gallon)'
+    query TEXT NOT NULL,             -- what the agent searches for
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS price_watch_quotes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL REFERENCES price_watch_items(id) ON DELETE CASCADE,
+    store TEXT NOT NULL,
+    product TEXT,                    -- what was actually priced
+    package_size TEXT,               -- '1 gal', '12 ct', ...
+    price REAL,                      -- USD for the package; NULL = not carried / not found
+    unit_price REAL,                 -- normalized price (e.g. per oz) when known
+    unit TEXT,
+    url TEXT,
+    confidence TEXT,                 -- 'high' | 'medium' | 'low' (agent's own rating)
+    note TEXT,
+    source TEXT NOT NULL DEFAULT 'agent',  -- 'agent' | 'manual'
+    fetched_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_price_watch_quotes_item ON price_watch_quotes(item_id, store, fetched_at);
 `);
+
+// Starter Price Watch list — only when the table is empty, so the team's
+// own curation survives every boot.
+if ((db.prepare('SELECT COUNT(*) AS c FROM price_watch_items').get() as any).c === 0) {
+  const ins = db.prepare('INSERT INTO price_watch_items (name, query) VALUES (?, ?)');
+  ins.run('Whole Milk (gallon)', 'whole milk 1 gallon');
+  ins.run('Oat Milk (half gallon)', 'oat milk 64 oz carton (Planet Oat or Chobani)');
+  ins.run('Almond Milk (half gallon)', 'unsweetened almond milk 64 oz');
+  ins.run('Heavy Whipping Cream (quart)', 'heavy whipping cream 32 oz');
+  ins.run('Half & Half (quart)', 'half and half 32 oz');
+  ins.run('Eggs (dozen, large)', 'large eggs 12 count');
+  ins.run('Butter (1 lb)', 'salted butter 1 lb');
+}
 
 // Seed SOP presets on boot (idempotent — keyed by slug).
 seedSopPresets(db);

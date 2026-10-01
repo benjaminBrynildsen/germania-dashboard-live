@@ -12,6 +12,7 @@ import { fetchAllProducts, COG_CATEGORIES, getDriposPrices } from './dripos.js';
 import { applyDriposPricesToDrink } from './cog-price-sync.js';
 import { fillStandardRecipes } from './cog-fill.js';
 import { propagateMasterPrice, syncRecipeToMaster } from './recipe-price-sync.js';
+import { getPriceWatch, checkItemPrices } from './price-watch.js';
 
 const router = Router();
 
@@ -822,6 +823,50 @@ router.post('/cog/ingredients/master', requireAuth, (req: AuthRequest, res: Resp
 router.delete('/cog/ingredients/master/:id', requireAuth, (req: AuthRequest, res: Response) => {
   db.prepare('DELETE FROM cog_ingredient_master WHERE id = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// ── Price Watch: who's cheapest for staples right now ─────────────────
+// Watched items + latest quote per store + cheapest flag.
+router.get('/cog/price-watch', requireAuth, (_req: AuthRequest, res: Response) => {
+  res.json(getPriceWatch());
+});
+
+router.post('/cog/price-watch/items', requireAuth, (req: AuthRequest, res: Response) => {
+  const { name, query } = req.body;
+  if (!name?.trim()) { res.status(400).json({ error: 'name required' }); return; }
+  const r = db.prepare('INSERT INTO price_watch_items (name, query) VALUES (?, ?)')
+    .run(name.trim(), (query?.trim() || name.trim()));
+  res.json(db.prepare('SELECT * FROM price_watch_items WHERE id = ?').get(r.lastInsertRowid));
+});
+
+router.delete('/cog/price-watch/items/:id', requireAuth, (req: AuthRequest, res: Response) => {
+  db.prepare('DELETE FROM price_watch_items WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// Run the agent for one item (the UI's "Check now" / "Check all" loop).
+// Synchronous on purpose: one item per request keeps each call short and
+// lets the UI update store-by-store.
+router.post('/cog/price-watch/items/:id/check', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const quotes = await checkItemPrices(Number(req.params.id));
+    res.json({ quotes, ...getPriceWatch() });
+  } catch (e) {
+    res.status(400).json({ error: e instanceof Error ? e.message : 'check failed' });
+  }
+});
+
+// Manual quote — someone saw the shelf price or the agent is wrong.
+router.post('/cog/price-watch/items/:id/manual', requireAuth, (req: AuthRequest, res: Response) => {
+  const { store, price, product, package_size, note } = req.body;
+  if (!store?.trim()) { res.status(400).json({ error: 'store required' }); return; }
+  const p = price == null || price === '' ? null : parseFloat(price);
+  db.prepare(`
+    INSERT INTO price_watch_quotes (item_id, store, product, package_size, price, note, source)
+    VALUES (?, ?, ?, ?, ?, ?, 'manual')
+  `).run(req.params.id, store.trim(), product?.trim() || null, package_size?.trim() || null,
+    Number.isFinite(p as number) ? p : null, note?.trim() || `entered by ${req.user?.email ?? 'staff'}`);
+  res.json(getPriceWatch());
 });
 
 // Import the master ingredient catalog from the bundled Cost-of-Goods export
