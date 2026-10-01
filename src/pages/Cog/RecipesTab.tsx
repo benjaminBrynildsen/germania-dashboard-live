@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from '../../lib/api';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useCanEdit, SummaryCard, InfoBox, Modal, NumInput, inputStyle, labelStyle, SelectWithOther } from './ui';
@@ -24,6 +24,7 @@ interface Recipe {
 interface Ingredient {
   id: number;
   recipe_id: number;
+  master_id?: number | null;
   name: string;
   ap_pack_cost: number;
   pack_size: number;
@@ -67,6 +68,7 @@ export function masterUnitCost(m: MasterIngredient): number | null {
 function lineFromMaster(m: MasterIngredient, qty: number | null) {
   const ap = masterUnitCost(m);
   return {
+    master_id: m.id,
     name: m.name,
     ap_pack_cost: m.ap_pack_cost,
     pack_size: m.pack_size,
@@ -145,6 +147,23 @@ export default function RecipesTab() {
     } finally {
       setSeeding(false);
     }
+  };
+
+  // Pull current Ingredients-tab prices into this recipe's lines. Lines
+  // whose name+pack unit match the catalog get linked and follow it from
+  // then on; the rest are reported so nobody thinks they synced.
+  const syncFromMaster = async (r: RecipeDetail) => {
+    try {
+      const s = await api.post(`/api/cog/recipes/${r.id}/sync-master-prices`, {});
+      const parts = [
+        s.updated > 0 ? `${s.updated} line${s.updated === 1 ? '' : 's'} updated to catalog prices` : 'All linked lines already match the catalog',
+        s.linked > 0 ? `${s.linked} newly linked` : '',
+        s.skipped.length > 0 ? `\nIn the catalog but measured differently (left alone): ${s.skipped.join(', ')}` : '',
+        s.unmatched.length > 0 ? `\nNot in the ingredient list: ${s.unmatched.join(', ')}` : '',
+      ].filter(Boolean);
+      alert(parts.join('. '));
+      refresh();
+    } catch (e: any) { alert(`Sync failed: ${e.message}`); }
   };
 
   const deleteRecipe = async (r: RecipeDetail) => {
@@ -347,7 +366,11 @@ export default function RecipesTab() {
                 </div>
 
                 {canEdit && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => syncFromMaster(recipeDetail)}
+                      title="Re-apply the Ingredients tab's current prices to every matching line">
+                      ⇄ Sync prices from ingredient list
+                    </button>
                     <button className="btn btn-secondary btn-sm" onClick={() => setEditingRecipe(true)}>Edit recipe</button>
                     <button className="btn btn-danger btn-sm" onClick={() => deleteRecipe(recipeDetail)}>Delete recipe</button>
                   </div>
@@ -410,34 +433,50 @@ function IngredientsSection({ detail, canEdit, isMobile, onChanged, masterList }
               <tr><td colSpan={canEdit ? 9 : 8} style={{ padding: 20, textAlign: 'center', color: 'rgba(0,0,0,0.3)' }}>No ingredients yet</td></tr>
             )}
             {detail.ingredients.map(ing => (
-              <tr key={ing.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-                <td style={{ padding: '10px 12px', fontWeight: 500 }}>{ing.name}</td>
-                <td style={td('right')}>${(ing.ap_pack_cost || 0).toFixed(2)}</td>
-                <td style={td('right')}>{ing.pack_size || 0} {ing.pack_unit || ''}</td>
-                <td style={td('right')}>${(ing.ap_price || 0).toFixed(3)}/{ing.ap_price_unit || ''}</td>
-                <td style={td('right')}>{ing.yield_percent || 0}%</td>
-                <td style={{ ...td('right'), fontWeight: 600 }}>${(ing.ep_price || 0).toFixed(3)}/{ing.ep_price_unit || ''}</td>
-                <td style={td('right')}>{ing.quantity_used ?? '—'} {ing.quantity_used != null ? (ing.ep_price_unit || '') : ''}</td>
-                <td style={{ ...td('right'), fontWeight: 600, color: '#1a1a1a' }}>${((ing.ep_price || 0) * (ing.quantity_used || 0)).toFixed(3)}</td>
-                {canEdit && (
-                  <td style={{ ...td('right'), whiteSpace: 'nowrap' }}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => { setEditingId(ing.id); setAdding(false); }} style={{ marginRight: 6 }}>✎</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => remove(ing)}>✕</button>
+              <React.Fragment key={ing.id}>
+                <tr style={{
+                  borderBottom: '1px solid rgba(0,0,0,0.05)',
+                  background: editingId === ing.id ? 'rgba(202,138,4,0.07)' : undefined,
+                }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 500 }}>
+                    {ing.name}
+                    {ing.master_id != null && (
+                      <span title="Follows the ingredient list — price updates there flow in automatically"
+                        style={{ marginLeft: 6, fontSize: 10, color: '#16a34a' }}>⇄</span>
+                    )}
                   </td>
+                  <td style={td('right')}>${(ing.ap_pack_cost || 0).toFixed(2)}</td>
+                  <td style={td('right')}>{ing.pack_size || 0} {ing.pack_unit || ''}</td>
+                  <td style={td('right')}>${(ing.ap_price || 0).toFixed(3)}/{ing.ap_price_unit || ''}</td>
+                  <td style={td('right')}>{ing.yield_percent || 0}%</td>
+                  <td style={{ ...td('right'), fontWeight: 600 }}>${(ing.ep_price || 0).toFixed(3)}/{ing.ep_price_unit || ''}</td>
+                  <td style={td('right')}>{ing.quantity_used ?? '—'} {ing.quantity_used != null ? (ing.ep_price_unit || '') : ''}</td>
+                  <td style={{ ...td('right'), fontWeight: 600, color: '#1a1a1a' }}>${((ing.ep_price || 0) * (ing.quantity_used || 0)).toFixed(3)}</td>
+                  {canEdit && (
+                    <td style={{ ...td('right'), whiteSpace: 'nowrap' }}>
+                      <button className="btn btn-secondary btn-sm"
+                        onClick={() => { setEditingId(editingId === ing.id ? null : ing.id); setAdding(false); }}
+                        style={{ marginRight: 6 }} aria-label={`Edit ${ing.name}`}>✎</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => remove(ing)} aria-label={`Remove ${ing.name}`}>✕</button>
+                    </td>
+                  )}
+                </tr>
+                {/* The editor opens right under the clicked row — on a long
+                    recipe a below-the-table form sat under the fold and the
+                    button looked dead. */}
+                {canEdit && editingId === ing.id && (
+                  <tr>
+                    <td colSpan={canEdit ? 9 : 8} style={{ padding: '4px 0 10px' }}>
+                      <IngredientForm key={ing.id} ingredient={ing} recipeId={detail.id} isMobile={isMobile}
+                        onClose={() => setEditingId(null)} onSaved={() => { setEditingId(null); onChanged(); }} />
+                    </td>
+                  </tr>
                 )}
-              </tr>
+              </React.Fragment>
             ))}
           </tbody>
         </table>
       </div>
-
-      {canEdit && editingId != null && (() => {
-        const ing = detail.ingredients.find(i => i.id === editingId);
-        return ing ? (
-          <IngredientForm key={ing.id} ingredient={ing} recipeId={detail.id} isMobile={isMobile}
-            onClose={() => setEditingId(null)} onSaved={() => { setEditingId(null); onChanged(); }} />
-        ) : null;
-      })()}
 
       {canEdit && !adding && !quickAdding && editingId == null && (
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
@@ -608,6 +647,12 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
   const [qtyUsed, setQtyUsed] = useState(ingredient?.quantity_used?.toString() ?? '');
   const [saving, setSaving] = useState(false);
 
+  // Make sure the form is actually on screen when it opens.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    rootRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, []);
+
   const computedAp = useMemo(() => {
     const cost = parseFloat(packCost), size = parseFloat(packSize), conv = parseFloat(conversion);
     if (!(cost >= 0) || !(size > 0) || !(conv > 0)) return null;
@@ -628,6 +673,15 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);
+    // A qty/name tweak keeps the line following the ingredient list;
+    // hand-changing its pricing takes it off the catalog's leash so a
+    // later master update can't clobber the override.
+    const keepMasterLink = ingredient?.master_id != null && !apTouched
+      && packCost === (ingredient.ap_pack_cost?.toString() ?? '')
+      && packSize === (ingredient.pack_size?.toString() ?? '')
+      && packUnit === (ingredient.pack_unit ?? '')
+      && conversion === (ingredient.unit_conversion?.toString() ?? '1')
+      && yieldPct === (ingredient.yield_percent?.toString() ?? '100');
     const body = {
       name: name.trim(),
       ap_pack_cost: packCost === '' ? null : parseFloat(packCost),
@@ -640,6 +694,7 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
       ep_price: ep,
       ep_price_unit: priceUnit || null,
       quantity_used: qty,
+      master_id: keepMasterLink ? ingredient!.master_id : null,
     };
     try {
       if (ingredient) await api.put(`/api/cog/ingredients/${ingredient.id}`, body);
@@ -649,7 +704,7 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
   };
 
   return (
-    <div style={{ padding: '14px 16px', background: 'rgba(0,0,0,0.03)', borderRadius: 10, marginTop: 12 }}>
+    <div ref={rootRef} style={{ padding: '14px 16px', background: 'rgba(0,0,0,0.03)', borderRadius: 10, marginTop: 12 }}>
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
         <div style={{ gridColumn: isMobile ? '1 / -1' : 'auto' }}>
           <label style={labelStyle}>Name</label>
@@ -665,7 +720,10 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
         </div>
         <div>
           <label style={labelStyle}>Pack unit</label>
-          <SelectWithOther value={packUnit} onChange={setPackUnit} options={PACK_UNITS} />
+          {/* The line's stored spelling joins the list so existing rows
+              open as a clean dropdown instead of free-text mode. */}
+          <SelectWithOther value={packUnit} onChange={setPackUnit}
+            options={[...new Set([packUnit, ...PACK_UNITS].filter(Boolean))]} />
         </div>
         <div>
           <label style={labelStyle}>Units per pack unit</label>
@@ -673,7 +731,8 @@ function IngredientForm({ ingredient, recipeId, isMobile, onClose, onSaved }: {
         </div>
         <div>
           <label style={labelStyle}>Usage unit</label>
-          <SelectWithOther value={priceUnit} onChange={setPriceUnit} options={MEASURE_UNITS} />
+          <SelectWithOther value={priceUnit} onChange={setPriceUnit}
+            options={[...new Set([priceUnit, ...MEASURE_UNITS].filter(Boolean))]} />
         </div>
         <div>
           <label style={labelStyle}>AP price / unit</label>
@@ -824,7 +883,8 @@ function RecipeModal({ recipe, isMobile, masterList, seasonChoices, onClose, onS
         </div>
         <div>
           <label style={labelStyle}>Yield unit</label>
-          <SelectWithOther value={yieldUnit} onChange={setYieldUnit} options={YIELD_UNITS} />
+          <SelectWithOther value={yieldUnit} onChange={setYieldUnit}
+            options={[...new Set([yieldUnit, ...YIELD_UNITS].filter(Boolean))]} />
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12, marginBottom: 6 }}>

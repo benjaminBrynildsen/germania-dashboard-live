@@ -11,6 +11,7 @@ import { drinkVariants, drinkCogRange, recommendedPrice, defaultTargetPct } from
 import { fetchAllProducts, COG_CATEGORIES, getDriposPrices } from './dripos.js';
 import { applyDriposPricesToDrink } from './cog-price-sync.js';
 import { fillStandardRecipes } from './cog-fill.js';
+import { propagateMasterPrice, syncRecipeToMaster } from './recipe-price-sync.js';
 
 const router = Router();
 
@@ -704,35 +705,45 @@ router.delete('/cog/recipes/:id', requireAuth, (req: AuthRequest, res: Response)
 
 // Add ingredient to recipe
 router.post('/cog/recipes/:id/ingredients', requireAuth, (req: AuthRequest, res: Response) => {
-  const { name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used } = req.body;
-  
+  const { name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used, master_id } = req.body;
+
   const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM cog_ingredients WHERE recipe_id = ?').get(req.params.id) as any;
   const sortOrder = (maxOrder?.max ?? -1) + 1;
 
   const result = db.prepare(`
     INSERT INTO cog_ingredients (
       recipe_id, name, ap_pack_cost, pack_size, pack_unit, unit_conversion,
-      ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used, sort_order
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(req.params.id, name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used, sortOrder);
+      ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used, sort_order, master_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(req.params.id, name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used, sortOrder, master_id ?? null);
 
   const ingredient = db.prepare('SELECT * FROM cog_ingredients WHERE id = ?').get(result.lastInsertRowid);
   res.json(ingredient);
 });
 
-// Update ingredient
+// Update ingredient. A hand-edited line stops following the master
+// catalog (master_id clears unless the client passes it back) — the
+// per-recipe sync can relink it later if the numbers should follow again.
 router.put('/cog/ingredients/:id', requireAuth, (req: AuthRequest, res: Response) => {
-  const { name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used } = req.body;
-  
+  const { name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used, master_id } = req.body;
+
   db.prepare(`
     UPDATE cog_ingredients
     SET name = ?, ap_pack_cost = ?, pack_size = ?, pack_unit = ?, unit_conversion = ?,
-        ap_price = ?, ap_price_unit = ?, yield_percent = ?, ep_price = ?, ep_price_unit = ?, quantity_used = ?
+        ap_price = ?, ap_price_unit = ?, yield_percent = ?, ep_price = ?, ep_price_unit = ?, quantity_used = ?,
+        master_id = ?
     WHERE id = ?
-  `).run(name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used, req.params.id);
+  `).run(name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used, master_id ?? null, req.params.id);
 
   const ingredient = db.prepare('SELECT * FROM cog_ingredients WHERE id = ?').get(req.params.id);
   res.json(ingredient);
+});
+
+// Re-apply the master catalog's prices to one recipe: links lines whose
+// name + pack unit match a catalog entry, then rebuilds AP/EP on every
+// linked line from the catalog's pack price.
+router.post('/cog/recipes/:id/sync-master-prices', requireAuth, (req: AuthRequest, res: Response) => {
+  res.json(syncRecipeToMaster(db, Number(req.params.id)));
 });
 
 // Delete ingredient
@@ -763,8 +774,12 @@ router.put('/cog/ingredients/master/:id', requireAuth, (req: AuthRequest, res: R
     WHERE id = ?
   `).run(ap_pack_cost, pack_size, pack_unit, supplier, req.params.id);
 
+  // The new price flows straight into every batch-recipe line linked to
+  // this ingredient — recipes follow the catalog, not stale snapshots.
+  const syncedLines = propagateMasterPrice(db, Number(req.params.id));
+
   const ingredient = db.prepare('SELECT * FROM cog_ingredient_master WHERE id = ?').get(req.params.id);
-  res.json(ingredient);
+  res.json({ ...(ingredient as object), synced_recipe_lines: syncedLines });
 });
 
 // Confirm a master ingredient's numbers — stamps who (login email) + when,

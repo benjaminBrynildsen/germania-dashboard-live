@@ -181,6 +181,7 @@ export default function BuilderTab({ onSaved }: { onSaved?: (recipeId: number) =
         const ap = c.perUse != null ? c.perUse * ((yp > 0 ? yp : 100) / 100) : null;
         await api.post(`/api/cog/recipes/${r.id}/ingredients`, {
           name: rowName(row).trim(),
+          master_id: row.kind === 'master' ? row.m?.id ?? null : null,
           ap_pack_cost: pack.cost,
           pack_size: pack.size,
           pack_unit: pack.unit || null,
