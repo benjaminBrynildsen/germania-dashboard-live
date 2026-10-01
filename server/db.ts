@@ -9,6 +9,7 @@ import { applyIngredientPrices20260924 } from './ingredient-prices-2026-09.js';
 import { applyHausSyrupCogs2025 } from './haus-syrup-cogs-2025.js';
 import { applyGbhRecipe } from './gbh-recipe-2026-09.js';
 import { applyFoodCogs2026 } from './food-cogs-2026.js';
+import { applyRecipeMasterLinks } from './recipe-price-sync.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // In prod the SQLite file lives on a Render persistent disk (DB_PATH=/var/data/germania.db).
@@ -1028,6 +1029,11 @@ applyGbhRecipe(db);
 // food items cog_drinks entries so the Bake Haus monthly report can
 // cost them.
 applyFoodCogs2026(db);
+
+// Link batch-recipe ingredient lines to the master catalog (adds the
+// master_id column + one-time backfill), so Ingredients-tab price
+// updates flow into recipes instead of dying in a snapshot.
+applyRecipeMasterLinks(db);
 
 // Ensure the single COGS settings row exists (idempotent).
 db.prepare('INSERT OR IGNORE INTO cog_settings (id) VALUES (1)').run();
