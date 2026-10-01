@@ -5,9 +5,10 @@ import IngredientsTab from './Cog/IngredientsTab';
 import RecipesTab from './Cog/RecipesTab';
 import BuilderTab from './Cog/BuilderTab';
 import NutritionTab from './Cog/NutritionTab';
+import PriceWatchTab from './Cog/PriceWatchTab';
 import SettingsTab from './Cog/SettingsTab';
 
-type Tab = 'drinks' | 'ingredients' | 'recipes' | 'builder' | 'nutrition' | 'settings';
+type Tab = 'drinks' | 'ingredients' | 'recipes' | 'builder' | 'nutrition' | 'pricewatch' | 'settings';
 
 const TABS: Array<{ id: Tab; label: string; short: string }> = [
   { id: 'drinks', label: 'Drinks', short: 'Drinks' },
@@ -15,6 +16,7 @@ const TABS: Array<{ id: Tab; label: string; short: string }> = [
   { id: 'recipes', label: 'Batch Recipes', short: 'Recipes' },
   { id: 'builder', label: 'Recipe Builder', short: 'Builder' },
   { id: 'nutrition', label: 'Nutrition', short: 'Nutrition' },
+  { id: 'pricewatch', label: 'Price Watch', short: 'Prices' },
   { id: 'settings', label: 'Settings', short: 'Settings' },
 ];
 
@@ -77,6 +79,7 @@ export default function CogManager() {
       {tab === 'recipes' && <RecipesTab />}
       {tab === 'builder' && <BuilderTab />}
       {tab === 'nutrition' && <NutritionTab />}
+      {tab === 'pricewatch' && <PriceWatchTab />}
       {tab === 'settings' && <SettingsTab onChanged={() => setSettingsRev((r) => r + 1)} />}
     </div>
   );
