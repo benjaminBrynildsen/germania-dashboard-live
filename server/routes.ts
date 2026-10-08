@@ -11,7 +11,7 @@ import { drinkVariants, drinkCogRange, recommendedPrice, defaultTargetPct } from
 import { fetchAllProducts, COG_CATEGORIES, getDriposPrices } from './dripos.js';
 import { applyDriposPricesToDrink } from './cog-price-sync.js';
 import { fillStandardRecipes } from './cog-fill.js';
-import { propagateMasterPrice, syncRecipeToMaster } from './recipe-price-sync.js';
+import { linkAndPropagateMaster, syncRecipeToMaster } from './recipe-price-sync.js';
 import { getPriceWatch, checkItemPrices } from './price-watch.js';
 
 const router = Router();
@@ -728,13 +728,25 @@ router.post('/cog/recipes/:id/ingredients', requireAuth, (req: AuthRequest, res:
 router.put('/cog/ingredients/:id', requireAuth, (req: AuthRequest, res: Response) => {
   const { name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used, master_id } = req.body;
 
+  // Dropping an existing link here is a deliberate override — remember it
+  // (master_unlinked) so saving the catalog ingredient doesn't silently
+  // re-attach and clobber the hand-set price. Passing master_id back
+  // keeps/clears that mark.
+  const existing = db.prepare('SELECT master_id, master_unlinked FROM cog_ingredients WHERE id = ?').get(req.params.id) as
+    | { master_id: number | null; master_unlinked: number }
+    | undefined;
+  const newMasterId = master_id ?? null;
+  const unlinked = newMasterId != null ? 0
+    : existing?.master_id != null ? 1
+    : existing?.master_unlinked ?? 0;
+
   db.prepare(`
     UPDATE cog_ingredients
     SET name = ?, ap_pack_cost = ?, pack_size = ?, pack_unit = ?, unit_conversion = ?,
         ap_price = ?, ap_price_unit = ?, yield_percent = ?, ep_price = ?, ep_price_unit = ?, quantity_used = ?,
-        master_id = ?
+        master_id = ?, master_unlinked = ?
     WHERE id = ?
-  `).run(name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used, master_id ?? null, req.params.id);
+  `).run(name, ap_pack_cost, pack_size, pack_unit, unit_conversion, ap_price, ap_price_unit, yield_percent, ep_price, ep_price_unit, quantity_used, newMasterId, unlinked, req.params.id);
 
   const ingredient = db.prepare('SELECT * FROM cog_ingredients WHERE id = ?').get(req.params.id);
   res.json(ingredient);
@@ -775,12 +787,14 @@ router.put('/cog/ingredients/master/:id', requireAuth, (req: AuthRequest, res: R
     WHERE id = ?
   `).run(ap_pack_cost, pack_size, pack_unit, supplier, req.params.id);
 
-  // The new price flows straight into every batch-recipe line linked to
-  // this ingredient — recipes follow the catalog, not stale snapshots.
-  const syncedLines = propagateMasterPrice(db, Number(req.params.id));
+  // The new price flows straight into the recipes: matching lines that
+  // aren't linked yet get linked (no button press needed), then every
+  // linked line recomputes from the new pack price. Lines someone
+  // hand-priced stay unlinked until a recipe sync re-attaches them.
+  const sync = linkAndPropagateMaster(db, Number(req.params.id));
 
   const ingredient = db.prepare('SELECT * FROM cog_ingredient_master WHERE id = ?').get(req.params.id);
-  res.json({ ...(ingredient as object), synced_recipe_lines: syncedLines });
+  res.json({ ...(ingredient as object), synced_recipe_lines: sync.updated, newly_linked_lines: sync.linked });
 });
 
 // Confirm a master ingredient's numbers — stamps who (login email) + when,
@@ -808,7 +822,13 @@ router.post('/cog/ingredients/master', requireAuth, (req: AuthRequest, res: Resp
       INSERT INTO cog_ingredient_master (name, ap_pack_cost, pack_size, pack_unit, supplier)
       VALUES (?, ?, ?, ?, ?)
     `).run(String(name).trim(), ap_pack_cost ?? null, pack_size ?? null, pack_unit ?? null, supplier ?? null);
-    res.json(db.prepare('SELECT * FROM cog_ingredient_master WHERE id = ?').get(result.lastInsertRowid));
+    // A brand-new catalog entry may already be named in recipes — hook
+    // those lines up right away so they start following it.
+    const sync = linkAndPropagateMaster(db, Number(result.lastInsertRowid));
+    res.json({
+      ...(db.prepare('SELECT * FROM cog_ingredient_master WHERE id = ?').get(result.lastInsertRowid) as object),
+      synced_recipe_lines: sync.updated, newly_linked_lines: sync.linked,
+    });
   } catch (err: any) {
     // name has a UNIQUE constraint
     if (String(err.message).includes('UNIQUE')) {

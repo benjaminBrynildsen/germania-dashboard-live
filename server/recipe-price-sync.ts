@@ -121,6 +121,35 @@ export interface SyncResult {
   unmatched: string[]; // line names with no catalog entry
 }
 
+/** Saving a catalog ingredient (Ingredients tab) calls this: link every
+ *  recipe line that matches it by name — where the math is safe — then
+ *  push the new price into all its linked lines. Lines a chef has
+ *  deliberately unlinked by hand-editing their pricing
+ *  (master_unlinked = 1) are left alone; a recipe's own sync button is
+ *  the explicit way to re-attach those. */
+export function linkAndPropagateMaster(db: Database, masterId: number): { linked: number; updated: number } {
+  const m = db.prepare('SELECT id, name, ap_pack_cost, pack_size, pack_unit FROM cog_ingredient_master WHERE id = ?')
+    .get(masterId) as MasterRow | undefined;
+  if (!m) return { linked: 0, updated: 0 };
+  const candidates = db.prepare(
+    'SELECT id, recipe_id, name, master_id, pack_unit, unit_conversion, yield_percent FROM cog_ingredients WHERE master_id IS NULL AND COALESCE(master_unlinked, 0) = 0',
+  ).all() as LineRow[];
+  let linked = 0;
+  const link = db.prepare('UPDATE cog_ingredients SET master_id = ? WHERE id = ?');
+  const txn = (db as any).transaction(() => {
+    for (const line of candidates) {
+      if (normName(line.name) !== normName(m.name)) continue;
+      if (!(line.unit_conversion != null && line.unit_conversion > 0)) continue;
+      if (packUnitFactor(m.pack_unit, line.pack_unit) == null) continue;
+      link.run(m.id, line.id);
+      linked++;
+    }
+  });
+  txn();
+  const updated = propagateMasterPrice(db, masterId);
+  return { linked, updated };
+}
+
 /** Link a recipe's lines to the catalog by name (where the math is safe)
  *  and re-apply catalog prices to every linked line. */
 export function syncRecipeToMaster(db: Database, recipeId: number): SyncResult {
@@ -143,7 +172,8 @@ export function syncRecipeToMaster(db: Database, recipeId: number): SyncResult {
           result.skipped.push(line.name);
           continue;
         }
-        db.prepare('UPDATE cog_ingredients SET master_id = ? WHERE id = ?').run(m.id, line.id);
+        // Explicit per-recipe sync re-attaches even deliberately unlinked lines.
+        db.prepare('UPDATE cog_ingredients SET master_id = ?, master_unlinked = 0 WHERE id = ?').run(m.id, line.id);
         line.master_id = m.id;
         result.linked++;
       }
@@ -162,6 +192,11 @@ export function applyRecipeMasterLinks(db: Database) {
   if (!cols.some((c) => c.name === 'master_id')) {
     console.log('[recipe-price-sync] adding master_id to cog_ingredients');
     db.exec('ALTER TABLE cog_ingredients ADD COLUMN master_id INTEGER REFERENCES cog_ingredient_master(id) ON DELETE SET NULL');
+  }
+  if (!cols.some((c) => c.name === 'master_unlinked')) {
+    // 1 = a chef hand-edited this line's pricing and it must stop
+    // following the catalog until a recipe sync explicitly re-links it.
+    db.exec('ALTER TABLE cog_ingredients ADD COLUMN master_unlinked INTEGER NOT NULL DEFAULT 0');
   }
   db.exec(`
     CREATE TABLE IF NOT EXISTS migration_flags (

@@ -226,8 +226,16 @@ function IngredientModal({ editing, onClose, onSaved, isMobile }: {
     setSaving(true);
     try {
       const body = { name: name.trim(), ap_pack_cost: num(packCost), pack_size: num(packSize), pack_unit: packUnit.trim() || null, supplier: supplier.trim() || null };
-      if (editing) await api.put(`/api/cog/ingredients/master/${editing.id}`, body);
-      else await api.post('/api/cog/ingredients/master', body);
+      const r = editing
+        ? await api.put(`/api/cog/ingredients/master/${editing.id}`, body)
+        : await api.post('/api/cog/ingredients/master', body);
+      // The server pushes the new price into every recipe line following
+      // this ingredient — tell the chef it happened.
+      const touched = (r?.synced_recipe_lines ?? 0) + (r?.newly_linked_lines ?? 0);
+      if (touched > 0) {
+        alert(`Saved — ${r.synced_recipe_lines} recipe line${r.synced_recipe_lines === 1 ? '' : 's'} updated to this price` +
+          (r.newly_linked_lines > 0 ? ` (${r.newly_linked_lines} newly connected)` : '') + '.');
+      }
       onSaved();
     } catch (e: any) {
       alert(`Save failed: ${e.message}`);
