@@ -51,6 +51,10 @@ export interface BakeHausCatalogItem {
   /** Dripos product name — used as a fallback inventory match key
    *  and for showing the underlying Dripos name in the manage UI. */
   driposProductName: string | null;
+  /** Build-to par (bottles) for the on-hand ordering flow; null = the
+   *  item doesn't use it. Always null for food (food nets against
+   *  Dripos inventory instead). */
+  buildTo: number | null;
   /** Bottle-art color override for syrup rows (#rrggbb); null = the
    *  client derives a tint from the flavor name. Always null for food. */
   tintColor: string | null;
@@ -478,6 +482,10 @@ export interface BakeHausOrderRow {
   /** Net qty to deliver. Food/custom: max(0, weeklyQty - onHand).
    *  Syrups/sauces: weeklyQty as-is — on-hand is informational only. */
   netQty: number;
+  /** Bottle count the store manager typed when ordering (build-to
+   *  flow). null = not entered. Already baked into weeklyQty — never
+   *  subtract it again. */
+  enteredOnHand: number | null;
   /** Mon/Wed/Fri split of netQty. */
   delivery: { mon: number; wed: number; fri: number };
   /** Per-day frozen qty for this row when the week is locked. null
@@ -562,6 +570,7 @@ interface DbRow {
   item_name: string;
   weekly_qty: number;
   notes: string | null;
+  on_hand: number | null;
   mon_locked_qty: number | null;
   wed_locked_qty: number | null;
   fri_locked_qty: number | null;
@@ -575,7 +584,7 @@ function itemSortKey(name: string, catalogByName: Map<string, BakeHausCatalogIte
 
 export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekReport> {
   const rows = db.prepare(
-    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes,
+    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, on_hand,
             mon_locked_qty, wed_locked_qty, fri_locked_qty
      FROM bake_haus_orders
      WHERE week_start_iso = ?`,
@@ -684,6 +693,7 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
       notes: r.notes,
       onHand,
       netQty,
+      enteredOnHand: r.on_hand ?? null,
       delivery: split,
       monLockedQty,
       wedLockedQty,
@@ -757,7 +767,7 @@ export async function lockWeek(
   asOfMs?: number | null,
 ): Promise<{ rowsSnapshotted: number; mode: 'live' | 'reconstructed' }> {
   const rows = db.prepare(
-    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes,
+    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, on_hand,
             mon_locked_qty, wed_locked_qty, fri_locked_qty
      FROM bake_haus_orders
      WHERE week_start_iso = ?`,
@@ -941,7 +951,7 @@ export async function lockDay(
   asOfMs?: number | null,
 ): Promise<{ rowsSnapshotted: number; mode: 'live' | 'reconstructed' }> {
   const rows = db.prepare(
-    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes,
+    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, on_hand,
             mon_locked_qty, wed_locked_qty, fri_locked_qty
      FROM bake_haus_orders
      WHERE week_start_iso = ?`,
@@ -1210,16 +1220,22 @@ export function upsertOrderItem(args: {
   itemName: string;
   weeklyQty: number;
   notes?: string | null;
+  /** Bottle count the store counted (build-to flow). undefined =
+   *  leave the stored value alone (plain qty edits don't wipe it);
+   *  null = clear it. */
+  onHand?: number | null;
 }): void {
   const canonical = canonicalizeItemName(args.itemName);
+  const hasOnHand = args.onHand !== undefined ? 1 : 0;
   db.prepare(
-    `INSERT INTO bake_haus_orders (week_start_iso, store_label, item_name, weekly_qty, notes, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO bake_haus_orders (week_start_iso, store_label, item_name, weekly_qty, notes, on_hand, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(week_start_iso, store_label, item_name) DO UPDATE SET
        weekly_qty = excluded.weekly_qty,
        notes = excluded.notes,
+       on_hand = CASE WHEN ? = 1 THEN excluded.on_hand ELSE bake_haus_orders.on_hand END,
        updated_at = excluded.updated_at`,
-  ).run(args.weekStartIso, args.storeLabel, canonical, args.weeklyQty, args.notes ?? null, Date.now());
+  ).run(args.weekStartIso, args.storeLabel, canonical, args.weeklyQty, args.notes ?? null, args.onHand ?? null, Date.now(), hasOnHand);
 }
 
 export function deleteOrderItem(
@@ -1398,6 +1414,8 @@ export interface SyrupRow {
   /** Bottle-art color override (#rrggbb). null = automatic tint
    *  derived from the flavor name. */
   tintColor: string | null;
+  /** Build-to par (bottles) for syrup-sauce rows; null = off. */
+  buildTo: number | null;
   active: boolean;
   createdAt: number;
   updatedAt: number;
@@ -1412,6 +1430,7 @@ interface SyrupDbRow {
   include_monday: number;
   category: string;
   tint_color: string | null;
+  build_to: number | null;
   active: number;
   created_at: number;
   updated_at: number;
@@ -1427,6 +1446,7 @@ function rowToSyrup(r: SyrupDbRow): SyrupRow {
     includeMonday: r.include_monday === 1,
     category: r.category === 'food' ? 'food' : 'syrup-sauce',
     tintColor: r.tint_color ?? null,
+    buildTo: r.build_to ?? null,
     active: r.active === 1,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -1453,17 +1473,20 @@ export function createSyrup(args: {
   sort?: number;
   includeMonday?: boolean;
   category?: 'food' | 'syrup-sauce';
+  buildTo?: number | null;
 }): SyrupRow {
   const now = Date.now();
   const sort = args.sort ?? 100;
   const category = args.category === 'food' ? 'food' : 'syrup-sauce';
   // Food delivers Mon/Wed/Fri by default; syrups default to Wed/Fri.
   const include = (args.includeMonday ?? (category === 'food')) ? 1 : 0;
+  // New syrups join the build-to flow at the house default of 20 bottles.
+  const buildTo = args.buildTo !== undefined ? args.buildTo : (category === 'syrup-sauce' ? 20 : null);
   const info = db.prepare(
     `INSERT INTO bake_haus_syrups
-       (display_name, dripos_product_id, dripos_product_name, sort, include_monday, category, active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-  ).run(args.displayName, args.driposProductId, args.driposProductName, sort, include, category, now, now);
+       (display_name, dripos_product_id, dripos_product_name, sort, include_monday, category, build_to, active, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+  ).run(args.displayName, args.driposProductId, args.driposProductName, sort, include, category, buildTo, now, now);
   return getSyrup(info.lastInsertRowid as number)!;
 }
 
@@ -1478,6 +1501,8 @@ export function updateSyrup(
     category: 'food' | 'syrup-sauce';
     /** Pass a #rrggbb string to set, or null to clear back to auto. */
     tintColor: string | null;
+    /** Build-to par; null turns the on-hand flow off for the item. */
+    buildTo: number | null;
     active: boolean;
   }>,
 ): SyrupRow | null {
@@ -1493,16 +1518,17 @@ export function updateSyrup(
     // null is a meaningful value here (clear back to auto), so key
     // presence decides rather than ??.
     tintColor: 'tintColor' in args ? (args.tintColor ?? null) : cur.tintColor,
+    buildTo: 'buildTo' in args ? (args.buildTo ?? null) : cur.buildTo,
     active: args.active ?? cur.active,
   };
   db.prepare(
     `UPDATE bake_haus_syrups SET
        display_name = ?, dripos_product_id = ?, dripos_product_name = ?,
-       sort = ?, include_monday = ?, category = ?, tint_color = ?, active = ?, updated_at = ?
+       sort = ?, include_monday = ?, category = ?, tint_color = ?, build_to = ?, active = ?, updated_at = ?
      WHERE id = ?`,
   ).run(
     next.displayName, next.driposProductId, next.driposProductName,
-    next.sort, next.includeMonday ? 1 : 0, next.category, next.tintColor, next.active ? 1 : 0,
+    next.sort, next.includeMonday ? 1 : 0, next.category, next.tintColor, next.buildTo, next.active ? 1 : 0,
     Date.now(), id,
   );
   return getSyrup(id);
@@ -1549,6 +1575,7 @@ export function getMergedCatalog(): BakeHausCatalogItem[] {
     includeMonday: true,
     driposProductId: null,
     driposProductName: null,
+    buildTo: null,
     tintColor: null,
   }));
   const dbItems: BakeHausCatalogItem[] = listSyrups(false).map((s) => ({
@@ -1561,6 +1588,7 @@ export function getMergedCatalog(): BakeHausCatalogItem[] {
     includeMonday: s.includeMonday,
     driposProductId: s.driposProductId,
     driposProductName: s.driposProductName,
+    buildTo: s.category === 'syrup-sauce' ? s.buildTo : null,
     tintColor: s.category === 'syrup-sauce' ? s.tintColor : null,
   }));
   return [...food, ...dbItems].sort((a, b) =>

@@ -10,6 +10,8 @@ interface OrderRow {
   notes: string | null;
   onHand: number;
   netQty: number;
+  /** Bottle count the store manager typed (build-to flow); null = not entered. */
+  enteredOnHand: number | null;
   delivery: { mon: number; wed: number; fri: number };
   monLockedQty: number | null;
   wedLockedQty: number | null;
@@ -36,6 +38,8 @@ interface Syrup {
   category: 'food' | 'syrup-sauce';
   /** Bottle-art color override (#rrggbb); null = auto from name. */
   tintColor: string | null;
+  /** Build-to par (bottles); null = on-hand ordering flow off. */
+  buildTo: number | null;
   active: boolean;
   createdAt: number;
   updatedAt: number;
@@ -87,6 +91,8 @@ interface CatalogItem {
   includeMonday?: boolean;
   /** Bottle-art color override for syrup rows; null/absent = auto. */
   tintColor?: string | null;
+  /** Build-to par (bottles) for syrup rows; null/absent = flow off. */
+  buildTo?: number | null;
 }
 
 interface DeliverySnapshotSummary {
@@ -824,12 +830,12 @@ export default function BakeHaus() {
     }
   };
 
-  const saveItem = async (store: string, item: string, weeklyQty: number) => {
+  const saveItem = async (store: string, item: string, weeklyQty: number, onHand?: number | null) => {
     try {
       const r = await fetch('/api/bake-haus/item', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ week: weekIso, store, item, weeklyQty }),
+        body: JSON.stringify({ week: weekIso, store, item, weeklyQty, ...(onHand !== undefined ? { onHand } : {}) }),
       });
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
@@ -1016,7 +1022,7 @@ export default function BakeHaus() {
               isMobile={isMobile}
               locked={report.weekLocked && !canUnlock}
               onSaveOrder={() => handleSaveClick(activeStore)}
-              onSave={(item, qty) => saveItem(activeStore, item, qty)}
+              onSave={(item, qty, onHand) => saveItem(activeStore, item, qty, onHand)}
               onDelete={(item) => deleteItem(activeStore, item)}
             />
           </div>
@@ -1900,6 +1906,7 @@ function ManageSyrupsView({
               onToggleMonday={() => patchSyrup(e.s.id, { includeMonday: !e.s.includeMonday })}
               onRename={(name) => patchSyrup(e.s.id, { displayName: name })}
               onTint={(color) => patchSyrup(e.s.id, { tintColor: color })}
+              onBuildTo={(buildTo) => patchSyrup(e.s.id, { buildTo })}
               onDelete={() => removeSyrup(e.s.id, e.s.displayName)}
               onSwitchCategory={() => {
                 const toFood = e.s.category !== 'food';
@@ -1969,7 +1976,7 @@ function BuiltinRow({ item, busy, isMobile, onToggle }: {
 }
 
 function SyrupRow({
-  syrup, busy, isMobile, onToggleActive, onToggleMonday, onRename, onTint, onDelete, onSwitchCategory,
+  syrup, busy, isMobile, onToggleActive, onToggleMonday, onRename, onTint, onBuildTo, onDelete, onSwitchCategory,
 }: {
   syrup: Syrup;
   busy: boolean;
@@ -1978,12 +1985,24 @@ function SyrupRow({
   onToggleMonday: () => void;
   onRename: (name: string) => void;
   onTint: (color: string | null) => void;
+  /** Set the build-to par (bottles); null turns the on-hand flow off. */
+  onBuildTo: (buildTo: number | null) => void;
   onDelete: () => void;
   onSwitchCategory: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(syrup.displayName);
   useEffect(() => { setDraft(syrup.displayName); }, [syrup.displayName]);
+  // Build-to par editor (syrup rows only). Blank = flow off.
+  const [buildToText, setBuildToText] = useState(syrup.buildTo != null ? String(syrup.buildTo) : '');
+  useEffect(() => { setBuildToText(syrup.buildTo != null ? String(syrup.buildTo) : ''); }, [syrup.buildTo]);
+  const commitBuildTo = () => {
+    const t = buildToText.trim();
+    if (t === '') { if (syrup.buildTo != null) onBuildTo(null); return; }
+    const n = Number.parseInt(t, 10);
+    if (!Number.isFinite(n) || n <= 0) { setBuildToText(syrup.buildTo != null ? String(syrup.buildTo) : ''); return; }
+    if (n !== syrup.buildTo) onBuildTo(n);
+  };
 
   return (
     <div style={{
@@ -2076,6 +2095,30 @@ function SyrupRow({
           style={{ ...pillBtn, opacity: busy ? 0.5 : 1 }}>
           {syrup.includeMonday ? 'Skip Mon' : 'Add Mon'}
         </button>
+        {syrup.category === 'syrup-sauce' && (
+          <label title="Build-to par: stores count bottles on hand and the order fills itself up to this number. Blank = off."
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)',
+              opacity: busy ? 0.5 : 1,
+            }}>
+            Build to
+            <input
+              type="number" inputMode="numeric" min={1}
+              value={buildToText}
+              disabled={busy}
+              onChange={(e) => setBuildToText(e.target.value)}
+              onBlur={commitBuildTo}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+              placeholder="off"
+              style={{
+                width: 56, padding: '5px 8px', borderRadius: 8,
+                border: '1px solid rgba(0,0,0,0.15)', fontSize: 13,
+                fontWeight: 700, textAlign: 'center', fontFamily: 'inherit',
+              }}
+            />
+          </label>
+        )}
         <button onClick={onDelete} disabled={busy}
           style={{
             ...pillBtn, opacity: busy ? 0.5 : 1,
@@ -2348,7 +2391,7 @@ function StoreOrderCard({
    *  editing doesn't silently bounce off the server's 403. */
   locked: boolean;
   onSaveOrder: () => void;
-  onSave: (item: string, qty: number) => void;
+  onSave: (item: string, qty: number, onHand?: number | null) => void;
   onDelete: (item: string) => void;
 }) {
   const theme = getTheme(store);
@@ -2381,6 +2424,7 @@ function StoreOrderCard({
       imageUrl: string | null;
       category: 'food' | 'syrup-sauce' | 'custom';
       tintColor: string | null;
+      buildTo: number | null;
     }> = catalog.map((c) => ({
       name: c.name,
       row: rowByName.get(c.name) ?? null,
@@ -2389,6 +2433,7 @@ function StoreOrderCard({
       imageUrl: c.imageUrl ?? null,
       category: c.category ?? 'food',
       tintColor: c.tintColor ?? null,
+      buildTo: c.buildTo ?? null,
     }));
     // Append any rows whose item isn't in the catalog — these are ad-hoc
     // additions and live at the bottom so they don't break the catalog
@@ -2397,7 +2442,7 @@ function StoreOrderCard({
       if (!catalogNames.has(r.itemName)) {
         cart.push({
           name: r.itemName, row: r, sort: 9999, custom: true,
-          imageUrl: null, category: 'custom', tintColor: null,
+          imageUrl: null, category: 'custom', tintColor: null, buildTo: null,
         });
       }
     }
@@ -2599,7 +2644,8 @@ function StoreOrderCard({
                 locked={locked}
                 hintMode={hintMode}
                 lastWeekQty={prevWeek[it.name] ?? null}
-                onSave={(qty) => onSave(it.name, qty)}
+                buildTo={it.buildTo}
+                onSave={(qty, onHand) => onSave(it.name, qty, onHand)}
                 onDelete={() => onDelete(it.name)}
               />
             </Fragment>
@@ -2676,7 +2722,7 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, imageUrl, category, tintColor, row, onHand, suggestion, isCustom, theme, isLast, isMobile, locked, hintMode, lastWeekQty, onSave, onDelete,
+  itemName, imageUrl, category, tintColor, row, onHand, suggestion, isCustom, theme, isLast, isMobile, locked, hintMode, lastWeekQty, buildTo, onSave, onDelete,
 }: {
   itemName: string;
   imageUrl?: string | null;
@@ -2700,7 +2746,10 @@ function CartRowEditor({
   hintMode?: 'last-week' | 'suggested';
   /** This item's ordered qty from last week (null = wasn't ordered). */
   lastWeekQty?: number | null;
-  onSave: (qty: number) => void;
+  /** Build-to par (bottles). Set on syrup rows → shows the count-on-hand
+   *  box and auto-fills the order to buildTo − counted. */
+  buildTo?: number | null;
+  onSave: (qty: number, onHand?: number | null) => void;
   onDelete: () => void;
 }) {
   const currentQty = row?.weeklyQty ?? 0;
@@ -2709,6 +2758,26 @@ function CartRowEditor({
   useEffect(() => {
     setQtyText(currentQty > 0 ? currentQty.toString() : '');
   }, [currentQty]);
+
+  // Build-to flow (syrup rows with a par): the manager types the bottle
+  // count from the shelf and the order fills itself to par. Committed on
+  // blur/Enter — the order saves even at qty 0 so the count is kept.
+  const usesBuildTo = category === 'syrup-sauce' && buildTo != null && buildTo > 0;
+  const storedOnHand = row?.enteredOnHand ?? null;
+  const [onHandText, setOnHandText] = useState<string>(storedOnHand != null ? String(storedOnHand) : '');
+  useEffect(() => {
+    setOnHandText(storedOnHand != null ? String(storedOnHand) : '');
+  }, [storedOnHand]);
+  const commitOnHand = () => {
+    if (locked || !usesBuildTo) return;
+    if (onHandText.trim() === '') return; // cleared — leave the order as typed
+    const n = Number.parseInt(onHandText, 10);
+    if (!Number.isFinite(n) || n < 0) return;
+    const target = Math.max(0, (buildTo as number) - n);
+    if (n === storedOnHand && target === currentQty) return;
+    setQtyText(target > 0 ? String(target) : '');
+    onSave(target, n);
+  };
 
   const active = currentQty > 0;
 
@@ -2825,11 +2894,41 @@ function CartRowEditor({
             fontFamily: 'var(--font-body)',
             textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600,
           }}>
-            <span style={{
-              padding: '2px 8px', borderRadius: 999,
-              background: onHand > 0 ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0.02)',
-              color: onHand > 0 ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)',
-            }}>{onHand} on hand</span>
+            {usesBuildTo ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: 'rgba(0,0,0,0.5)' }}>On hand</span>
+                <input
+                  type="number" inputMode="numeric" min={0}
+                  value={onHandText}
+                  disabled={locked}
+                  onChange={(e) => setOnHandText(e.target.value)}
+                  onBlur={commitOnHand}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                  placeholder="count"
+                  title={`Count the bottles on the shelf — the order fills itself to the build-to of ${buildTo}`}
+                  style={{
+                    width: 64, padding: '4px 8px', borderRadius: 8,
+                    border: '1.5px solid rgba(37, 99, 235, 0.4)',
+                    background: locked ? 'rgba(0,0,0,0.04)' : '#fff',
+                    fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-body)',
+                    color: '#1a1a1a', textAlign: 'center',
+                  }}
+                />
+                <span style={{
+                  padding: '2px 8px', borderRadius: 999,
+                  background: 'rgba(37, 99, 235, 0.07)', color: '#1d4ed8',
+                }}>build to {buildTo}</span>
+                {storedOnHand != null && currentQty === Math.max(0, (buildTo as number) - storedOnHand) && (
+                  <span style={{ color: '#15803d' }}>✓ order {currentQty}</span>
+                )}
+              </span>
+            ) : (
+              <span style={{
+                padding: '2px 8px', borderRadius: 999,
+                background: onHand > 0 ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0.02)',
+                color: onHand > 0 ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)',
+              }}>{onHand} on hand</span>
+            )}
             {active && row && row.netQty !== row.weeklyQty && (
               <span style={{ color: 'rgba(0,0,0,0.4)' }}>
                 Net {row.netQty}
