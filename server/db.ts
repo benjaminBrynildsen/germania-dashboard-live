@@ -225,6 +225,22 @@ db.pragma('foreign_keys = ON');
     console.log('[migration] adding tint_color to bake_haus_syrups');
     db.exec('ALTER TABLE bake_haus_syrups ADD COLUMN tint_color TEXT');
   }
+  // Build-to par level (bottles) for the on-hand ordering flow: the
+  // store counts what it has, and the order auto-fills to
+  // build_to − on_hand. NULL = the item doesn't use the flow.
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'build_to')) {
+    console.log('[migration] adding build_to to bake_haus_syrups');
+    db.exec('ALTER TABLE bake_haus_syrups ADD COLUMN build_to REAL');
+  }
+}
+// bake_haus_orders.on_hand — the bottle count the store manager typed
+// when ordering (the build-to flow). NULL = not entered for that row.
+{
+  const tbl = db.prepare("PRAGMA table_info(bake_haus_orders)").all() as Array<{ name: string }>;
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'on_hand')) {
+    console.log('[migration] adding on_hand to bake_haus_orders');
+    db.exec('ALTER TABLE bake_haus_orders ADD COLUMN on_hand REAL');
+  }
 }
 // Waffles → Waffle Wedge rename migration. The catalog item was renamed
 // to match the Dripos product name ("Waffle Wedge") so inventory matches;
@@ -498,6 +514,9 @@ db.exec(`
     item_name TEXT NOT NULL,
     weekly_qty REAL NOT NULL,
     notes TEXT,
+    -- Bottle count the store manager typed when ordering (build-to
+    -- flow); NULL = not entered.
+    on_hand REAL,
     updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
     -- Per-delivery-day snapshots captured at lock time. NULL = that
     -- day is not locked; splitForDeliveries recomputes it normally.
@@ -578,6 +597,9 @@ db.exec(`
     -- Bottle-art color override (#rrggbb). NULL = automatic tint from
     -- the flavor name.
     tint_color TEXT,
+    -- Build-to par (bottles): order auto-fills to build_to - on_hand.
+    -- NULL = item doesn't use the on-hand flow.
+    build_to REAL,
     -- Soft delete / seasonal toggle. Inactive items hide from the
     -- ordering UI but stay in the DB so historical orders still
     -- resolve their display name.
@@ -1071,6 +1093,18 @@ applyGbhRecipe(db);
 // food items cog_drinks entries so the Bake Haus monthly report can
 // cost them.
 applyFoodCogs2026(db);
+
+// One-time: start every syrup/sauce at a build-to of 20 bottles (team
+// decision Oct 2026 — Chef Maggie tunes per item on the Manage tab).
+// Flag-gated so clearing an item's build-to sticks across reboots.
+{
+  const FLAG = 'syrup-build-to-default-2026-10';
+  if (!db.prepare('SELECT 1 FROM migration_flags WHERE key = ?').get(FLAG)) {
+    const r = db.prepare("UPDATE bake_haus_syrups SET build_to = 20 WHERE category = 'syrup-sauce' AND build_to IS NULL").run();
+    db.prepare('INSERT INTO migration_flags (key, done_at) VALUES (?, ?)').run(FLAG, Date.now());
+    if (r.changes > 0) console.log(`[migration] defaulted build_to=20 on ${r.changes} syrup/sauce items`);
+  }
+}
 
 // Link batch-recipe ingredient lines to the master catalog (adds the
 // master_id column + one-time backfill), so Ingredients-tab price

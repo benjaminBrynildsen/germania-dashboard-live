@@ -137,7 +137,8 @@ router.post('/bake-haus/syrups', requireAuth, (req: AuthRequest, res: Response) 
     res.status(400).json({ error: 'invalid_dripos_name' });
     return;
   }
-  const syrup = createSyrup({ displayName, driposProductId, driposProductName, sort, includeMonday, category });
+  const buildTo = typeof req.body?.buildTo === 'number' && req.body.buildTo > 0 ? req.body.buildTo : undefined;
+  const syrup = createSyrup({ displayName, driposProductId, driposProductName, sort, includeMonday, category, buildTo });
   res.json({ ok: true, syrup });
 });
 
@@ -166,6 +167,17 @@ router.put('/bake-haus/syrups/:id', requireAuth, (req: AuthRequest, res: Respons
     }
   }
   if (typeof req.body?.active === 'boolean')            patch.active = req.body.active;
+  // Build-to par: a positive number sets it, explicit null turns the
+  // on-hand ordering flow off for the item.
+  if ('buildTo' in (req.body ?? {})) {
+    const b = req.body.buildTo;
+    if (b === null) patch.buildTo = null;
+    else if (typeof b === 'number' && Number.isFinite(b) && b > 0 && b <= 10000) patch.buildTo = b;
+    else {
+      res.status(400).json({ error: 'invalid_build_to', message: 'Expected a positive number or null.' });
+      return;
+    }
+  }
   const updated = updateSyrup(id, patch);
   if (!updated) {
     res.status(404).json({ error: 'not_found' });
@@ -243,6 +255,20 @@ router.put('/bake-haus/item', requireAuth, (req: AuthRequest, res: Response) => 
     res.status(400).json({ error: 'invalid_qty', message: 'Must be a non-negative number under 100000.' });
     return;
   }
+  // Bottles-on-hand count (build-to flow). Absent = leave the stored
+  // value; null = clear; number = set.
+  let onHand: number | null | undefined;
+  if ('onHand' in (req.body ?? {})) {
+    if (req.body.onHand === null) onHand = null;
+    else {
+      const n = Number(req.body.onHand);
+      if (!Number.isFinite(n) || n < 0 || n > 100000) {
+        res.status(400).json({ error: 'invalid_on_hand', message: 'On-hand must be a non-negative number under 100000.' });
+        return;
+      }
+      onHand = n;
+    }
+  }
   // Per-day lock gate. Chef Maggie + the bakery allowlist edit freely.
   // For everyone else: if every active delivery day for this item is
   // locked, it's fully frozen (matches the old whole-week behavior). If
@@ -276,6 +302,7 @@ router.put('/bake-haus/item', requireAuth, (req: AuthRequest, res: Response) => 
     itemName: item,
     weeklyQty,
     notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
+    onHand,
   });
   res.json({ ok: true });
 });
