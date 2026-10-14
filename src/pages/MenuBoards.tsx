@@ -159,6 +159,7 @@ function SeasonEditor({ seasonId }: { seasonId: number }) {
               Apply S26 Descriptions
             </button>
           )}
+          <PatchDropdown season={season} />
           <ExportDropdown seasonId={seasonId} />
         </div>
       </div>
@@ -882,6 +883,80 @@ function ImportFromSops({ seasonId, categories, onImported }: { seasonId: number
 }
 
 // ─── Export Dropdown ──────────────────────────────────────────
+
+// Midseason patch: pick one drink and get a print file at the board's
+// exact width (height hugs the block) — printed, trimmed, and pasted
+// over the drink it replaces on the hanging board. Edit/add the NEW
+// drink in the season first, then export its patch from here.
+function PatchDropdown({ season }: { season: MenuSeason }) {
+  const [open, setOpen] = useState(false);
+  const [itemId, setItemId] = useState<number | ''>('');
+
+  const drinkGroups = season.categories
+    .map((c) => ({
+      cat: c,
+      drinks: c.items.filter((i) => i.kind === 'drink'),
+    }))
+    .filter((g) => g.drinks.length > 0);
+
+  const pickedCat = drinkGroups.find((g) => g.drinks.some((d) => d.id === itemId))?.cat;
+  // Sweet Coffee drinks sit in a 2-column grid on 24x36 boards, so
+  // their patch is half the board width.
+  const sweetHalf = !!pickedCat && pickedCat.name.toLowerCase().includes('sweet');
+
+  const download = (location: string) => {
+    if (itemId === '') return;
+    window.open(`/api/menu-seasons/${season.id}/patch?item=${itemId}&location=${location}&t=${Date.now()}`, '_blank');
+    setOpen(false);
+  };
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button className="btn btn-secondary btn-sm" onClick={() => setOpen(!open)}>Midseason patch ▾</button>
+      {open && (
+        <div style={{
+          position: 'absolute', right: 0, top: '100%', marginTop: 4,
+          background: '#fff', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 8,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100, width: 280,
+          padding: 10,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: 'rgba(0,0,0,0.45)', marginBottom: 6 }}>
+            Replacement slip for one drink
+          </div>
+          <select
+            value={itemId}
+            onChange={(e) => setItemId(e.target.value === '' ? '' : Number(e.target.value))}
+            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.15)', fontSize: 13, marginBottom: 8 }}
+          >
+            <option value="">— pick the drink —</option>
+            {drinkGroups.map((g) => (
+              <optgroup key={g.cat.id} label={`${g.cat.name}${g.cat.side === 'back' ? ' (back)' : ''}`}>
+                {g.drinks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          {itemId !== '' && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <button className="btn btn-primary btn-sm" onClick={() => download('G1')}>
+                  G1–G3 boards{sweetHalf ? ' · 12" wide' : ' · 24" wide'}
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => download('G4')}>
+                  G4 board · 18" wide
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 8, lineHeight: 1.45 }}>
+                Same width, fonts, and layout as the big board — the file name carries the
+                exact print size. Trim to the edges and mount over the old drink.
+                {sweetHalf && ' This drink sits in the Sweet 2-column grid, so its slip is half the board width.'}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ExportDropdown({ seasonId }: { seasonId: number }) {
   const [open, setOpen] = useState(false);
