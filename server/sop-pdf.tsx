@@ -202,8 +202,26 @@ function SectionBanner({ label, steps }: { label: string; steps: number }) {
   );
 }
 
+// Letter page minus the horizontal page padding = the table's outer width.
+const TABLE_W = 612 - 38 * 2;
+// IBM Plex Mono advance width ≈ 0.6 em; a touch extra for safety.
+const MONO_CHAR = 0.62;
+
+/** Shrink a size-cell's font until its longest word fits the cell width.
+ *  Hyphenation is off on purpose (recipe words shouldn't split), so
+ *  without this a long word like "Sprinkle" pokes through the cell
+ *  border on 3-size tables instead of wrapping. Spaces still wrap. */
+function fitCellFont(text: string, cellW: number, base: number, min = 9): number {
+  const longest = Math.max(1, ...String(text).split(/\s+/).map((w) => w.length));
+  const fit = cellW / (longest * MONO_CHAR);
+  return Math.max(min, Math.min(base, Math.floor(fit)));
+}
+
 function RecipeTable({ variant }: { variant: SopVariant }) {
   const sizeCount = variant.sizeLabels.length;
+  // Flex math mirrored: hash column is 54pt fixed, the rest splits
+  // 2.2 (name) : 1 × sizeCount; minus each size cell's 10pt padding.
+  const sizeCellW = Math.max(30, (TABLE_W - 54) / (2.2 + sizeCount) - 20);
   return (
     <View style={styles.table}>
       <View style={styles.thead}>
@@ -222,11 +240,15 @@ function RecipeTable({ variant }: { variant: SopVariant }) {
             <Text style={styles.tdNameText}>{row.name}</Text>
             {row.modifier ? <Text style={styles.tdNameModifier}>{row.modifier.toUpperCase()}</Text> : null}
           </View>
-          {variant.sizeLabels.map((_, cIdx) => (
-            <View key={cIdx} style={cIdx === sizeCount - 1 ? styles.tdSizeLast : styles.tdSize}>
-              <Text style={styles.tdSizeText}>{row.cells[cIdx] ?? ''}</Text>
-            </View>
-          ))}
+          {variant.sizeLabels.map((_, cIdx) => {
+            const cell = row.cells[cIdx] ?? '';
+            const fs = fitCellFont(cell, sizeCellW, 17);
+            return (
+              <View key={cIdx} style={cIdx === sizeCount - 1 ? styles.tdSizeLast : styles.tdSize}>
+                <Text style={fs !== 17 ? [styles.tdSizeText, { fontSize: fs }] : styles.tdSizeText}>{cell}</Text>
+              </View>
+            );
+          })}
         </View>
       ))}
     </View>
