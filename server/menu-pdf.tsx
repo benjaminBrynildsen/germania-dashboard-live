@@ -361,6 +361,101 @@ function MenuPage({ season, side, location, pageW, pageH, padH, scale }: {
  *  of 4K). Matches the Menu Team's existing Slides page setup. */
 export type MenuRenderSize = 'print' | 'digital';
 
+// ─── Midseason patch ─────────────────────────────────────────
+// A single drink block rendered as its own little poster, for the
+// midseason swap workflow: print it, trim it, paste it over the old
+// drink on the hanging board. Width matches the board exactly (24in
+// for G1–G3, 18in for G4; half the content width when the drink lives
+// in the Sweet Coffee 2-column grid), and the height hugs the block,
+// so the print shop just needs "same width as the big board".
+
+/** Estimate the rendered height of one drink block in points, using
+ *  the same per-character width trick as CategoryHeader. Slightly
+ *  generous on purpose — extra white below the text is invisible on a
+ *  white board, a clipped price line is a reprint. */
+function estimateDrinkBlockHeight(item: any, s: number, availW: number, half: boolean): number {
+  const lineH = 1.5; // headroom over react-pdf's actual Oswald metrics
+  const nameSize = half ? 70 * s : 79 * s;
+  const descSize = half ? 24 * s : 30 * s;
+  const sizeSize = half ? 22 * s : 26 * s;
+  const priceSize = half ? 24 * s : 28 * s;
+  const tempSize = half ? 22 * s : 26 * s;
+
+  const linesFor = (text: string, fontSize: number, charFactor: number, letterSpacing: number) => {
+    const w = text.length * (fontSize * charFactor + letterSpacing);
+    return Math.max(1, Math.ceil(w / availW));
+  };
+
+  let h = linesFor(String(item.name ?? ''), nameSize, 0.52, 1 * s) * nameSize * lineH;
+  if (item.description) {
+    h += 2 * s + linesFor(String(item.description), descSize, 0.72, 1.5 * s) * descSize * lineH;
+  }
+  if (item.sizeLabels && item.prices) {
+    h += 6 * s + sizeSize * lineH + priceSize * lineH;
+  }
+  if (item.temps) h += 4 * s + tempSize * lineH;
+  return h;
+}
+
+export interface MenuPatchResult {
+  buffer: Buffer;
+  widthIn: number;
+  heightIn: number;
+  itemName: string;
+}
+
+export async function renderMenuPatchPdf(
+  season: any,
+  location: string,
+  itemId: number,
+  heightInOverride?: number,
+): Promise<MenuPatchResult | null> {
+  // Find the item + its category anywhere in the season (either side).
+  let item: any = null;
+  let category: any = null;
+  for (const cat of season.categories ?? []) {
+    const found = (cat.items ?? []).find((i: any) => i.id === itemId);
+    if (found) { item = found; category = cat; break; }
+  }
+  if (!item) return null;
+
+  const is18x48 = location === 'G4';
+  const boardW = is18x48 ? 18 * 72 : 24 * 72;
+  const boardPadH = is18x48 ? 80 : 100;
+  const scale = is18x48 ? 0.75 : 1;
+  // Sweet Coffee renders as a 2-column grid on 24x36 boards — a patch
+  // for one of those drinks covers half the board width.
+  const half = String(category?.name ?? '').toLowerCase().includes('sweet') && !is18x48;
+
+  const patchW = half ? boardW / 2 : boardW;
+  const padH = half ? boardPadH / 2 : boardPadH;
+  const contentW = patchW - padH * 2;
+
+  const padV = 20 * scale;
+  const estimated = estimateDrinkBlockHeight(item, scale, contentW, half);
+  const patchH = heightInOverride && heightInOverride > 0
+    ? heightInOverride * 72
+    : Math.ceil(estimated + padV * 2);
+
+  const ctx: ScaleCtx = { s: scale, contentW, padH };
+  const doc = (
+    <Document>
+      <Page size={[patchW, patchH]} style={{ paddingHorizontal: padH, backgroundColor: '#ffffff' }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <DrinkItem item={item} ctx={ctx} half={half} />
+        </View>
+      </Page>
+    </Document>
+  );
+  const buffer = await renderToBuffer(doc);
+  return {
+    buffer,
+    widthIn: Math.round((patchW / 72) * 100) / 100,
+    heightIn: Math.round((patchH / 72) * 100) / 100,
+    itemName: item.name,
+  };
+}
+
 export async function renderMenuPdf(season: any, location: string, size: MenuRenderSize = 'print'): Promise<Buffer> {
   const isDigital = size === 'digital';
   const is18x48 = !isDigital && location === 'G4';

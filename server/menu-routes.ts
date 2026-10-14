@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import db from './db.js';
 import { requireAuth, AuthRequest } from './auth.js';
-import { renderMenuPdf } from './menu-pdf.js';
+import { renderMenuPdf, renderMenuPatchPdf } from './menu-pdf.js';
 
 const router = Router();
 
@@ -795,6 +795,37 @@ router.get('/menu-seasons/:id/pdf', requireAuth, async (req: AuthRequest, res: R
   } catch (err) {
     console.error('[menu-pdf]', err);
     res.status(500).json({ error: 'pdf_render_failed' });
+  }
+});
+
+// Midseason patch: one drink block as its own print file, sized to the
+// board's width (half-width for Sweet-grid drinks) with the height
+// hugging the block — printed, trimmed, and pasted over the drink it
+// replaces on the hanging board. ?heightIn= overrides the auto height
+// (inches) when the slip needs to cover more of the old block.
+router.get('/menu-seasons/:id/patch', requireAuth, async (req: AuthRequest, res: Response) => {
+  const id = Number(req.params.id);
+  const itemId = Number(req.query.item);
+  if (!id || !itemId) { res.status(400).json({ error: 'invalid_id' }); return; }
+  const location = typeof req.query.location === 'string' ? req.query.location : 'G1';
+  const heightIn = req.query.heightIn ? Number(req.query.heightIn) : undefined;
+  if (heightIn !== undefined && (!Number.isFinite(heightIn) || heightIn <= 0 || heightIn > 36)) {
+    res.status(400).json({ error: 'invalid_height' });
+    return;
+  }
+  const season = assembleSeason(id);
+  if (!season) { res.status(404).json({ error: 'not_found' }); return; }
+  try {
+    const patch = await renderMenuPatchPdf(season, location, itemId, heightIn);
+    if (!patch) { res.status(404).json({ error: 'item_not_found' }); return; }
+    const baseName = `${season.name} - ${location} PATCH - ${patch.itemName} (${patch.widthIn}x${patch.heightIn}in)`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${baseName}.pdf"`);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.send(patch.buffer);
+  } catch (err) {
+    console.error('[menu-patch]', err);
+    res.status(500).json({ error: 'patch_render_failed' });
   }
 });
 
