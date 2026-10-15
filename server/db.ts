@@ -1024,6 +1024,23 @@ db.exec(`
   -- is ordering buys from whoever is cheapest right now. Quotes come from
   -- the AI price-check agent (web search) or manual entry; history is
   -- append-only, the UI shows the latest per store.
+  -- API keys for bots/integrations (Ben's Grokbot etc.): Bearer tokens
+  -- accepted by requireAuth alongside the human cookie JWT. Only a
+  -- SHA-256 hash is stored — the full key is shown once at creation.
+  -- scope 'read' = GET only; 'write' = full method access (both still
+  -- blocked from auth/key-management/HR paths in requireAuth).
+  CREATE TABLE IF NOT EXISTS dashboard_api_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    key_hash TEXT UNIQUE NOT NULL,
+    prefix TEXT NOT NULL,            -- first chars, for recognizing keys in the UI
+    scope TEXT NOT NULL DEFAULT 'read' CHECK(scope IN ('read','write')),
+    created_by TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    last_used_at TEXT,
+    revoked_at TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS price_watch_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,              -- display name, e.g. 'Whole Milk (gallon)'
