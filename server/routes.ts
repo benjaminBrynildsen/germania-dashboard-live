@@ -3,7 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import db from './db.js';
-import { requireAuth, requireRole, AuthRequest } from './auth.js';
+import { requireAuth, requireRole, hashApiKey, AuthRequest } from './auth.js';
+import { randomBytes } from 'node:crypto';
 import { createIdeaForm, createVotingForm, getFormResponses, createDriveFolder } from './google.js';
 import { fetchLocationPhoto, fetchPlaceReviews, syncAllReviews } from './places.js';
 import { seedCogData } from './seed-cog.js';
@@ -843,6 +844,43 @@ router.post('/cog/ingredients/master', requireAuth, (req: AuthRequest, res: Resp
 router.delete('/cog/ingredients/master/:id', requireAuth, (req: AuthRequest, res: Response) => {
   db.prepare('DELETE FROM cog_ingredient_master WHERE id = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// ── API keys for bots (Grokbot etc.) ──────────────────────────────────
+// Humans only: requireAuth blocks any Bearer-key caller from /api/api-keys
+// entirely, so a key can never list, mint, or revoke keys.
+router.get('/api-keys', requireAuth, (_req: AuthRequest, res: Response) => {
+  res.json(db.prepare(`
+    SELECT id, name, prefix, scope, created_by, created_at, last_used_at, revoked_at
+    FROM dashboard_api_keys ORDER BY created_at DESC
+  `).all());
+});
+
+router.post('/api-keys', requireAuth, (req: AuthRequest, res: Response) => {
+  const name = String(req.body?.name ?? '').trim();
+  const scope = req.body?.scope === 'write' ? 'write' : 'read';
+  if (!name) { res.status(400).json({ error: 'name required' }); return; }
+  const key = `gbh_${randomBytes(24).toString('base64url')}`;
+  db.prepare(`
+    INSERT INTO dashboard_api_keys (name, key_hash, prefix, scope, created_by)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(name, hashApiKey(key), key.slice(0, 10), scope, req.user?.email ?? null);
+  // The full key is returned exactly once — only its hash is stored.
+  res.json({ key, name, scope });
+});
+
+router.delete('/api-keys/:id', requireAuth, (req: AuthRequest, res: Response) => {
+  db.prepare("UPDATE dashboard_api_keys SET revoked_at = datetime('now') WHERE id = ?").run(req.params.id);
+  res.json({ success: true });
+});
+
+// The bot instructions, served as markdown so the key + this URL are all
+// a bot (or its owner) needs. Available to both humans and API keys.
+router.get('/bot-docs', requireAuth, (_req: AuthRequest, res: Response) => {
+  const p = path.join(__routesDir, '..', 'docs', 'BOT-API.md');
+  if (!fs.existsSync(p)) { res.status(404).json({ error: 'docs not found' }); return; }
+  res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+  res.send(fs.readFileSync(p, 'utf-8'));
 });
 
 // ── Price Watch: who's cheapest for staples right now ─────────────────

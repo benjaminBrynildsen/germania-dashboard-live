@@ -1,5 +1,6 @@
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
+import crypto from 'node:crypto';
 import { Router, Request, Response, NextFunction } from 'express';
 import db from './db.js';
 
@@ -58,7 +59,48 @@ export interface AuthRequest extends Request {
   user?: { id: number; email: string; name: string; role: string };
 }
 
+export const hashApiKey = (key: string) => crypto.createHash('sha256').update(key).digest('hex');
+
+// Paths bots may never touch, even with a write-scope key: session/auth
+// machinery, the key management itself (a key must not mint keys), and
+// HR data (applicant files/resumes).
+const BOT_DENIED_PREFIXES = ['/api/auth', '/api/api-keys', '/api/applicants'];
+
+/** API-key (bot) authentication: `Authorization: Bearer gbh_...`.
+ *  'ok' = authenticated (req.user set), 'rejected' = response already
+ *  sent, 'skip' = not an API-key request — fall through to the cookie. */
+function tryApiKeyAuth(req: AuthRequest, res: Response): 'ok' | 'rejected' | 'skip' {
+  const authz = req.headers.authorization;
+  if (!authz || !authz.startsWith('Bearer gbh_')) return 'skip';
+  const key = authz.slice('Bearer '.length).trim();
+  const row = db.prepare(
+    'SELECT id, name, scope FROM dashboard_api_keys WHERE key_hash = ? AND revoked_at IS NULL',
+  ).get(hashApiKey(key)) as { id: number; name: string; scope: string } | undefined;
+  if (!row) {
+    res.status(401).json({ error: 'Invalid or revoked API key' });
+    return 'rejected';
+  }
+  const url = req.originalUrl || req.url || '';
+  if (BOT_DENIED_PREFIXES.some((p) => url.startsWith(p))) {
+    res.status(403).json({ error: 'This area is not available to API keys.' });
+    return 'rejected';
+  }
+  if (row.scope === 'read' && !['GET', 'HEAD'].includes(req.method)) {
+    res.status(403).json({ error: 'This API key is read-only. Ask for a write-scope key to make changes.' });
+    return 'rejected';
+  }
+  db.prepare("UPDATE dashboard_api_keys SET last_used_at = datetime('now') WHERE id = ?").run(row.id);
+  // Negative id + a recognizable email keep bot writes distinguishable
+  // from humans everywhere (confirm stamps, saved-by fields, logs) and
+  // off every email-based allowlist (week unlock etc.).
+  req.user = { id: -row.id, email: `api-key:${row.name}`, name: row.name, role: 'bot' };
+  return 'ok';
+}
+
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  const keyResult = tryApiKeyAuth(req, res);
+  if (keyResult === 'ok') { next(); return; }
+  if (keyResult === 'rejected') return;
   const token = req.cookies?.token;
   if (!token) {
     res.status(401).json({ error: 'Not authenticated' });
