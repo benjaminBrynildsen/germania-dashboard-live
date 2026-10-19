@@ -232,6 +232,13 @@ db.pragma('foreign_keys = ON');
     console.log('[migration] adding build_to to bake_haus_syrups');
     db.exec('ALTER TABLE bake_haus_syrups ADD COLUMN build_to REAL');
   }
+  // "Count first" items (Haus Vanilla to start): ordering without an
+  // on-hand count gets a visible badge, and the Sunday auto-draft
+  // leaves them blank instead of guessing from history.
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'count_required')) {
+    console.log('[migration] adding count_required to bake_haus_syrups');
+    db.exec('ALTER TABLE bake_haus_syrups ADD COLUMN count_required INTEGER NOT NULL DEFAULT 0');
+  }
 }
 // bake_haus_orders.on_hand — the bottle count the store manager typed
 // when ordering (the build-to flow). NULL = not entered for that row.
@@ -600,6 +607,9 @@ db.exec(`
     -- Build-to par (bottles): order auto-fills to build_to - on_hand.
     -- NULL = item doesn't use the on-hand flow.
     build_to REAL,
+    -- 1 = "count first": ordering without an on-hand count is badged,
+    -- and the Sunday auto-draft leaves the item blank.
+    count_required INTEGER NOT NULL DEFAULT 0,
     -- Soft delete / seasonal toggle. Inactive items hide from the
     -- ordering UI but stay in the DB so historical orders still
     -- resolve their display name.
@@ -1120,6 +1130,17 @@ applyFoodCogs2026(db);
     const r = db.prepare("UPDATE bake_haus_syrups SET build_to = 20 WHERE category = 'syrup-sauce' AND build_to IS NULL").run();
     db.prepare('INSERT INTO migration_flags (key, done_at) VALUES (?, ?)').run(FLAG, Date.now());
     if (r.changes > 0) console.log(`[migration] defaulted build_to=20 on ${r.changes} syrup/sauce items`);
+  }
+}
+// One-time: Haus Vanilla is the first "count first" item (Maggie,
+// Oct 2026) — the flag is per-item and editable on the Manage tab, so
+// this seeds vanilla only and never re-applies after she changes it.
+{
+  const FLAG = 'vanilla-count-required-2026-10';
+  if (!db.prepare('SELECT 1 FROM migration_flags WHERE key = ?').get(FLAG)) {
+    const r = db.prepare("UPDATE bake_haus_syrups SET count_required = 1 WHERE LOWER(display_name) = 'haus vanilla'").run();
+    db.prepare('INSERT INTO migration_flags (key, done_at) VALUES (?, ?)').run(FLAG, Date.now());
+    if (r.changes > 0) console.log('[migration] Haus Vanilla marked count-first');
   }
 }
 

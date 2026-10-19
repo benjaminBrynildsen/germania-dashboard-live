@@ -288,4 +288,19 @@ app.listen(PORT, () => {
     }
   };
   setInterval(priceWatchTick, 60_000);
+
+  // Haus Vanilla → Wed/Fri-only delivery: a scheduled one-shot that
+  // waits for the Oct 19 week to lock (fires at/after Tue Oct 20
+  // 00:05 CT, checked every minute + once shortly after boot). The
+  // flag inside makes every later call a no-op.
+  const vanillaFlipTick = async () => {
+    try {
+      const { applyVanillaWedFriFlip } = await import('./bake-haus.js');
+      applyVanillaWedFriFlip();
+    } catch (err) {
+      console.warn('[VanillaFlip] tick failed:', err instanceof Error ? err.message : err);
+    }
+  };
+  setTimeout(vanillaFlipTick, 15_000);
+  setInterval(vanillaFlipTick, 60_000);
 });

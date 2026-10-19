@@ -167,6 +167,7 @@ router.put('/bake-haus/syrups/:id', requireAuth, (req: AuthRequest, res: Respons
     }
   }
   if (typeof req.body?.active === 'boolean')            patch.active = req.body.active;
+  if (typeof req.body?.countRequired === 'boolean')     patch.countRequired = req.body.countRequired;
   // Build-to par: a positive number sets it, explicit null turns the
   // on-hand ordering flow off for the item.
   if ('buildTo' in (req.body ?? {})) {
