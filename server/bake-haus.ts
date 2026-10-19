@@ -55,6 +55,8 @@ export interface BakeHausCatalogItem {
    *  item doesn't use it. Always null for food (food nets against
    *  Dripos inventory instead). */
   buildTo: number | null;
+  /** "Count first" item: badge no-count orders, auto-draft skips it. */
+  countRequired: boolean;
   /** Bottle-art color override for syrup rows (#rrggbb); null = the
    *  client derives a tint from the flavor name. Always null for food. */
   tintColor: string | null;
@@ -1416,6 +1418,9 @@ export interface SyrupRow {
   tintColor: string | null;
   /** Build-to par (bottles) for syrup-sauce rows; null = off. */
   buildTo: number | null;
+  /** "Count first": no-count orders get badged and the Sunday
+   *  auto-draft leaves the item blank. Haus Vanilla to start. */
+  countRequired: boolean;
   active: boolean;
   createdAt: number;
   updatedAt: number;
@@ -1431,6 +1436,7 @@ interface SyrupDbRow {
   category: string;
   tint_color: string | null;
   build_to: number | null;
+  count_required: number;
   active: number;
   created_at: number;
   updated_at: number;
@@ -1447,6 +1453,7 @@ function rowToSyrup(r: SyrupDbRow): SyrupRow {
     category: r.category === 'food' ? 'food' : 'syrup-sauce',
     tintColor: r.tint_color ?? null,
     buildTo: r.build_to ?? null,
+    countRequired: r.count_required === 1,
     active: r.active === 1,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -1474,6 +1481,7 @@ export function createSyrup(args: {
   includeMonday?: boolean;
   category?: 'food' | 'syrup-sauce';
   buildTo?: number | null;
+  countRequired?: boolean;
 }): SyrupRow {
   const now = Date.now();
   const sort = args.sort ?? 100;
@@ -1484,9 +1492,9 @@ export function createSyrup(args: {
   const buildTo = args.buildTo !== undefined ? args.buildTo : (category === 'syrup-sauce' ? 20 : null);
   const info = db.prepare(
     `INSERT INTO bake_haus_syrups
-       (display_name, dripos_product_id, dripos_product_name, sort, include_monday, category, build_to, active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-  ).run(args.displayName, args.driposProductId, args.driposProductName, sort, include, category, buildTo, now, now);
+       (display_name, dripos_product_id, dripos_product_name, sort, include_monday, category, build_to, count_required, active, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+  ).run(args.displayName, args.driposProductId, args.driposProductName, sort, include, category, buildTo, args.countRequired ? 1 : 0, now, now);
   return getSyrup(info.lastInsertRowid as number)!;
 }
 
@@ -1503,6 +1511,7 @@ export function updateSyrup(
     tintColor: string | null;
     /** Build-to par; null turns the on-hand flow off for the item. */
     buildTo: number | null;
+    countRequired: boolean;
     active: boolean;
   }>,
 ): SyrupRow | null {
@@ -1519,16 +1528,17 @@ export function updateSyrup(
     // presence decides rather than ??.
     tintColor: 'tintColor' in args ? (args.tintColor ?? null) : cur.tintColor,
     buildTo: 'buildTo' in args ? (args.buildTo ?? null) : cur.buildTo,
+    countRequired: args.countRequired ?? cur.countRequired,
     active: args.active ?? cur.active,
   };
   db.prepare(
     `UPDATE bake_haus_syrups SET
        display_name = ?, dripos_product_id = ?, dripos_product_name = ?,
-       sort = ?, include_monday = ?, category = ?, tint_color = ?, build_to = ?, active = ?, updated_at = ?
+       sort = ?, include_monday = ?, category = ?, tint_color = ?, build_to = ?, count_required = ?, active = ?, updated_at = ?
      WHERE id = ?`,
   ).run(
     next.displayName, next.driposProductId, next.driposProductName,
-    next.sort, next.includeMonday ? 1 : 0, next.category, next.tintColor, next.buildTo, next.active ? 1 : 0,
+    next.sort, next.includeMonday ? 1 : 0, next.category, next.tintColor, next.buildTo, next.countRequired ? 1 : 0, next.active ? 1 : 0,
     Date.now(), id,
   );
   return getSyrup(id);
@@ -1576,6 +1586,7 @@ export function getMergedCatalog(): BakeHausCatalogItem[] {
     driposProductId: null,
     driposProductName: null,
     buildTo: null,
+    countRequired: false,
     tintColor: null,
   }));
   const dbItems: BakeHausCatalogItem[] = listSyrups(false).map((s) => ({
@@ -1589,6 +1600,7 @@ export function getMergedCatalog(): BakeHausCatalogItem[] {
     driposProductId: s.driposProductId,
     driposProductName: s.driposProductName,
     buildTo: s.category === 'syrup-sauce' ? s.buildTo : null,
+    countRequired: s.category === 'syrup-sauce' && s.countRequired,
     tintColor: s.category === 'syrup-sauce' ? s.tintColor : null,
   }));
   return [...food, ...dbItems].sort((a, b) =>
@@ -1748,6 +1760,12 @@ export async function autoDraftWeek(
   weekStartIso: string,
 ): Promise<{ drafted: Array<{ store: string; items: number }> }> {
   const suggestions = await computeSuggestionsForWeek(weekStartIso);
+  // "Count first" items (Haus Vanilla) are never auto-drafted: a
+  // history-based guess defeats the point of counting the shelf, and a
+  // blank row on Monday morning is the nudge to count.
+  const countFirst = new Set(
+    getMergedCatalog().filter((c) => c.countRequired).map((c) => c.name),
+  );
   const drafted: Array<{ store: string; items: number }> = [];
   for (const store of STORES) {
     const saved = db.prepare(
@@ -1766,6 +1784,7 @@ export async function autoDraftWeek(
     let count = 0;
     for (const [itemName, s] of Object.entries(suggestions[store.label] ?? {})) {
       if (existing.has(itemName) || s.qty <= 0) continue;
+      if (countFirst.has(itemName)) continue;
       upsertOrderItem({ weekStartIso, storeLabel: store.label, itemName, weeklyQty: s.qty, notes: null });
       count++;
     }
@@ -1777,6 +1796,37 @@ export async function autoDraftWeek(
     }
   }
   return { drafted };
+}
+
+/** Scheduled one-shot (Maggie, Oct 19 2026): move Haus Vanilla to
+ *  Wed/Fri-only delivery — but not before the week of Oct 19 locks.
+ *  Flipping mid-Monday would yank that day's vanilla delivery out of
+ *  the live views before the 11:59pm lock froze it, so this fires on
+ *  the first check at/after Tue Oct 20 00:05 America/Chicago (minute
+ *  tick + boot). Flag-gated; a later hand-flip on the Manage tab is
+ *  never overridden because the flag burns on first application. */
+export function applyVanillaWedFriFlip(): boolean {
+  const FLAG = 'vanilla-wed-fri-2026-10';
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS migration_flags (
+      key TEXT PRIMARY KEY,
+      done_at INTEGER NOT NULL
+    )
+  `);
+  if (db.prepare('SELECT 1 FROM migration_flags WHERE key = ?').get(FLAG)) return false;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false,
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value || '';
+  const stamp = `${get('year')}-${get('month')}-${get('day')}T${get('hour')}`;
+  if (stamp < '2026-10-20T00') return false; // not yet — this week still needs its Monday
+  const r = db.prepare(
+    "UPDATE bake_haus_syrups SET include_monday = 0, updated_at = ? WHERE LOWER(display_name) = 'haus vanilla' AND include_monday = 1",
+  ).run(Date.now());
+  db.prepare('INSERT INTO migration_flags (key, done_at) VALUES (?, ?)').run(FLAG, Date.now());
+  if (r.changes > 0) console.log('[bake-haus] Haus Vanilla moved to Wed/Fri-only delivery (scheduled change, Maggie Oct 2026)');
+  return r.changes > 0;
 }
 
 // ─── Week / report helpers ────────────────────────────────────────

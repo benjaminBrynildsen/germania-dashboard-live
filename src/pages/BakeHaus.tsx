@@ -40,6 +40,8 @@ interface Syrup {
   tintColor: string | null;
   /** Build-to par (bottles); null = on-hand ordering flow off. */
   buildTo: number | null;
+  /** "Count first": no-count orders get badged; auto-draft skips it. */
+  countRequired: boolean;
   active: boolean;
   createdAt: number;
   updatedAt: number;
@@ -93,6 +95,8 @@ interface CatalogItem {
   tintColor?: string | null;
   /** Build-to par (bottles) for syrup rows; null/absent = flow off. */
   buildTo?: number | null;
+  /** "Count first" item — ordering without a count gets badged. */
+  countRequired?: boolean;
 }
 
 interface DeliverySnapshotSummary {
@@ -1907,6 +1911,7 @@ function ManageSyrupsView({
               onRename={(name) => patchSyrup(e.s.id, { displayName: name })}
               onTint={(color) => patchSyrup(e.s.id, { tintColor: color })}
               onBuildTo={(buildTo) => patchSyrup(e.s.id, { buildTo })}
+              onToggleCountRequired={() => patchSyrup(e.s.id, { countRequired: !e.s.countRequired })}
               onDelete={() => removeSyrup(e.s.id, e.s.displayName)}
               onSwitchCategory={() => {
                 const toFood = e.s.category !== 'food';
@@ -1976,7 +1981,7 @@ function BuiltinRow({ item, busy, isMobile, onToggle }: {
 }
 
 function SyrupRow({
-  syrup, busy, isMobile, onToggleActive, onToggleMonday, onRename, onTint, onBuildTo, onDelete, onSwitchCategory,
+  syrup, busy, isMobile, onToggleActive, onToggleMonday, onRename, onTint, onBuildTo, onToggleCountRequired, onDelete, onSwitchCategory,
 }: {
   syrup: Syrup;
   busy: boolean;
@@ -1987,6 +1992,8 @@ function SyrupRow({
   onTint: (color: string | null) => void;
   /** Set the build-to par (bottles); null turns the on-hand flow off. */
   onBuildTo: (buildTo: number | null) => void;
+  /** Toggle the "count first" requirement. */
+  onToggleCountRequired: () => void;
   onDelete: () => void;
   onSwitchCategory: () => void;
 }) {
@@ -2095,6 +2102,19 @@ function SyrupRow({
           style={{ ...pillBtn, opacity: busy ? 0.5 : 1 }}>
           {syrup.includeMonday ? 'Skip Mon' : 'Add Mon'}
         </button>
+        {syrup.category === 'syrup-sauce' && syrup.buildTo != null && (
+          <button onClick={onToggleCountRequired} disabled={busy}
+            title='"Count first": stores must count bottles before ordering — no-count orders get badged and the Sunday auto-draft skips this item'
+            style={{
+              ...pillBtn, opacity: busy ? 0.5 : 1,
+              ...(syrup.countRequired ? {
+                background: 'rgba(202,138,4,0.12)', color: '#a16207',
+                border: '1px solid rgba(202,138,4,0.35)', fontWeight: 700,
+              } : {}),
+            }}>
+            {syrup.countRequired ? '✓ Count first' : 'Count first'}
+          </button>
+        )}
         {syrup.category === 'syrup-sauce' && (
           <label title="Build-to par: stores count bottles on hand and the order fills itself up to this number. Blank = off."
             style={{
@@ -2425,6 +2445,7 @@ function StoreOrderCard({
       category: 'food' | 'syrup-sauce' | 'custom';
       tintColor: string | null;
       buildTo: number | null;
+      countRequired: boolean;
     }> = catalog.map((c) => ({
       name: c.name,
       row: rowByName.get(c.name) ?? null,
@@ -2434,6 +2455,7 @@ function StoreOrderCard({
       category: c.category ?? 'food',
       tintColor: c.tintColor ?? null,
       buildTo: c.buildTo ?? null,
+      countRequired: c.countRequired ?? false,
     }));
     // Append any rows whose item isn't in the catalog — these are ad-hoc
     // additions and live at the bottom so they don't break the catalog
@@ -2442,7 +2464,7 @@ function StoreOrderCard({
       if (!catalogNames.has(r.itemName)) {
         cart.push({
           name: r.itemName, row: r, sort: 9999, custom: true,
-          imageUrl: null, category: 'custom', tintColor: null, buildTo: null,
+          imageUrl: null, category: 'custom', tintColor: null, buildTo: null, countRequired: false,
         });
       }
     }
@@ -2645,6 +2667,7 @@ function StoreOrderCard({
                 hintMode={hintMode}
                 lastWeekQty={prevWeek[it.name] ?? null}
                 buildTo={it.buildTo}
+                countRequired={it.countRequired}
                 onSave={(qty, onHand) => onSave(it.name, qty, onHand)}
                 onDelete={() => onDelete(it.name)}
               />
@@ -2722,7 +2745,7 @@ function StoreOrderCard({
 }
 
 function CartRowEditor({
-  itemName, imageUrl, category, tintColor, row, onHand, suggestion, isCustom, theme, isLast, isMobile, locked, hintMode, lastWeekQty, buildTo, onSave, onDelete,
+  itemName, imageUrl, category, tintColor, row, onHand, suggestion, isCustom, theme, isLast, isMobile, locked, hintMode, lastWeekQty, buildTo, countRequired, onSave, onDelete,
 }: {
   itemName: string;
   imageUrl?: string | null;
@@ -2749,6 +2772,8 @@ function CartRowEditor({
   /** Build-to par (bottles). Set on syrup rows → shows the count-on-hand
    *  box and auto-fills the order to buildTo − counted. */
   buildTo?: number | null;
+  /** "Count first" item — an active order without a count gets a badge. */
+  countRequired?: boolean;
   onSave: (qty: number, onHand?: number | null) => void;
   onDelete: () => void;
 }) {
@@ -2920,6 +2945,14 @@ function CartRowEditor({
                 }}>build to {buildTo}</span>
                 {storedOnHand != null && currentQty === Math.max(0, (buildTo as number) - storedOnHand) && (
                   <span style={{ color: '#15803d' }}>✓ order {currentQty}</span>
+                )}
+                {countRequired && storedOnHand == null && active && (
+                  <span title="This item is count-first: count the bottles on the shelf and enter it — the order fills itself."
+                    style={{
+                      padding: '2px 8px', borderRadius: 999, fontWeight: 700,
+                      background: 'rgba(202,138,4,0.12)', color: '#a16207',
+                      border: '1px solid rgba(202,138,4,0.35)',
+                    }}>⚠ no count entered</span>
                 )}
               </span>
             ) : (
