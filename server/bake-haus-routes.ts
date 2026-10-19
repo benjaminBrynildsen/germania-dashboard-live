@@ -65,6 +65,8 @@ router.get('/bake-haus/catalog', requireAuth, async (_req: AuthRequest, res: Res
       includeMonday: c.includeMonday,
       imageUrl: imageMap[c.name] ?? null,
       tintColor: c.tintColor,
+      buildTo: c.buildTo,
+      countRequired: c.countRequired,
     })),
   });
 });
