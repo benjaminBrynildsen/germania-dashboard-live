@@ -316,8 +316,11 @@ export default function BuilderTab({ onSaved }: { onSaved?: (recipeId: number) =
 
           {isMobile && <div style={{ marginBottom: 14 }}>{costPanel}</div>}
 
-          {/* Ingredient lines */}
-          <div className="card" style={{ marginBottom: 14 }}>
+          {/* Ingredient lines. position+zIndex lift this card above the
+              Labor card below: .card's backdrop-filter creates a stacking
+              context, so without this the ingredient-search dropdown gets
+              painted over by the next card. */}
+          <div className="card" style={{ marginBottom: 14, position: 'relative', zIndex: 5 }}>
             <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(0,0,0,0.4)', marginBottom: 12 }}>
               Ingredients
             </div>
