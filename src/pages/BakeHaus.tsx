@@ -12,6 +12,8 @@ interface OrderRow {
   netQty: number;
   /** Bottle count the store manager typed (build-to flow); null = not entered. */
   enteredOnHand: number | null;
+  /** When that count was entered (ms epoch). */
+  enteredOnHandAt: number | null;
   delivery: { mon: number; wed: number; fri: number };
   monLockedQty: number | null;
   wedLockedQty: number | null;
@@ -2789,6 +2791,18 @@ function CartRowEditor({
   // blur/Enter — the order saves even at qty 0 so the count is kept.
   const usesBuildTo = category === 'syrup-sauce' && buildTo != null && buildTo > 0;
   const storedOnHand = row?.enteredOnHand ?? null;
+  // How old the count is — Chef can trust "2h ago", but "2d ago" means
+  // bottles have moved since and the shelf deserves a recount.
+  const countAge = (() => {
+    const at = row?.enteredOnHandAt;
+    if (storedOnHand == null || at == null) return null;
+    const hrs = (Date.now() - at) / 3_600_000;
+    if (!Number.isFinite(hrs) || hrs < 0) return null;
+    if (hrs < 1) return { label: 'counted just now', stale: false };
+    if (hrs < 24) return { label: `counted ${Math.round(hrs)}h ago`, stale: false };
+    const days = Math.round(hrs / 24);
+    return { label: `counted ${days}d ago — recount?`, stale: true };
+  })();
   const [onHandText, setOnHandText] = useState<string>(storedOnHand != null ? String(storedOnHand) : '');
   useEffect(() => {
     setOnHandText(storedOnHand != null ? String(storedOnHand) : '');
@@ -2945,6 +2959,19 @@ function CartRowEditor({
                 }}>build to {buildTo}</span>
                 {storedOnHand != null && currentQty === Math.max(0, (buildTo as number) - storedOnHand) && (
                   <span style={{ color: '#15803d' }}>✓ order {currentQty}</span>
+                )}
+                {countAge && (
+                  <span
+                    title={countAge.stale
+                      ? 'This count is old — bottles have likely moved since. Recount the shelf and re-enter it.'
+                      : 'When this bottle count was entered'}
+                    style={countAge.stale ? {
+                      padding: '2px 8px', borderRadius: 999, fontWeight: 700,
+                      background: 'rgba(202,138,4,0.12)', color: '#a16207',
+                      border: '1px solid rgba(202,138,4,0.35)',
+                    } : { color: 'rgba(0,0,0,0.35)' }}>
+                    {countAge.label}
+                  </span>
                 )}
                 {countRequired && storedOnHand == null && active && (
                   <span title="This item is count-first: count the bottles on the shelf and enter it — the order fills itself."

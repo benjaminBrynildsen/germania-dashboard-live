@@ -242,11 +242,20 @@ db.pragma('foreign_keys = ON');
 }
 // bake_haus_orders.on_hand — the bottle count the store manager typed
 // when ordering (the build-to flow). NULL = not entered for that row.
+// on_hand_counted_at (ms epoch) records WHEN it was counted — written
+// only when the count itself changes, so a later qty tweak can't make
+// a stale count look fresh. Existing counts backfill from updated_at
+// (best available guess) when the column first appears.
 {
   const tbl = db.prepare("PRAGMA table_info(bake_haus_orders)").all() as Array<{ name: string }>;
   if (tbl.length > 0 && !tbl.some((c) => c.name === 'on_hand')) {
     console.log('[migration] adding on_hand to bake_haus_orders');
     db.exec('ALTER TABLE bake_haus_orders ADD COLUMN on_hand REAL');
+  }
+  if (tbl.length > 0 && !tbl.some((c) => c.name === 'on_hand_counted_at')) {
+    console.log('[migration] adding on_hand_counted_at to bake_haus_orders');
+    db.exec('ALTER TABLE bake_haus_orders ADD COLUMN on_hand_counted_at INTEGER');
+    db.exec('UPDATE bake_haus_orders SET on_hand_counted_at = updated_at WHERE on_hand IS NOT NULL');
   }
 }
 // Waffles → Waffle Wedge rename migration. The catalog item was renamed
@@ -522,8 +531,10 @@ db.exec(`
     weekly_qty REAL NOT NULL,
     notes TEXT,
     -- Bottle count the store manager typed when ordering (build-to
-    -- flow); NULL = not entered.
+    -- flow); NULL = not entered. counted_at (ms) changes only when the
+    -- count itself does, so its age is honest.
     on_hand REAL,
+    on_hand_counted_at INTEGER,
     updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
     -- Per-delivery-day snapshots captured at lock time. NULL = that
     -- day is not locked; splitForDeliveries recomputes it normally.
