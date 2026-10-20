@@ -488,6 +488,9 @@ export interface BakeHausOrderRow {
    *  flow). null = not entered. Already baked into weeklyQty — never
    *  subtract it again. */
   enteredOnHand: number | null;
+  /** When that count was entered (ms epoch); stale counts deserve a
+   *  recount before baking against them. */
+  enteredOnHandAt: number | null;
   /** Mon/Wed/Fri split of netQty. */
   delivery: { mon: number; wed: number; fri: number };
   /** Per-day frozen qty for this row when the week is locked. null
@@ -573,6 +576,7 @@ interface DbRow {
   weekly_qty: number;
   notes: string | null;
   on_hand: number | null;
+  on_hand_counted_at: number | null;
   mon_locked_qty: number | null;
   wed_locked_qty: number | null;
   fri_locked_qty: number | null;
@@ -586,7 +590,7 @@ function itemSortKey(name: string, catalogByName: Map<string, BakeHausCatalogIte
 
 export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekReport> {
   const rows = db.prepare(
-    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, on_hand,
+    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, on_hand, on_hand_counted_at,
             mon_locked_qty, wed_locked_qty, fri_locked_qty
      FROM bake_haus_orders
      WHERE week_start_iso = ?`,
@@ -696,6 +700,7 @@ export async function getWeekReport(weekStartIso: string): Promise<BakeHausWeekR
       onHand,
       netQty,
       enteredOnHand: r.on_hand ?? null,
+      enteredOnHandAt: r.on_hand_counted_at ?? null,
       delivery: split,
       monLockedQty,
       wedLockedQty,
@@ -769,7 +774,7 @@ export async function lockWeek(
   asOfMs?: number | null,
 ): Promise<{ rowsSnapshotted: number; mode: 'live' | 'reconstructed' }> {
   const rows = db.prepare(
-    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, on_hand,
+    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, on_hand, on_hand_counted_at,
             mon_locked_qty, wed_locked_qty, fri_locked_qty
      FROM bake_haus_orders
      WHERE week_start_iso = ?`,
@@ -953,7 +958,7 @@ export async function lockDay(
   asOfMs?: number | null,
 ): Promise<{ rowsSnapshotted: number; mode: 'live' | 'reconstructed' }> {
   const rows = db.prepare(
-    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, on_hand,
+    `SELECT week_start_iso, store_label, item_name, weekly_qty, notes, on_hand, on_hand_counted_at,
             mon_locked_qty, wed_locked_qty, fri_locked_qty
      FROM bake_haus_orders
      WHERE week_start_iso = ?`,
@@ -1229,15 +1234,19 @@ export function upsertOrderItem(args: {
 }): void {
   const canonical = canonicalizeItemName(args.itemName);
   const hasOnHand = args.onHand !== undefined ? 1 : 0;
+  // counted_at follows the count: stamped when a count arrives, cleared
+  // with it, untouched by plain qty edits — so its age stays honest.
+  const countedAt = args.onHand != null ? Date.now() : null;
   db.prepare(
-    `INSERT INTO bake_haus_orders (week_start_iso, store_label, item_name, weekly_qty, notes, on_hand, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO bake_haus_orders (week_start_iso, store_label, item_name, weekly_qty, notes, on_hand, on_hand_counted_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(week_start_iso, store_label, item_name) DO UPDATE SET
        weekly_qty = excluded.weekly_qty,
        notes = excluded.notes,
        on_hand = CASE WHEN ? = 1 THEN excluded.on_hand ELSE bake_haus_orders.on_hand END,
+       on_hand_counted_at = CASE WHEN ? = 1 THEN excluded.on_hand_counted_at ELSE bake_haus_orders.on_hand_counted_at END,
        updated_at = excluded.updated_at`,
-  ).run(args.weekStartIso, args.storeLabel, canonical, args.weeklyQty, args.notes ?? null, args.onHand ?? null, Date.now(), hasOnHand);
+  ).run(args.weekStartIso, args.storeLabel, canonical, args.weeklyQty, args.notes ?? null, args.onHand ?? null, countedAt, Date.now(), hasOnHand, hasOnHand);
 }
 
 export function deleteOrderItem(
