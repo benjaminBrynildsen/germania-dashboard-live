@@ -346,7 +346,10 @@ export default function RecipesTab() {
             </div>
 
             {expandedRecipe === recipe.id && recipeDetail && (
-              <div className="card" style={{ marginTop: 8, background: 'rgba(255,255,255,0.95)' }}>
+              // position+zIndex lift this card above the next recipe card:
+              // .card's backdrop-filter creates a stacking context, so without
+              // this the ingredient-search dropdown gets painted over.
+              <div className="card" style={{ marginTop: 8, background: 'rgba(255,255,255,0.95)', position: 'relative', zIndex: 5 }}>
                 <div style={{ marginBottom: 24 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
                     <InfoBox label="Total Yield" value={`${recipeDetail.total_yield} ${recipeDetail.yield_unit}`} />
