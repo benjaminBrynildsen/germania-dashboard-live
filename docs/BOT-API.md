@@ -55,6 +55,11 @@ curl -s https://dashboard.germaniabrewhaus.com/api/cog/ingredients/master \
 | `POST /api/cog/recipes/:id/sync-master-prices` | Re-apply catalog prices to a recipe; returns what linked/updated/skipped. |
 | `GET /api/cog/drinks` | Drink catalog with COG ranges, Dripos links, `needs_confirm` flags. |
 | `GET /api/cog/drinks/:id` | One drink: variants (temp/size), components, per-variant COG, recommended price. |
+| `POST /api/cog/drinks/:id/build` | **Write a drink's entire build in one call** (replaces all variants + components). See "Writing a drink build" below. |
+| `POST /api/cog/drinks/:id/variants` | Add one size/temp variant `{label, temp?, size?, menu_price?}`. |
+| `PUT /api/cog/variants/:id` / `DELETE` | Update or remove one variant. |
+| `POST /api/cog/variants/:id/components` | Add one build line to a variant `{component_type: 'ingredient'\|'recipe', ingredient_id\|recipe_id, quantity, unit}`. |
+| `PUT /api/cog/components/:id` / `DELETE` | Update or remove one build line. |
 | `POST /api/cog/drinks/:id/fill-flavor-sizes` | Copy a syrup/sauce found on one size to all sizes at house pump amounts. |
 | `GET /api/cog/drinks/active-sales` | 30-day Dripos sales per drink ("selling now"). |
 | `GET /api/cog/price-watch` | Price Watch: watched staples with the latest Schnucks/Walmart/Costco quotes and the cheapest store flag. |
@@ -104,6 +109,55 @@ curl -s https://dashboard.germaniabrewhaus.com/api/cog/ingredients/master \
 **"Place G2's syrup order: they have 7 Haus Vanilla on hand."**
 1. `GET /api/bake-haus/syrups` → Haus Vanilla's `buildTo` (e.g. 20).
 2. `PUT /api/bake-haus/item` `{week: <this Monday>, store: "G2", item: "Haus Vanilla", weeklyQty: 13, onHand: 7}`.
+
+## Writing a drink build
+
+`POST /api/cog/drinks/:id/build` replaces the drink's whole build
+(every variant and component) in a single transaction. Use it when
+entering or re-entering a recipe; use the one-at-a-time variant/component
+endpoints only for small touch-ups.
+
+- **Target the Dripos-linked record.** `GET /api/cog/drinks` and pick the
+  row whose `dripos_product_id` is set (that's the one sales feed into) —
+  not an old unlinked copy with a similar name.
+- Components can reference sources **by name** instead of id:
+  `"ingredient": "Whole Milk"` or `"recipe": "Chai Base"`. Names match
+  case-insensitively against the ingredient catalog
+  (`GET /api/cog/ingredients/master`) and batch recipes
+  (`GET /api/cog/recipes`); a unique partial match also works. An unknown
+  or ambiguous name fails the whole call with a `details` list of what to
+  fix — **nothing is written on failure**, so just correct and resend.
+- `quantity` is in the source's costing unit: the catalog ingredient's
+  `pack_unit` or the recipe's `yield_unit` (e.g. a syrup recipe yielding
+  `floz` → quantity in fl oz). Pass `unit` as a label for humans; if it
+  doesn't match the source's unit the response lists a warning.
+- A successful write clears `needs_confirm` and returns the costed-out
+  drink (per-variant `cog`, `recommended_price`) plus a `warnings` array.
+  **Read the warnings and the returned costs back** — a $0.02 latte means
+  a wrong unit somewhere.
+
+```json
+POST /api/cog/drinks/108/build
+{
+  "variants": [
+    {
+      "label": "Hot - Small", "temp": "hot", "size": "S", "menu_price": 5.25,
+      "components": [
+        { "ingredient": "Whole Milk", "quantity": 10, "unit": "floz" },
+        { "ingredient": "Espresso Beans", "quantity": 0.63, "unit": "oz" },
+        { "recipe": "Haus Bourbon Butterscotch Sauce", "quantity": 1, "unit": "floz" }
+      ]
+    },
+    {
+      "label": "Iced - Large", "temp": "iced", "size": "L",
+      "components": [
+        { "ingredient": "Whole Milk", "quantity": 12, "unit": "floz" },
+        { "recipe": "Haus Bourbon Butterscotch Sauce", "quantity": 1.5, "unit": "floz" }
+      ]
+    }
+  ]
+}
+```
 
 **"Which store should we buy milk from this week?"**
 1. `GET /api/cog/price-watch` → each item's latest quotes; `cheapest_store` is precomputed. Mention the quote age — stale quotes (>7 days) deserve a re-check.
