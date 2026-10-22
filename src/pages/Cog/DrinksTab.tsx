@@ -431,6 +431,7 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPr
   const [targetOverride, setTargetOverride] = useState(detail.target_cogs_pct?.toString() ?? '');
   const [activeVariant, setActiveVariant] = useState<number | null>(detail.variants[0]?.id ?? null);
   const [addingVariant, setAddingVariant] = useState(false);
+  const [view, setView] = useState<'recipe' | 'health'>('recipe');
 
   // Takes the committed value directly — state hasn't re-rendered yet when
   // NumInput's +/- fires onChange and onCommit in the same tick.
@@ -492,8 +493,30 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPr
       )}
       <DriposLinkRow detail={detail} canEdit={canEdit} products={products} onChanged={onChanged} />
 
+      {/* Recipe / COG-health view toggle */}
+      {detail.variants.length > 0 && (
+        <div style={{ display: 'inline-flex', borderRadius: 999, border: '1px solid rgba(0,0,0,0.12)', overflow: 'hidden', marginBottom: 14 }}>
+          {([['recipe', 'Recipe'], ['health', 'COG health']] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setView(key)}
+              style={{
+                padding: '6px 14px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                fontSize: 12, fontWeight: 600,
+                background: view === key ? '#1a1a1a' : '#fff',
+                color: view === key ? '#fff' : 'rgba(0,0,0,0.55)',
+              }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view === 'health' && (
+        <CogHealthBoard detail={detail} driposPrices={driposPrices} isMobile={isMobile}
+          onPick={(vid) => { setActiveVariant(vid); setView('recipe'); }} />
+      )}
+
       {/* Variant selector */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+      <div style={{ display: view === 'health' ? 'none' : 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
         {detail.variants.map((v) => {
           const on = v.id === current?.id;
           return (
@@ -522,7 +545,7 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPr
         <AddVariantRow drinkId={detail.id} onClose={() => setAddingVariant(false)} onAdded={() => { setAddingVariant(false); onChanged(); }} />
       )}
 
-      {current ? (
+      {view === 'recipe' && (current ? (
         <VariantBlock
           key={current.id} variant={current} isMobile={isMobile} canEdit={canEdit}
           ingredients={ingredients} recipes={recipes} driposPrice={driposPrices[current.id] ?? null}
@@ -530,7 +553,7 @@ function DrinkEditor({ detail, isMobile, canEdit, ingredients, recipes, driposPr
         />
       ) : (
         <div style={{ color: 'rgba(0,0,0,0.4)', padding: 16 }}>No sizes yet. {canEdit ? 'Add one above.' : ''}</div>
-      )}
+      ))}
 
       {/* Drink-level target override + delete */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, flexWrap: 'wrap', gap: 12 }}>
@@ -774,6 +797,72 @@ function QtyCell({ component, onSave }: { component: Component; onSave: (v: stri
   return (
     <NumInput value={v} onChange={setV} step={0.25} width={118}
       onCommit={(val) => { if (val !== String(component.quantity ?? '')) onSave(val); }} />
+  );
+}
+
+// Static three-lane "kanban" of every size/temp variant, bucketed by its COG
+// as a % of selling price against the drink's target: at-or-under target is
+// green, within 2 points over is yellow, beyond that red. Sizes that can't be
+// judged (no recipe, or no price to compare against) are listed separately.
+// Clicking a size jumps to its recipe view.
+function CogHealthBoard({ detail, driposPrices, isMobile, onPick }: {
+  detail: DrinkDetail; driposPrices: Record<number, number>; isMobile: boolean; onPick: (variantId: number) => void;
+}) {
+  const target = detail.effective_target_cogs_pct;
+  type Judged = { v: Variant; pct: number; price: number };
+  const judged: Judged[] = [];
+  const unjudged: { v: Variant; why: string }[] = [];
+  for (const v of detail.variants) {
+    const price = driposPrices[v.id] ?? v.menu_price;
+    if (v.components.length === 0) unjudged.push({ v, why: 'no recipe' });
+    else if (!price || price <= 0) unjudged.push({ v, why: 'no price' });
+    else judged.push({ v, pct: (v.variant_cog / price) * 100, price });
+  }
+  judged.sort((a, b) => b.pct - a.pct);
+
+  const lanes = [
+    { title: `On target · ≤ ${target}%`, color: '#16a34a', bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.35)', items: judged.filter((j) => j.pct <= target) },
+    { title: `Close · ${target}–${target + 2}%`, color: '#ca8a04', bg: 'rgba(202,138,4,0.08)', border: 'rgba(202,138,4,0.35)', items: judged.filter((j) => j.pct > target && j.pct <= target + 2) },
+    { title: `Needs work · > ${target + 2}%`, color: '#dc2626', bg: 'rgba(220,38,38,0.07)', border: 'rgba(220,38,38,0.35)', items: judged.filter((j) => j.pct > target + 2) },
+  ];
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
+        {lanes.map((lane) => (
+          <div key={lane.title} style={{ background: lane.bg, border: `1px solid ${lane.border}`, borderRadius: 12, padding: 12, minHeight: 120 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: lane.color }}>{lane.title}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.35)' }}>{lane.items.length}</span>
+            </div>
+            {lane.items.length === 0 && (
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.3)', padding: '10px 0', textAlign: 'center' }}>none</div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {lane.items.map(({ v, pct, price }) => (
+                <button key={v.id} onClick={() => onPick(v.id)} title="Open this size's recipe"
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+                    padding: '8px 10px', borderRadius: 9, border: '1px solid rgba(0,0,0,0.08)',
+                    background: '#fff', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%',
+                  }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 600, color: '#1a1a1a' }}>{v.label}</span>
+                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{money(v.variant_cog, 2)} / {money(price)}</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: lane.color }}>{pct.toFixed(1)}%</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {unjudged.length > 0 && (
+        <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>
+          Not shown: {unjudged.map(({ v, why }) => `${v.label} (${why})`).join(', ')}
+        </div>
+      )}
+    </div>
   );
 }
 
