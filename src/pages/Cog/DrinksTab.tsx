@@ -629,6 +629,8 @@ function VariantBlock({ variant, isMobile, canEdit, ingredients, recipes, dripos
   const price = driposPrice ?? variant.menu_price;
   const priceLabel = driposPrice != null ? 'Dripos price (live)' : 'Menu price';
   const margin = price && price > 0 ? ((price - variant.variant_cog) / price) * 100 : null;
+  // COG as a share of the selling price (the complement of margin).
+  const cogPct = price && price > 0 ? (variant.variant_cog / price) * 100 : null;
 
   const delComponent = async (cid: number) => {
     try { await api.delete(`/api/cog/components/${cid}`); onChanged(); }
@@ -649,6 +651,7 @@ function VariantBlock({ variant, isMobile, canEdit, ingredients, recipes, dripos
             <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
               <th style={th('left')}>Component</th>
               <th style={th('right')}>Qty</th>
+              <th style={th('right')}>% of COG</th>
               <th style={th('right')}>Unit cost</th>
               <th style={th('right')}>Line cost</th>
               {canEdit && <th style={th('right')}></th>}
@@ -656,7 +659,7 @@ function VariantBlock({ variant, isMobile, canEdit, ingredients, recipes, dripos
           </thead>
           <tbody>
             {variant.components.length === 0 && (
-              <tr><td colSpan={canEdit ? 5 : 4} style={{ padding: 20, textAlign: 'center', color: 'rgba(0,0,0,0.3)' }}>No components yet</td></tr>
+              <tr><td colSpan={canEdit ? 6 : 5} style={{ padding: 20, textAlign: 'center', color: 'rgba(0,0,0,0.3)' }}>No components yet</td></tr>
             )}
             {variant.components.map((c) => (
               <tr key={c.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
@@ -674,6 +677,9 @@ function VariantBlock({ variant, isMobile, canEdit, ingredients, recipes, dripos
                   ) : (c.quantity ?? '—')}
                   <span style={{ color: 'rgba(0,0,0,0.4)', marginLeft: 4 }}>{c.unit || c.source_unit || ''}</span>
                 </td>
+                <td style={{ ...td('right'), color: 'rgba(0,0,0,0.55)' }}>
+                  {variant.variant_cog > 0 ? `${((c.line_cost / variant.variant_cog) * 100).toFixed(1)}%` : '—'}
+                </td>
                 <td style={td('right')}>{money(c.unit_cost, 4)}{c.source_unit ? `/${c.source_unit}` : ''}</td>
                 <td style={{ ...td('right'), fontWeight: 600, color: '#1a1a1a' }}>{money(c.line_cost, 3)}</td>
                 {canEdit && <td style={td('right')}><button className="btn btn-danger btn-sm" onClick={() => delComponent(c.id)}>✕</button></td>}
@@ -690,7 +696,7 @@ function VariantBlock({ variant, isMobile, canEdit, ingredients, recipes, dripos
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12 }}>
-        <Total label="COG" value={money(variant.variant_cog, 3)} />
+        <Total label="COG" value={money(variant.variant_cog, 3)} sub={cogPct != null ? `${cogPct.toFixed(1)}% of price` : undefined} />
         <Total label={`Recommended @ ${variant.effective_target_cogs_pct}%`} value={variant.recommended_price != null ? money(variant.recommended_price) : '—'} accent />
         <Total label={priceLabel} value={price != null ? money(price) : '—'} color={driposPrice != null ? '#2563eb' : undefined} />
         <Total label="Margin" value={margin != null ? `${margin.toFixed(1)}%` : '—'}
@@ -771,11 +777,14 @@ function QtyCell({ component, onSave }: { component: Component; onSave: (v: stri
   );
 }
 
-function Total({ label, value, accent, color }: { label: string; value: string; accent?: boolean; color?: string }) {
+function Total({ label, value, sub, accent, color }: { label: string; value: string; sub?: string; accent?: boolean; color?: string }) {
   return (
     <div style={{ padding: '12px 14px', background: accent ? 'rgba(34,197,94,0.1)' : 'rgba(0,0,0,0.03)', borderRadius: 10 }}>
       <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 800, color: color ?? (accent ? '#16a34a' : '#1a1a1a') }}>{value}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: color ?? (accent ? '#16a34a' : '#1a1a1a') }}>
+        {value}
+        {sub && <span style={{ fontSize: 13, fontWeight: 700, color: 'rgba(0,0,0,0.45)', marginLeft: 8 }}>{sub}</span>}
+      </div>
     </div>
   );
 }
