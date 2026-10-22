@@ -1399,6 +1399,139 @@ router.delete('/cog/components/:id', requireAuth, (req: AuthRequest, res: Respon
   res.json({ success: true });
 });
 
+// --- Batch build write ---
+//
+// Replace a drink's entire build (all variants + components) in one call, so
+// a bot or script can enter a recipe without a dozen round-trips. Components
+// may name their source ("ingredient": "Whole Milk" / "recipe": "Chai Base")
+// instead of carrying ids; names resolve case-insensitively against the
+// ingredient catalog and batch recipes. Any unresolved name fails the whole
+// call with a per-line error list — nothing is written on failure.
+router.post('/cog/drinks/:id/build', requireAuth, (req: AuthRequest, res: Response) => {
+  const drink = db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(req.params.id) as any;
+  if (!drink) { res.status(404).json({ error: 'Drink not found' }); return; }
+
+  const variants = req.body?.variants;
+  if (!Array.isArray(variants) || variants.length === 0) {
+    res.status(400).json({ error: 'Body must be { variants: [...] } with at least one variant' });
+    return;
+  }
+
+  const masters = db.prepare('SELECT id, name FROM cog_ingredient_master').all() as Array<{ id: number; name: string }>;
+  const recipes = db.prepare('SELECT id, name FROM cog_recipes').all() as Array<{ id: number; name: string }>;
+  const norm = (s: unknown) => String(s ?? '').trim().toLowerCase();
+  // Exact (case-insensitive) match first; fall back to a *unique* substring
+  // match so "oat milk" finds "Oatly Oat Milk" but ambiguous names error out.
+  const resolveName = (list: Array<{ id: number; name: string }>, raw: string): { id?: number; error?: string } => {
+    const n = norm(raw);
+    const exact = list.filter((x) => norm(x.name) === n);
+    if (exact.length === 1) return { id: exact[0].id };
+    const partial = list.filter((x) => norm(x.name).includes(n));
+    if (partial.length === 1) return { id: partial[0].id };
+    if (partial.length > 1) return { error: `"${raw}" is ambiguous — matches: ${partial.slice(0, 6).map((x) => x.name).join(', ')}` };
+    return { error: `"${raw}" not found` };
+  };
+
+  type ParsedComponent = { component_type: 'ingredient' | 'recipe'; ingredient_id: number | null; recipe_id: number | null; quantity: number; unit: string | null; yield_percent: number };
+  type ParsedVariant = { label: string; temp: string | null; size: string | null; menu_price: number | null; target_cogs_pct: number | null; components: ParsedComponent[] };
+
+  const errors: string[] = [];
+  const parsed: ParsedVariant[] = variants.map((v: any, vi: number) => {
+    const where = `variants[${vi}]`;
+    const label = String(v?.label ?? '').trim();
+    if (!label) errors.push(`${where}: label is required`);
+    const comps = Array.isArray(v?.components) ? v.components : [];
+    const components: ParsedComponent[] = comps.map((c: any, ci: number) => {
+      const cwhere = `${where}.components[${ci}]`;
+      let type: 'ingredient' | 'recipe' | null =
+        c?.component_type === 'ingredient' || c?.component_type === 'recipe' ? c.component_type : null;
+      if (!type) {
+        // Infer the type from whichever reference the line carries.
+        if (c?.ingredient_id != null || c?.ingredient != null) type = 'ingredient';
+        else if (c?.recipe_id != null || c?.recipe != null) type = 'recipe';
+      }
+      let ingredient_id: number | null = null;
+      let recipe_id: number | null = null;
+      if (type === 'ingredient') {
+        if (c?.ingredient_id != null) ingredient_id = Number(c.ingredient_id);
+        else if (c?.ingredient != null) {
+          const r = resolveName(masters, String(c.ingredient));
+          if (r.error) errors.push(`${cwhere}: ingredient ${r.error} (check GET /api/cog/ingredients/master)`);
+          else ingredient_id = r.id!;
+        } else errors.push(`${cwhere}: ingredient_id or ingredient (name) is required`);
+        if (ingredient_id != null && !masters.some((m) => m.id === ingredient_id)) {
+          errors.push(`${cwhere}: ingredient_id ${ingredient_id} not found`);
+        }
+      } else if (type === 'recipe') {
+        if (c?.recipe_id != null) recipe_id = Number(c.recipe_id);
+        else if (c?.recipe != null) {
+          const r = resolveName(recipes, String(c.recipe));
+          if (r.error) errors.push(`${cwhere}: recipe ${r.error} (check GET /api/cog/recipes)`);
+          else recipe_id = r.id!;
+        } else errors.push(`${cwhere}: recipe_id or recipe (name) is required`);
+        if (recipe_id != null && !recipes.some((r) => r.id === recipe_id)) {
+          errors.push(`${cwhere}: recipe_id ${recipe_id} not found`);
+        }
+      } else {
+        errors.push(`${cwhere}: set component_type to 'ingredient' or 'recipe', or pass ingredient/recipe`);
+      }
+      const quantity = Number(c?.quantity);
+      if (!Number.isFinite(quantity) || quantity <= 0) errors.push(`${cwhere}: quantity must be a positive number`);
+      return {
+        component_type: (type ?? 'ingredient') as 'ingredient' | 'recipe',
+        ingredient_id, recipe_id, quantity,
+        unit: c?.unit != null ? String(c.unit).trim() : null,
+        yield_percent: c?.yield_percent != null ? Number(c.yield_percent) : 100,
+      };
+    });
+    return {
+      label,
+      temp: v?.temp ?? null,
+      size: v?.size ?? null,
+      menu_price: v?.menu_price != null ? Number(v.menu_price) : null,
+      target_cogs_pct: v?.target_cogs_pct != null ? Number(v.target_cogs_pct) : null,
+      components,
+    };
+  });
+
+  if (errors.length > 0) { res.status(400).json({ error: 'Build not saved', details: errors }); return; }
+
+  const writeBuild = db.transaction(() => {
+    db.prepare('DELETE FROM cog_drink_components WHERE drink_id = ?').run(drink.id);
+    db.prepare('DELETE FROM cog_drink_variants WHERE drink_id = ?').run(drink.id);
+    const insVariant = db.prepare(`
+      INSERT INTO cog_drink_variants (drink_id, label, temp, size, menu_price, target_cogs_pct, sort_order)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insComponent = db.prepare(`
+      INSERT INTO cog_drink_components (drink_id, variant_id, component_type, ingredient_id, recipe_id, quantity, unit, yield_percent, sort_order)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    parsed.forEach((v, vi) => {
+      const variantId = insVariant.run(drink.id, v.label, v.temp, v.size, v.menu_price, v.target_cogs_pct, vi).lastInsertRowid;
+      v.components.forEach((c, ci) => {
+        insComponent.run(drink.id, variantId, c.component_type, c.ingredient_id, c.recipe_id, c.quantity, c.unit, c.yield_percent, ci);
+      });
+    });
+    // An explicit full-build write is a deliberate entry, not an auto-fill.
+    db.prepare("UPDATE cog_drinks SET needs_confirm = 0, updated_at = datetime('now') WHERE id = ?").run(drink.id);
+  });
+  writeBuild();
+
+  const fresh = db.prepare('SELECT * FROM cog_drinks WHERE id = ?').get(drink.id) as any;
+  const out = drinkVariants(fresh.id, fresh.target_cogs_pct);
+  // Surface per-line warnings so a bot can self-check its write: a unit that
+  // doesn't match the catalog's pack unit usually means the cost is wrong.
+  const warnings: string[] = [];
+  for (const v of out as any[]) {
+    for (const c of v.components ?? []) {
+      if (c.unit_mismatch) warnings.push(`${v.label} / ${c.component_name}: unit "${c.unit}" doesn't match the catalog's "${c.source_unit}" — cost is computed per ${c.source_unit}`);
+      if (c.missing_source) warnings.push(`${v.label}: a component lost its ingredient/recipe link`);
+    }
+  }
+  res.json({ ...fresh, effective_target_cogs_pct: fresh.target_cogs_pct ?? defaultTargetPct(), variants: out, warnings });
+});
+
 // Fill drink recipes from the SOP library (newest season per drink), then
 // apply the baseline house build to still-uncosted flavored coffee drinks.
 // Idempotent — costed drinks are never touched; fills land needs_confirm=1.
