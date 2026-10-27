@@ -128,16 +128,42 @@ function dietLine(sop: Sop): string {
 }
 
 // Scale the giant drink title down as names get longer so they don't
-// blow the column width or wrap into 3 lines. Tuned against the title
-// column (~322pt wide) and IBM Plex Sans Bold metrics.
+// blow the column width or wrap into 3 lines. The length table tunes the
+// overall size; the width check then shrinks further until the longest
+// WORD fits the title column — a single word can't wrap (hyphenation is
+// off), so a wide name like "Butterbeer" would otherwise run under the
+// meta box.
+const TITLE_COL_W = 318; // 612 page − 2×38 padding − 200 meta box − 14 gap, less a hair
+
+// Rough per-glyph widths (em) for IBM Plex Sans Bold.
+function titleCharEm(ch: string): number {
+  if (/[MWmw]/.test(ch)) return 0.94;
+  if (/[ijl]/.test(ch)) return 0.3;
+  if (/[IJ]/.test(ch)) return 0.36;
+  if (/[ftr]/.test(ch)) return 0.42;
+  if (/[A-Z]/.test(ch)) return 0.7;
+  if (/[a-z0-9]/.test(ch)) return 0.58;
+  return 0.4;
+}
+
+function titleWordWidth(word: string, fontSize: number): number {
+  let em = 0;
+  for (const ch of word) em += titleCharEm(ch);
+  // letterSpacing is -2pt per gap, independent of font size.
+  return em * fontSize - 2 * Math.max(0, word.length - 1);
+}
+
 function titleFontSize(name: string): number {
   const len = (name || '').length;
-  if (len <= 11) return 72;
-  if (len <= 14) return 60;
-  if (len <= 18) return 52;
-  if (len <= 22) return 44;
-  if (len <= 26) return 38;
-  return 34;
+  let fs = 34;
+  if (len <= 11) fs = 72;
+  else if (len <= 14) fs = 60;
+  else if (len <= 18) fs = 52;
+  else if (len <= 22) fs = 44;
+  else if (len <= 26) fs = 38;
+  const longest = (name || '').split(/\s+/).reduce((a, b) => (titleWordWidth(b, 100) > titleWordWidth(a, 100) ? b : a), '');
+  while (fs > 20 && titleWordWidth(longest, fs) > TITLE_COL_W) fs -= 1;
+  return fs;
 }
 
 function storeLine(sop: Sop): string {
