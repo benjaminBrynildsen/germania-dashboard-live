@@ -2607,7 +2607,11 @@ function StoreOrderCard({
             : it.category === 'syrup-sauce' ? 'Syrups & sauces'
             : 'Custom items';
           return (
-            <Fragment key={it.name}>
+            // Key by store too: with an item-only key React reuses the row
+            // component across store switches, so a count typed at one store
+            // (not yet committed) stayed in the box at the next store and
+            // could silently save there on blur.
+            <Fragment key={`${store}:${it.name}`}>
               {showDivider && (
                 <div style={{
                   display: 'grid',
