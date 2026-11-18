@@ -31,6 +31,36 @@ function getTransport(): nodemailer.Transporter | null {
   return transporter;
 }
 
+export function emailConfigured(): boolean {
+  return !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
+}
+
+/**
+ * Send one message and wait for it. Unlike the Bake Haus notifier this
+ * throws when email isn't configured — for orders to an outside vendor the
+ * user must know it didn't go.
+ */
+export async function sendEmail(msg: {
+  to: string[];
+  cc?: string[];
+  replyTo?: string[];
+  subject: string;
+  html: string;
+  text?: string;
+}): Promise<void> {
+  const transport = getTransport();
+  if (!transport) throw new Error('Outgoing email isn\'t set up on the server (GMAIL_USER / GMAIL_APP_PASSWORD).');
+  await transport.sendMail({
+    from: `Germania Brew Haus <${process.env.GMAIL_USER}>`,
+    to: msg.to.join(', '),
+    cc: msg.cc?.length ? msg.cc.join(', ') : undefined,
+    replyTo: msg.replyTo?.length ? msg.replyTo.join(', ') : undefined,
+    subject: msg.subject,
+    html: msg.html,
+    text: msg.text,
+  });
+}
+
 function orderRecipients(): string[] {
   return (process.env.BAKE_HAUS_ORDER_EMAILS ?? '')
     .split(',')

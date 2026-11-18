@@ -16,6 +16,7 @@ const NAV_ITEMS: Array<{ to: string; label: string; exact?: boolean }> = [
   { to: '/locations', label: 'Locations', exact: false },
   { to: '/ticket-time', label: 'Ticket Time' },
   { to: '/bake-haus', label: 'Bake Haus' },
+  { to: '/ordering', label: 'Ordering' },
   { to: '/applicants', label: 'Applicants' },
 ];
 
