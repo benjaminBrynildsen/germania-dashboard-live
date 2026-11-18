@@ -14,6 +14,7 @@ import holidayRouter from './holiday-routes.js';
 import pairingsRouter from './pairings-routes.js';
 import sopRouter from './sop-routes.js';
 import menuRouter from './menu-routes.js';
+import supplyRouter from './supply-routes.js';
 import { seedHolidaysForYear } from './holidays.js';
 import { seedCogIfEmpty } from './seed-cog.js';
 import { startReviewSync } from './places.js';
@@ -36,6 +37,7 @@ app.use('/api', holidayRouter);
 app.use('/api', pairingsRouter);
 app.use('/api', sopRouter);
 app.use('/api', menuRouter);
+app.use('/api', supplyRouter);
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '..', 'dist');
